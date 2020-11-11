@@ -7,7 +7,7 @@ As a result, the Bicep type system implements a small subset of the capabilities
 ## Data Types
 Bicep has a [Structural type system](https://en.wikipedia.org/wiki/Structural_type_system). In other words, the assignability of types in Bicep is determined by the definition (or structure) of the type rather than its name. All types in Bicep do have names, but these are used as shorthand type identifiers in error messages and hover texts.
 
-The Bicep type system does not perform any automatic type conversion or coercion. Any such operations must be declared explicitly.
+The Bicep type system automatically infers the types of expressions but does not perform any automatic type conversion or coercion. Any such operations must be declared explicitly.
 
 All values in Bicep have one of the following types:
 
@@ -24,18 +24,47 @@ All values in Bicep have one of the following types:
 | `null` | Equivalent to `null` values in JSON. |
 
 ### Objects
-
-| `object` | Represents an object with properties. Equivalent to objects in JSON. |
+Objects in Bicep are equivalent to JSON objects. The `object` type represents "any object" or an object that allows any property of any type. When constructing an object value via object literal syntax, a narrower type may be inferred. 
 
 ### Arrays
-Arrays in Bicep are similar to JSON arrays. The `array` type represents an array of items where each item is of the `any` type. More strongly typed arrays may arise in various expressions. For example, an array of strings would be denoted by `string[]`.
-
-### Literal Types
+Arrays in Bicep are equivalent to JSON arrays. The `array` type represents an array of items where each item is of the `any` type. More strongly typed arrays may arise in various expressions. For example, an array of strings would be denoted by `string[]`.
 
 ### Union Types
+A union type is a type that represent a value that can one of several types. For example the type of a value that could either a string or an integer can be represented by the type `string | int`.
+
+### Literal Types
+As the name suggests, literal types are literal values that are treated as a type. In bicep, we only support string literal types. This allows a constant string value such as `'Hello!'` to be its own type. Literal types are most commonly used in conjunction with union types to construct enum types with a limited set of allowed values. For example the type `'One' | 'Two' | 'Three'` is a subtype of `string` that allows three values: `'One'`, `'Two'`, and `'Three'`.
 
 ## Type Assignability
+Type checking and validation in Bicep relies on the notion of assignability. Assignability determines whether a value of one type (source type) can be assigned to another type (target type).
 
+
+
+| Types | `any` | `error` | `string` | `number` | `int` | `bool` | `null` | `object` | `array` | `resource` | `module` | named resource | named module |
+|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|
+| `any`          |X| |X|X|X|X|X|X|X|X|X|X|X|X|X|
+| `error`        | | | | | | | | | | | | | | | |
+| `string`       |X| |X| | | | | | | | | | | | |
+| `number`       |X| | |X| | | | | | | | | | | |
+| `int`          |X| | | |X| | | | | | | | | | |
+| `bool`         |X| | | | |X| | | | | | | | | |
+| `null`         |X| | | | | |X| | | | | | | | |
+| `object`       |X| | | | | | |X| | | | | | | |
+| `array`        |X| | | | | | | |X| | | | | | |
+| `resource`     |X| | | | | | | | |?| |X| | | |
+| `module`       |X| | | | | | | | | |?| |X| | |
+| named resource |X| | | | | | | | | | | | | | |
+| named module   |X| | | | | | | | | | | | | | |
+
+The assignability matrix should be read as follows:
+- Target types are listed vertically
+- Source types are listed horizontally
+
+| Mark at intersection | Source type assignable to target type? |
+|:-|:-|
+| X | Yes |
+|   | No |
+| ? | Maybe |
 
 ## Contextual Types vs. Assigned Types
 
