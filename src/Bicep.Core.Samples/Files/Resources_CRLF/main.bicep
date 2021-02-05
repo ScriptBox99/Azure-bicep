@@ -37,7 +37,7 @@ resource myStorageAccount 'Microsoft.Storage/storageAccounts@2017-10-01' = {
 }
 
 resource withExpressions 'Microsoft.Storage/storageAccounts@2017-10-01' = {
-  name: 'myencryptedone'
+  name: 'myencryptedone2'
   location: 'eastus2'
   properties: {
     supportsHttpsTrafficOnly: !false
@@ -215,4 +215,54 @@ resource resourceWithEscaping 'My.Rp/mockResource@2020-01-01' = {
     // both key and value should be escaped in template output
     '[resourceGroup().location]': '[resourceGroup().location]'
   }
+}
+
+param shouldDeployVm bool = true
+resource vmWithCondition 'Microsoft.Compute/virtualMachines@2020-06-01' = if (shouldDeployVm) {
+  name: 'vmName'
+  location: 'westus'
+  properties: {
+    osProfile: {
+      windowsConfiguration: {
+        enableAutomaticUpdates: true
+      }
+    }
+  }
+}
+
+resource extension1 'My.Rp/extensionResource@2020-12-01' = {
+  name: 'extension'
+  scope: vmWithCondition
+}
+
+resource extension2 'My.Rp/extensionResource@2020-12-01' = {
+  name: 'extension'
+  scope: extension1
+}
+
+resource extensionDependencies 'My.Rp/mockResource@2020-01-01' = {
+  name: 'extensionDependencies'
+  properties: {
+    res1: vmWithCondition.id
+    res1runtime: vmWithCondition.properties.something
+    res2: extension1.id
+    res2runtime: extension1.properties.something
+    res3: extension2.id
+    res3runtime: extension2.properties.something
+  }
+}
+
+resource existing1 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+  name: 'existing1'
+  scope: extension1
+}
+
+resource existing2 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+  name: 'existing2'
+  scope: existing1
+}
+
+resource extension3 'My.Rp/extensionResource@2020-12-01' = {
+  name: 'extension3'
+  scope: existing1
 }

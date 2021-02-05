@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
-using Bicep.Core.Parser;
+using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
-using Bicep.Core.SemanticModel;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
 using Bicep.LangServer.IntegrationTests.Extensions;
@@ -49,7 +49,7 @@ namespace Bicep.LangServer.IntegrationTests
                 var response = await client.RequestDefinition(new DefinitionParams
                 {
                     TextDocument = new TextDocumentIdentifier(uri),
-                    Position = PositionHelper.GetPosition(lineStarts, syntax.Span.Position)
+                    Position = IntegrationTestHelper.GetPosition(lineStarts, syntax)
                 });
 
                 var link = ValidateDefinitionResponse(response);

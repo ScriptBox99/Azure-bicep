@@ -6,8 +6,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Navigation;
-using Bicep.Core.Parser;
-using Bicep.Core.SemanticModel;
+using Bicep.Core.Parsing;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Utils;
 
@@ -22,6 +22,8 @@ namespace Bicep.Core.TypeSystem
         private readonly IDictionary<DeclaredSymbol, IList<SyntaxBase>> declarationAccessDict;
 
         private DeclaredSymbol? currentDeclaration;
+
+        private SyntaxBase? currentDecorator;
 
         public static ImmutableDictionary<DeclaredSymbol, ImmutableArray<DeclaredSymbol>> FindCycles(ProgramSyntax programSyntax, IReadOnlyDictionary<string, DeclaredSymbol> declarations, IReadOnlyDictionary<SyntaxBase, Symbol> bindings)
         {
@@ -81,6 +83,12 @@ namespace Bicep.Core.TypeSystem
         {
             if (currentDeclaration == null)
             {
+                if (currentDecorator != null)
+                {
+                    // We are inside a dangling decorator.
+                    return;
+                }
+
                 throw new ArgumentException($"Variable access outside of declaration");
             }
 
@@ -88,11 +96,24 @@ namespace Bicep.Core.TypeSystem
             base.VisitVariableAccessSyntax(syntax);
         }
 
+        public override void VisitDecoratorSyntax(DecoratorSyntax syntax)
+        {
+            this.currentDecorator = syntax;
+            base.VisitDecoratorSyntax(syntax);
+            this.currentDecorator = null;
+        }
+
         public override void VisitFunctionCallSyntax(FunctionCallSyntax syntax)
         {
             if (currentDeclaration == null)
             {
-                throw new ArgumentException($"Function access outside of declaration");
+                if (currentDecorator != null)
+                {
+                    // We are inside a dangling decorator.
+                    return;
+                }
+
+                throw new ArgumentException($"Function access outside of declaration or decorator");
             }
 
             declarationAccessDict[currentDeclaration].Add(syntax);

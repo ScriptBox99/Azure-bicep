@@ -2,12 +2,11 @@
 // Licensed under the MIT License.
 
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using Azure.Deployments.Expression.Expressions;
 using Bicep.Core.Extensions;
-using Bicep.Core.SemanticModel;
-using Bicep.Core.SemanticModel.Namespaces;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
 using Newtonsoft.Json;
@@ -31,16 +30,17 @@ namespace Bicep.Core.Emit
         }.ToImmutableArray();
 
         private static ImmutableHashSet<string> ResourcePropertiesToOmit = new [] {
-            "dependsOn",
+            LanguageConstants.ResourceScopePropertyName,
+            LanguageConstants.ResourceDependsOnPropertyName,
         }.ToImmutableHashSet();
 
         private static ImmutableHashSet<string> ModulePropertiesToOmit = new [] {
             LanguageConstants.ModuleParamsPropertyName,
-            LanguageConstants.ModuleScopePropertyName,
-            "dependsOn",
+            LanguageConstants.ResourceScopePropertyName,
+            LanguageConstants.ResourceDependsOnPropertyName,
         }.ToImmutableHashSet();
 
-        private static SemanticModel.SemanticModel GetModuleSemanticModel(ModuleSymbol moduleSymbol)
+        private static SemanticModel GetModuleSemanticModel(ModuleSymbol moduleSymbol)
         {
             if (!moduleSymbol.TryGetSemanticModel(out var moduleSemanticModel, out _))
             {
@@ -55,26 +55,26 @@ namespace Bicep.Core.Emit
         private readonly EmitterContext context;
         private readonly ExpressionEmitter emitter;
 
-        public TemplateWriter(JsonTextWriter writer, SemanticModel.SemanticModel semanticModel)
+        public TemplateWriter(JsonTextWriter writer, SemanticModel semanticModel)
         {
             this.writer = writer;
             this.context = new EmitterContext(semanticModel);
             this.emitter = new ExpressionEmitter(writer, context);
         }
 
-        private static string GetSchema(ResourceScopeType targetScope)
+        private static string GetSchema(ResourceScope targetScope)
         {
-            if (targetScope.HasFlag(ResourceScopeType.TenantScope))
+            if (targetScope.HasFlag(ResourceScope.Tenant))
             {
                 return "https://schema.management.azure.com/schemas/2019-08-01/tenantDeploymentTemplate.json#";
             }
 
-            if (targetScope.HasFlag(ResourceScopeType.ManagementGroupScope))
+            if (targetScope.HasFlag(ResourceScope.ManagementGroup))
             {
                 return "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#";
             }
 
-            if (targetScope.HasFlag(ResourceScopeType.SubscriptionScope))
+            if (targetScope.HasFlag(ResourceScope.Subscription))
             {
                 return "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#";
             }
@@ -137,35 +137,77 @@ namespace Bicep.Core.Emit
 
             writer.WriteStartObject();
 
-            switch (parameterSymbol.Modifier)
+            if (parameterSymbol.DeclaringParameter.Decorators.Any())
             {
-                case null:
-                    this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, secure: false));
+                var parameterType = SyntaxFactory.CreateStringLiteral(primitiveType.Name);
+                var parameterObject = SyntaxFactory.CreateObject(SyntaxFactory.CreateObjectProperty("type", parameterType).AsEnumerable());
 
-                    break;
+                if (parameterSymbol.Modifier is ParameterDefaultValueSyntax defaultValueSyntax)
+                {
+                    parameterObject.MergeProperty("defaultValue", defaultValueSyntax.DefaultValue);
+                }
 
-                case ParameterDefaultValueSyntax defaultValueSyntax:
-                    this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, secure: false));
-                    this.emitter.EmitProperty("defaultValue", defaultValueSyntax.DefaultValue);
+                foreach (var decoratorSyntax in parameterSymbol.DeclaringParameter.Decorators.Reverse())
+                {
 
-                    break;
+                    var symbol = this.context.SemanticModel.GetSymbolInfo(decoratorSyntax.Expression);
 
-                case ObjectSyntax modifierSyntax:
-                    // this would throw on duplicate properties in the object node - we are relying on emitter checking for errors at the beginning
-                    var properties = modifierSyntax.ToKnownPropertyValueDictionary();
-
-                    this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, IsSecure(properties.TryGetValue("secure"))));
-
-                    // relying on validation here as well (not all of the properties are valid in all contexts)
-                    foreach (string modifierPropertyName in ParameterModifierPropertiesToEmitDirectly)
+                    if (symbol is FunctionSymbol decoratorSymbol)
                     {
-                        this.emitter.EmitOptionalPropertyExpression(modifierPropertyName, properties.TryGetValue(modifierPropertyName));
-                    }
+                        var argumentTypes = decoratorSyntax.Arguments
+                            .Select(argument => this.context.SemanticModel.TypeManager.GetTypeInfo(argument))
+                            .ToArray();
 
-                    this.emitter.EmitOptionalPropertyExpression("defaultValue", properties.TryGetValue(LanguageConstants.ParameterDefaultPropertyName));
-                    this.emitter.EmitOptionalPropertyExpression("allowedValues", properties.TryGetValue(LanguageConstants.ParameterAllowedPropertyName));
-                    
-                    break;
+                        // There should be exact one matching decorator since there's no errors.
+                        Decorator decorator = this.context.SemanticModel.Root.ImportedNamespaces
+                            .SelectMany(ns => ns.Value.Type.DecoratorResolver.GetMatches(decoratorSymbol, argumentTypes))
+                            .Single();
+                        
+                        parameterObject = decorator.Evaluate(decoratorSyntax, primitiveType, parameterObject);
+                    }
+                }
+
+                foreach (var property in parameterObject.Properties)
+                {
+                    if (property.TryGetKeyText() is string propertyName)
+                    {
+                        this.emitter.EmitProperty(propertyName, property.Value);
+                    }
+                }
+            }
+            else
+            {
+                // TODO: remove this before the 0.3 release.
+                switch (parameterSymbol.Modifier)
+                {
+                    case null:
+                        this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, secure: false));
+
+                        break;
+
+                    case ParameterDefaultValueSyntax defaultValueSyntax:
+                        this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, secure: false));
+                        this.emitter.EmitProperty("defaultValue", defaultValueSyntax.DefaultValue);
+
+                        break;
+
+                    case ObjectSyntax modifierSyntax:
+                        // this would throw on duplicate properties in the object node - we are relying on emitter checking for errors at the beginning
+                        var properties = modifierSyntax.ToKnownPropertyValueDictionary();
+
+                        this.emitter.EmitProperty("type", GetTemplateTypeName(primitiveType, IsSecure(properties.TryGetValue("secure"))));
+
+                        // relying on validation here as well (not all of the properties are valid in all contexts)
+                        foreach (string modifierPropertyName in ParameterModifierPropertiesToEmitDirectly)
+                        {
+                            this.emitter.EmitOptionalPropertyExpression(modifierPropertyName, properties.TryGetValue(modifierPropertyName));
+                        }
+
+                        this.emitter.EmitOptionalPropertyExpression("defaultValue", properties.TryGetValue(LanguageConstants.ParameterDefaultPropertyName));
+                        this.emitter.EmitOptionalPropertyExpression("allowedValues", properties.TryGetValue(LanguageConstants.ParameterAllowedPropertyName));
+                        
+                        break;
+                }
             }
 
             writer.WriteEndObject();
@@ -206,6 +248,11 @@ namespace Bicep.Core.Emit
 
             foreach (var resourceSymbol in this.context.SemanticModel.Root.ResourceDeclarations)
             {
+                if (resourceSymbol.DeclaringResource.IsExistingResource())
+                {
+                    continue;
+                }
+                
                 this.EmitResource(resourceSymbol);
             }
 
@@ -222,10 +269,20 @@ namespace Bicep.Core.Emit
             writer.WriteStartObject();
 
             var typeReference = EmitHelpers.GetTypeReference(resourceSymbol);
+            var body = resourceSymbol.DeclaringResource.Value;
+            if (body is IfConditionSyntax ifCondition)
+            {
+                body = ifCondition.Body;
+                this.emitter.EmitProperty("condition", ifCondition.ConditionExpression);
+            }
 
             this.emitter.EmitProperty("type", typeReference.FullyQualifiedType);
             this.emitter.EmitProperty("apiVersion", typeReference.ApiVersion);
-            this.emitter.EmitObjectProperties((ObjectSyntax) resourceSymbol.Body, ResourcePropertiesToOmit);
+            if (context.SemanticModel.EmitLimitationInfo.ResourceScopeData.TryGetValue(resourceSymbol, out var scopeData) && scopeData.ResourceScopeSymbol is { } scopeResource)
+            {
+                this.emitter.EmitProperty("scope", () => this.emitter.EmitUnqualifiedResourceId(scopeResource));
+            }
+            this.emitter.EmitObjectProperties((ObjectSyntax)body, ResourcePropertiesToOmit);
 
             // dependsOn is currently not allowed as a top-level resource property in bicep
             // we will need to revisit this and probably merge the two if we decide to allow it
@@ -236,10 +293,8 @@ namespace Bicep.Core.Emit
 
         private void EmitModuleParameters(ModuleSymbol moduleSymbol)
         {
-            var moduleBody = (ObjectSyntax)moduleSymbol.DeclaringModule.Body;
-            var paramsBody = moduleBody.Properties.FirstOrDefault(p => LanguageConstants.IdentifierComparer.Equals(p.TryGetKeyText(), LanguageConstants.ModuleParamsPropertyName));
-
-            if (!(paramsBody?.Value is ObjectSyntax paramsObjectSyntax))
+            var paramsValue = moduleSymbol.SafeGetBodyPropertyValue(LanguageConstants.ModuleParamsPropertyName);
+            if (paramsValue is not ObjectSyntax paramsObjectSyntax)
             {
                 // 'params' is optional if the module has no required params
                 return;
@@ -262,7 +317,7 @@ namespace Bicep.Core.Emit
                     writer.WriteStartObject();
                     this.emitter.EmitProperty("value", propertySyntax.Value);
                     writer.WriteEndObject();
-                }                        
+                }
             }
 
             writer.WriteEndObject();
@@ -272,17 +327,44 @@ namespace Bicep.Core.Emit
         {
             writer.WriteStartObject();
 
+            var body = moduleSymbol.DeclaringModule.Value;
+            if (body is IfConditionSyntax ifCondition)
+            {
+                body = ifCondition.Body;
+                this.emitter.EmitProperty("condition", ifCondition.ConditionExpression);
+            }
+
             this.emitter.EmitProperty("type", NestedDeploymentResourceType);
             this.emitter.EmitProperty("apiVersion", NestedDeploymentResourceApiVersion);
 
             // emit all properties apart from 'params'. In practice, this currrently only allows 'name', but we may choose to allow other top-level resource properties in future.
             // params requires special handling (see below).
-            var moduleBody = (ObjectSyntax) moduleSymbol.DeclaringModule.Body;
+            this.emitter.EmitObjectProperties((ObjectSyntax)body, ModulePropertiesToOmit);
 
-            this.emitter.EmitObjectProperties(moduleBody, ModulePropertiesToOmit);
 
             var scopeData = context.ModuleScopeData[moduleSymbol];
-            ScopeHelper.EmitModuleScopeProperties(scopeData, emitter);
+            ScopeHelper.EmitModuleScopeProperties(context.SemanticModel.TargetScope, scopeData, emitter);
+
+            if (scopeData.RequestedScope != ResourceScope.ResourceGroup)
+            {
+                // if we're deploying to a scope other than resource group, we need to supply a location
+                if (this.context.SemanticModel.TargetScope == ResourceScope.ResourceGroup)
+                {
+                    // the deployment() object at resource group scope does not contain a property named 'location', so we have to use resourceGroup().location
+                    this.emitter.EmitProperty("location", new FunctionExpression(
+                        "resourceGroup",
+                        new LanguageExpression[] { },
+                        new LanguageExpression[] { new JTokenExpression("location") }));
+                }
+                else
+                {
+                    // at all other scopes we can just use deployment().location
+                    this.emitter.EmitProperty("location", new FunctionExpression(
+                        "deployment",
+                        new LanguageExpression[] { },
+                        new LanguageExpression[] { new JTokenExpression("location") }));
+                }
+            }
 
             writer.WritePropertyName("properties");
             {
@@ -330,11 +412,13 @@ namespace Bicep.Core.Emit
                 switch (dependency)
                 {
                     case ResourceSymbol resourceDependency:
-                        var typeReference = EmitHelpers.GetTypeReference(resourceDependency);
-                        emitter.EmitResourceIdReference(resourceDependency.DeclaringResource, typeReference);
+                        if (!resourceDependency.DeclaringResource.IsExistingResource())
+                        {
+                            emitter.EmitResourceIdReference(resourceDependency);
+                        }
                         break;
                     case ModuleSymbol moduleDependency:
-                        emitter.EmitModuleResourceIdExpression(moduleDependency);
+                        emitter.EmitResourceIdReference(moduleDependency);
                         break;
                     default:
                         throw new InvalidOperationException($"Found dependency '{dependency.Name}' of unexpected type {dependency.GetType()}");

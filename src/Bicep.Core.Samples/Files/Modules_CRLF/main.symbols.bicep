@@ -26,6 +26,14 @@ module modB './child/moduleb.bicep' = {
   }
 }
 
+module modBWithCondition './child/moduleb.bicep' = if (1 + 1 == 2) {
+//@[7:24) Module modBWithCondition. Type: module. Declaration start char: 0, length: 143
+  name: 'modBWithCondition'
+  params: {
+    location: 'East US'
+  }
+}
+
 module optionalWithNoParams1 './child/optionalParams.bicep'= {
 //@[7:28) Module optionalWithNoParams1. Type: module. Declaration start char: 0, length: 98
   name: 'optionalWithNoParams1'
@@ -40,7 +48,7 @@ module optionalWithNoParams2 './child/optionalParams.bicep'= {
 
 module optionalWithAllParams './child/optionalParams.bicep'= {
 //@[7:28) Module optionalWithAllParams. Type: module. Declaration start char: 0, length: 210
-  name: 'optionalWithNoParams2'
+  name: 'optionalWithNoParams3'
   params: {
     optionalString: 'abc'
     optionalInt: 42

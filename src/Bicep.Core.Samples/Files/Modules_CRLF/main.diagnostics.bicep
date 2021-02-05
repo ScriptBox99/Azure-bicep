@@ -23,6 +23,13 @@ module modB './child/moduleb.bicep' = {
   }
 }
 
+module modBWithCondition './child/moduleb.bicep' = if (1 + 1 == 2) {
+  name: 'modBWithCondition'
+  params: {
+    location: 'East US'
+  }
+}
+
 module optionalWithNoParams1 './child/optionalParams.bicep'= {
   name: 'optionalWithNoParams1'
 }
@@ -34,7 +41,7 @@ module optionalWithNoParams2 './child/optionalParams.bicep'= {
 }
 
 module optionalWithAllParams './child/optionalParams.bicep'= {
-  name: 'optionalWithNoParams2'
+  name: 'optionalWithNoParams3'
   params: {
     optionalString: 'abc'
     optionalInt: 42

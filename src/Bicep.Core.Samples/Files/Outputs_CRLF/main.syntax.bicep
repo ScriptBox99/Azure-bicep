@@ -20,8 +20,8 @@ output myInt int = 7
 //@[13:16)  TypeSyntax
 //@[13:16)   Identifier |int|
 //@[17:18)  Assignment |=|
-//@[19:20)  NumericLiteralSyntax
-//@[19:20)   Number |7|
+//@[19:20)  IntegerLiteralSyntax
+//@[19:20)   Integer |7|
 //@[20:22) NewLine |\r\n|
 output myOtherInt int = 20 / 13 + 80 % -4
 //@[0:41) OutputDeclarationSyntax
@@ -33,20 +33,20 @@ output myOtherInt int = 20 / 13 + 80 % -4
 //@[22:23)  Assignment |=|
 //@[24:41)  BinaryOperationSyntax
 //@[24:31)   BinaryOperationSyntax
-//@[24:26)    NumericLiteralSyntax
-//@[24:26)     Number |20|
+//@[24:26)    IntegerLiteralSyntax
+//@[24:26)     Integer |20|
 //@[27:28)    Slash |/|
-//@[29:31)    NumericLiteralSyntax
-//@[29:31)     Number |13|
+//@[29:31)    IntegerLiteralSyntax
+//@[29:31)     Integer |13|
 //@[32:33)   Plus |+|
 //@[34:41)   BinaryOperationSyntax
-//@[34:36)    NumericLiteralSyntax
-//@[34:36)     Number |80|
+//@[34:36)    IntegerLiteralSyntax
+//@[34:36)     Integer |80|
 //@[37:38)    Modulo |%|
 //@[39:41)    UnaryOperationSyntax
 //@[39:40)     Minus |-|
-//@[40:41)     NumericLiteralSyntax
-//@[40:41)      Number |4|
+//@[40:41)     IntegerLiteralSyntax
+//@[40:41)      Integer |4|
 //@[41:45) NewLine |\r\n\r\n|
 
 output myBool bool = !false
@@ -128,8 +128,8 @@ output obj object = {
 //@[2:3)    IdentifierSyntax
 //@[2:3)     Identifier |b|
 //@[3:4)    Colon |:|
-//@[5:7)    NumericLiteralSyntax
-//@[5:7)     Number |12|
+//@[5:7)    IntegerLiteralSyntax
+//@[5:7)     Integer |12|
 //@[7:9)   NewLine |\r\n|
   c: true
 //@[2:9)   ObjectPropertySyntax
@@ -157,18 +157,18 @@ output obj object = {
 //@[9:11)     NewLine |\r\n|
     1
 //@[4:5)     ArrayItemSyntax
-//@[4:5)      NumericLiteralSyntax
-//@[4:5)       Number |1|
+//@[4:5)      IntegerLiteralSyntax
+//@[4:5)       Integer |1|
 //@[5:7)     NewLine |\r\n|
     2
 //@[4:5)     ArrayItemSyntax
-//@[4:5)      NumericLiteralSyntax
-//@[4:5)       Number |2|
+//@[4:5)      IntegerLiteralSyntax
+//@[4:5)       Integer |2|
 //@[5:7)     NewLine |\r\n|
     3
 //@[4:5)     ArrayItemSyntax
-//@[4:5)      NumericLiteralSyntax
-//@[4:5)       Number |3|
+//@[4:5)      IntegerLiteralSyntax
+//@[4:5)       Integer |3|
 //@[5:7)     NewLine |\r\n|
     null
 //@[4:8)     ArrayItemSyntax
@@ -273,42 +273,35 @@ output rgLocation string = resourceGroup().location
 //@[43:51)    Identifier |location|
 //@[51:55) NewLine |\r\n\r\n|
 
-output crossRegion bool = resourceGroup().location == deployment().location ? false : true
-//@[0:90) OutputDeclarationSyntax
+output isWestUs bool = resourceGroup().location != 'westus' ? false : true
+//@[0:74) OutputDeclarationSyntax
 //@[0:6)  Identifier |output|
-//@[7:18)  IdentifierSyntax
-//@[7:18)   Identifier |crossRegion|
-//@[19:23)  TypeSyntax
-//@[19:23)   Identifier |bool|
-//@[24:25)  Assignment |=|
-//@[26:90)  TernaryOperationSyntax
-//@[26:75)   BinaryOperationSyntax
-//@[26:50)    PropertyAccessSyntax
-//@[26:41)     FunctionCallSyntax
-//@[26:39)      IdentifierSyntax
-//@[26:39)       Identifier |resourceGroup|
-//@[39:40)      LeftParen |(|
-//@[40:41)      RightParen |)|
-//@[41:42)     Dot |.|
-//@[42:50)     IdentifierSyntax
-//@[42:50)      Identifier |location|
-//@[51:53)    Equals |==|
-//@[54:75)    PropertyAccessSyntax
-//@[54:66)     FunctionCallSyntax
-//@[54:64)      IdentifierSyntax
-//@[54:64)       Identifier |deployment|
-//@[64:65)      LeftParen |(|
-//@[65:66)      RightParen |)|
-//@[66:67)     Dot |.|
-//@[67:75)     IdentifierSyntax
-//@[67:75)      Identifier |location|
-//@[76:77)   Question |?|
-//@[78:83)   BooleanLiteralSyntax
-//@[78:83)    FalseKeyword |false|
-//@[84:85)   Colon |:|
-//@[86:90)   BooleanLiteralSyntax
-//@[86:90)    TrueKeyword |true|
-//@[90:94) NewLine |\r\n\r\n|
+//@[7:15)  IdentifierSyntax
+//@[7:15)   Identifier |isWestUs|
+//@[16:20)  TypeSyntax
+//@[16:20)   Identifier |bool|
+//@[21:22)  Assignment |=|
+//@[23:74)  TernaryOperationSyntax
+//@[23:59)   BinaryOperationSyntax
+//@[23:47)    PropertyAccessSyntax
+//@[23:38)     FunctionCallSyntax
+//@[23:36)      IdentifierSyntax
+//@[23:36)       Identifier |resourceGroup|
+//@[36:37)      LeftParen |(|
+//@[37:38)      RightParen |)|
+//@[38:39)     Dot |.|
+//@[39:47)     IdentifierSyntax
+//@[39:47)      Identifier |location|
+//@[48:50)    NotEquals |!=|
+//@[51:59)    StringSyntax
+//@[51:59)     StringComplete |'westus'|
+//@[60:61)   Question |?|
+//@[62:67)   BooleanLiteralSyntax
+//@[62:67)    FalseKeyword |false|
+//@[68:69)   Colon |:|
+//@[70:74)   BooleanLiteralSyntax
+//@[70:74)    TrueKeyword |true|
+//@[74:78) NewLine |\r\n\r\n|
 
 output expressionBasedIndexer string = {
 //@[0:140) OutputDeclarationSyntax

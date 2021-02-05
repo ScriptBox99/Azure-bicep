@@ -25,6 +25,9 @@
     "textEdit": {
       "range": {},
       "newText": "any($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -39,6 +42,9 @@
     "textEdit": {
       "range": {},
       "newText": "array($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -95,6 +101,9 @@
     "textEdit": {
       "range": {},
       "newText": "base64($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -109,6 +118,9 @@
     "textEdit": {
       "range": {},
       "newText": "base64ToJson($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -123,6 +135,9 @@
     "textEdit": {
       "range": {},
       "newText": "base64ToString($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -137,6 +152,9 @@
     "textEdit": {
       "range": {},
       "newText": "bool($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -151,6 +169,9 @@
     "textEdit": {
       "range": {},
       "newText": "coalesce($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -165,6 +186,20 @@
     "textEdit": {
       "range": {},
       "newText": "commaOne"
+    }
+  },
+  {
+    "label": "commaOneWithDecorator",
+    "kind": "field",
+    "detail": "commaOneWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_commaOneWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "commaOneWithDecorator"
     }
   },
   {
@@ -193,6 +228,9 @@
     "textEdit": {
       "range": {},
       "newText": "concat($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -207,6 +245,9 @@
     "textEdit": {
       "range": {},
       "newText": "contains($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -221,6 +262,9 @@
     "textEdit": {
       "range": {},
       "newText": "dataUri($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -235,6 +279,9 @@
     "textEdit": {
       "range": {},
       "newText": "dataUriToString($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -249,6 +296,9 @@
     "textEdit": {
       "range": {},
       "newText": "dateTimeAdd($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -305,6 +355,9 @@
     "textEdit": {
       "range": {},
       "newText": "empty($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -322,6 +375,20 @@
     }
   },
   {
+    "label": "emptyAllowedIntWithDecorator",
+    "kind": "field",
+    "detail": "emptyAllowedIntWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_emptyAllowedIntWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "emptyAllowedIntWithDecorator"
+    }
+  },
+  {
     "label": "emptyAllowedString",
     "kind": "field",
     "detail": "emptyAllowedString",
@@ -336,6 +403,20 @@
     }
   },
   {
+    "label": "emptyAllowedStringWithDecorator",
+    "kind": "field",
+    "detail": "emptyAllowedStringWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_emptyAllowedStringWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "emptyAllowedStringWithDecorator"
+    }
+  },
+  {
     "label": "endsWith",
     "kind": "function",
     "detail": "endsWith()",
@@ -347,6 +428,9 @@
     "textEdit": {
       "range": {},
       "newText": "endsWith($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -378,6 +462,20 @@
     }
   },
   {
+    "label": "expressionInModifierWithDecorator",
+    "kind": "field",
+    "detail": "expressionInModifierWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_expressionInModifierWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "expressionInModifierWithDecorator"
+    }
+  },
+  {
     "label": "extensionResourceId",
     "kind": "function",
     "detail": "extensionResourceId()",
@@ -389,6 +487,9 @@
     "textEdit": {
       "range": {},
       "newText": "extensionResourceId($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -403,6 +504,9 @@
     "textEdit": {
       "range": {},
       "newText": "first($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -417,6 +521,9 @@
     "textEdit": {
       "range": {},
       "newText": "format($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -431,6 +538,23 @@
     "textEdit": {
       "range": {},
       "newText": "guid($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "incompleteDecorators",
+    "kind": "field",
+    "detail": "incompleteDecorators",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_incompleteDecorators",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "incompleteDecorators"
     }
   },
   {
@@ -445,6 +569,9 @@
     "textEdit": {
       "range": {},
       "newText": "indexOf($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -459,6 +586,9 @@
     "textEdit": {
       "range": {},
       "newText": "int($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -487,6 +617,9 @@
     "textEdit": {
       "range": {},
       "newText": "intersection($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -501,6 +634,9 @@
     "textEdit": {
       "range": {},
       "newText": "json($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -515,6 +651,9 @@
     "textEdit": {
       "range": {},
       "newText": "last($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -529,6 +668,9 @@
     "textEdit": {
       "range": {},
       "newText": "lastIndexOf($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -543,6 +685,9 @@
     "textEdit": {
       "range": {},
       "newText": "length($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -588,6 +733,23 @@
     }
   },
   {
+    "label": "managementGroup",
+    "kind": "function",
+    "detail": "managementGroup()",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_managementGroup",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "managementGroup($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
     "label": "max",
     "kind": "function",
     "detail": "max()",
@@ -599,6 +761,9 @@
     "textEdit": {
       "range": {},
       "newText": "max($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -613,6 +778,9 @@
     "textEdit": {
       "range": {},
       "newText": "min($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -798,6 +966,20 @@
     }
   },
   {
+    "label": "nonCompileTimeConstantWithDecorator",
+    "kind": "field",
+    "detail": "nonCompileTimeConstantWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_nonCompileTimeConstantWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "nonCompileTimeConstantWithDecorator"
+    }
+  },
+  {
     "label": "padLeft",
     "kind": "function",
     "detail": "padLeft()",
@@ -809,6 +991,9 @@
     "textEdit": {
       "range": {},
       "newText": "padLeft($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -994,6 +1179,20 @@
     }
   },
   {
+    "label": "paramModifierSelfCycleWithDecorator",
+    "kind": "field",
+    "detail": "paramModifierSelfCycleWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_paramModifierSelfCycleWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "paramModifierSelfCycleWithDecorator"
+    }
+  },
+  {
     "label": "paramModifierTwoCycle1",
     "kind": "field",
     "detail": "paramModifierTwoCycle1",
@@ -1047,6 +1246,9 @@
     "textEdit": {
       "range": {},
       "newText": "pickZones($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1061,6 +1263,9 @@
     "textEdit": {
       "range": {},
       "newText": "providers($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1075,6 +1280,9 @@
     "textEdit": {
       "range": {},
       "newText": "range($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1089,6 +1297,9 @@
     "textEdit": {
       "range": {},
       "newText": "reference($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1103,6 +1314,9 @@
     "textEdit": {
       "range": {},
       "newText": "replace($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1117,6 +1331,9 @@
     "textEdit": {
       "range": {},
       "newText": "resourceGroup($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1131,6 +1348,9 @@
     "textEdit": {
       "range": {},
       "newText": "resourceId($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1176,6 +1396,20 @@
     }
   },
   {
+    "label": "secureIntWithDecorator",
+    "kind": "field",
+    "detail": "secureIntWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_secureIntWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "secureIntWithDecorator"
+    }
+  },
+  {
     "label": "skip",
     "kind": "function",
     "detail": "skip()",
@@ -1187,6 +1421,9 @@
     "textEdit": {
       "range": {},
       "newText": "skip($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1204,6 +1441,48 @@
     }
   },
   {
+    "label": "someArrayWithDecorator",
+    "kind": "field",
+    "detail": "someArrayWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_someArrayWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "someArrayWithDecorator"
+    }
+  },
+  {
+    "label": "someInteger",
+    "kind": "field",
+    "detail": "someInteger",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_someInteger",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "someInteger"
+    }
+  },
+  {
+    "label": "someString",
+    "kind": "field",
+    "detail": "someString",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_someString",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "someString"
+    }
+  },
+  {
     "label": "split",
     "kind": "function",
     "detail": "split()",
@@ -1215,6 +1494,9 @@
     "textEdit": {
       "range": {},
       "newText": "split($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1229,6 +1511,9 @@
     "textEdit": {
       "range": {},
       "newText": "startsWith($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1243,6 +1528,9 @@
     "textEdit": {
       "range": {},
       "newText": "string($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1313,6 +1601,9 @@
     "textEdit": {
       "range": {},
       "newText": "subscription($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1327,6 +1618,9 @@
     "textEdit": {
       "range": {},
       "newText": "subscriptionResourceId($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1341,6 +1635,9 @@
     "textEdit": {
       "range": {},
       "newText": "substring($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1369,6 +1666,9 @@
     "textEdit": {
       "range": {},
       "newText": "take($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1397,6 +1697,9 @@
     "textEdit": {
       "range": {},
       "newText": "tenantResourceId($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1411,6 +1714,9 @@
     "textEdit": {
       "range": {},
       "newText": "toLower($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1425,6 +1731,51 @@
     "textEdit": {
       "range": {},
       "newText": "toUpper($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "tooManyArguments1",
+    "kind": "field",
+    "detail": "tooManyArguments1",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_tooManyArguments1",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "tooManyArguments1"
+    }
+  },
+  {
+    "label": "tooManyArguments2",
+    "kind": "field",
+    "detail": "tooManyArguments2",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_tooManyArguments2",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "tooManyArguments2"
+    }
+  },
+  {
+    "label": "trailingSpace",
+    "kind": "field",
+    "detail": "trailingSpace",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_trailingSpace",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "trailingSpace"
     }
   },
   {
@@ -1439,6 +1790,9 @@
     "textEdit": {
       "range": {},
       "newText": "trim($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1453,6 +1807,9 @@
     "textEdit": {
       "range": {},
       "newText": "union($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1467,6 +1824,9 @@
     "textEdit": {
       "range": {},
       "newText": "uniqueString($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1481,6 +1841,9 @@
     "textEdit": {
       "range": {},
       "newText": "uri($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1495,6 +1858,9 @@
     "textEdit": {
       "range": {},
       "newText": "uriComponent($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1509,6 +1875,9 @@
     "textEdit": {
       "range": {},
       "newText": "uriComponentToString($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1523,6 +1892,9 @@
     "textEdit": {
       "range": {},
       "newText": "utcNow($0)"
+    },
+    "command": {
+      "command": "editor.action.triggerParameterHints"
     }
   },
   {
@@ -1568,6 +1940,20 @@
     }
   },
   {
+    "label": "wrongIntModifierWithDecorator",
+    "kind": "field",
+    "detail": "wrongIntModifierWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_wrongIntModifierWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "wrongIntModifierWithDecorator"
+    }
+  },
+  {
     "label": "wrongMetadataSchema",
     "kind": "field",
     "detail": "wrongMetadataSchema",
@@ -1579,6 +1965,20 @@
     "textEdit": {
       "range": {},
       "newText": "wrongMetadataSchema"
+    }
+  },
+  {
+    "label": "wrongMetadataSchemaWithDecorator",
+    "kind": "field",
+    "detail": "wrongMetadataSchemaWithDecorator",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_wrongMetadataSchemaWithDecorator",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "asIs",
+    "textEdit": {
+      "range": {},
+      "newText": "wrongMetadataSchemaWithDecorator"
     }
   },
   {

@@ -40,8 +40,8 @@ resource myStorageAccount 'Microsoft.Storage/storageAccounts@2017-10-01' = {
 }
 
 resource withExpressions 'Microsoft.Storage/storageAccounts@2017-10-01' = {
-//@[9:24) Resource withExpressions. Type: Microsoft.Storage/storageAccounts@2017-10-01. Declaration start char: 0, length: 538
-  name: 'myencryptedone'
+//@[9:24) Resource withExpressions. Type: Microsoft.Storage/storageAccounts@2017-10-01. Declaration start char: 0, length: 539
+  name: 'myencryptedone2'
   location: 'eastus2'
   properties: {
     supportsHttpsTrafficOnly: !false
@@ -248,4 +248,62 @@ resource resourceWithEscaping 'My.Rp/mockResource@2020-01-01' = {
     // both key and value should be escaped in template output
     '[resourceGroup().location]': '[resourceGroup().location]'
   }
+}
+
+param shouldDeployVm bool = true
+//@[6:20) Parameter shouldDeployVm. Type: bool. Declaration start char: 0, length: 32
+resource vmWithCondition 'Microsoft.Compute/virtualMachines@2020-06-01' = if (shouldDeployVm) {
+//@[9:24) Resource vmWithCondition. Type: Microsoft.Compute/virtualMachines@2020-06-01. Declaration start char: 0, length: 263
+  name: 'vmName'
+  location: 'westus'
+  properties: {
+    osProfile: {
+      windowsConfiguration: {
+        enableAutomaticUpdates: true
+      }
+    }
+  }
+}
+
+resource extension1 'My.Rp/extensionResource@2020-12-01' = {
+//@[9:19) Resource extension1. Type: My.Rp/extensionResource@2020-12-01. Declaration start char: 0, length: 110
+  name: 'extension'
+  scope: vmWithCondition
+}
+
+resource extension2 'My.Rp/extensionResource@2020-12-01' = {
+//@[9:19) Resource extension2. Type: My.Rp/extensionResource@2020-12-01. Declaration start char: 0, length: 105
+  name: 'extension'
+  scope: extension1
+}
+
+resource extensionDependencies 'My.Rp/mockResource@2020-01-01' = {
+//@[9:30) Resource extensionDependencies. Type: My.Rp/mockResource@2020-01-01. Declaration start char: 0, length: 359
+  name: 'extensionDependencies'
+  properties: {
+    res1: vmWithCondition.id
+    res1runtime: vmWithCondition.properties.something
+    res2: extension1.id
+    res2runtime: extension1.properties.something
+    res3: extension2.id
+    res3runtime: extension2.properties.something
+  }
+}
+
+resource existing1 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+//@[9:18) Resource existing1. Type: Mock.Rp/existingExtensionResource@2020-01-01. Declaration start char: 0, length: 123
+  name: 'existing1'
+  scope: extension1
+}
+
+resource existing2 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+//@[9:18) Resource existing2. Type: Mock.Rp/existingExtensionResource@2020-01-01. Declaration start char: 0, length: 122
+  name: 'existing2'
+  scope: existing1
+}
+
+resource extension3 'My.Rp/extensionResource@2020-12-01' = {
+//@[9:19) Resource extension3. Type: My.Rp/extensionResource@2020-12-01. Declaration start char: 0, length: 105
+  name: 'extension3'
+  scope: existing1
 }

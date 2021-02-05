@@ -7,16 +7,17 @@ using System.Linq;
 using System.Text;
 using Bicep.Core;
 using Bicep.Core.Extensions;
-using Bicep.Core.Parser;
+using Bicep.Core.FileSystem;
+using Bicep.Core.Parsing;
 using Bicep.Core.Resources;
-using Bicep.Core.SemanticModel;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
 using Bicep.LanguageServer.Extensions;
 using Bicep.LanguageServer.Snippets;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
-using SymbolKind = Bicep.Core.SemanticModel.SymbolKind;
+using SymbolKind = Bicep.Core.Semantics.SymbolKind;
 
 namespace Bicep.LanguageServer.Completions
 {
@@ -27,6 +28,13 @@ namespace Bicep.LanguageServer.Completions
         private static readonly Container<string> PropertyCommitChars = new Container<string>(":");
 
         private static readonly Container<string> PropertyAccessCommitChars = new Container<string>(".");
+
+        private IFileResolver FileResolver;
+
+        public BicepCompletionProvider(IFileResolver fileResolver)
+        {
+            this.FileResolver = fileResolver;
+        }
 
         public IEnumerable<CompletionItem> GetFilteredCompletions(Compilation compilation, BicepCompletionContext context)
         {
@@ -41,6 +49,7 @@ namespace Bicep.LanguageServer.Completions
                 .Concat(GetPropertyValueCompletions(model, context))
                 .Concat(GetArrayItemCompletions(model, context))
                 .Concat(GetResourceTypeCompletions(model, context))
+                .Concat(GetModulePathCompletions(model, context))
                 .Concat(GetResourceOrModuleBodyCompletions(context))
                 .Concat(GetTargetScopeCompletions(model, context));
         }
@@ -50,7 +59,6 @@ namespace Bicep.LanguageServer.Completions
             if (context.Kind.HasFlag(BicepCompletionContextKind.DeclarationStart))
             {
                 yield return CreateKeywordCompletion(LanguageConstants.ParameterKeyword, "Parameter keyword", context.ReplacementRange);
-                
                 yield return CreateContextualSnippetCompletion(LanguageConstants.ParameterKeyword, "Parameter declaration", "param ${1:Identifier} ${2:Type}", context.ReplacementRange);
                 yield return CreateContextualSnippetCompletion(LanguageConstants.ParameterKeyword, "Parameter declaration with default value", "param ${1:Identifier} ${2:Type} = ${3:DefaultValue}", context.ReplacementRange);
                 yield return CreateContextualSnippetCompletion(LanguageConstants.ParameterKeyword, "Parameter declaration with default and allowed values", @"param ${1:Identifier} ${2:Type} {
@@ -108,7 +116,7 @@ namespace Bicep.LanguageServer.Completions
 
         private IEnumerable<CompletionItem> GetTargetScopeCompletions(SemanticModel model, BicepCompletionContext context)
         {
-            return context.Kind.HasFlag(BicepCompletionContextKind.TargetScope) && context.TargetScope is {} targetScope
+            return context.Kind.HasFlag(BicepCompletionContextKind.TargetScope) && context.TargetScope is { } targetScope
                 ? GetValueCompletionsForType(model.GetDeclaredType(targetScope), context.ReplacementRange)
                 : Enumerable.Empty<CompletionItem>();
         }
@@ -161,11 +169,74 @@ namespace Bicep.LanguageServer.Completions
 
             // we need to ensure that Microsoft.Compute/virtualMachines@whatever comes before Microsoft.Compute/virtualMachines/extensions@whatever
             // similarly, newest api versions should be shown first
-            return model.ResourceTypeProvider.GetAvailableTypes()
+            return model.Compilation.ResourceTypeProvider.GetAvailableTypes()
                 .OrderBy(rt => rt.FullyQualifiedType, StringComparer.OrdinalIgnoreCase)
                 .ThenByDescending(rt => rt.ApiVersion)
                 .Select((reference, index) => CreateResourceTypeCompletion(reference, index, context.ReplacementRange))
                 .ToList();
+        }
+
+        private IEnumerable<CompletionItem> GetModulePathCompletions(SemanticModel model, BicepCompletionContext context)
+        {
+            if (!context.Kind.HasFlag(BicepCompletionContextKind.ModulePath))
+            {
+                return Enumerable.Empty<CompletionItem>();
+            }
+
+            // To provide intellisense before the quotes are typed
+            if (context.EnclosingDeclaration is not ModuleDeclarationSyntax declarationSyntax
+                || declarationSyntax.Path is not StringSyntax stringSyntax 
+                || stringSyntax.TryGetLiteralValue() is not string entered)
+            {
+                entered = "";
+            }
+
+            // These should only fail if we're not able to resolve cwd path or the entered string
+            if (FileResolver.TryResolveModulePath(model.SyntaxTree.FileUri, ".") is not {} cwdUri
+                || FileResolver.TryResolveModulePath(cwdUri, entered) is not {} query)
+            {
+                return Enumerable.Empty<CompletionItem>();
+            }
+
+            var files = Enumerable.Empty<Uri>();
+            var dirs = Enumerable.Empty<Uri>();
+            
+            
+            // technically bicep files do not have to follow the bicep extension, so 
+            // we are not enforcing *.bicep get files command
+            if (FileResolver.TryDirExists(query))
+            {
+                files = FileResolver.GetFiles(query, string.Empty);
+                dirs = FileResolver.GetDirectories(query, string.Empty);
+            }
+            else if (FileResolver.TryResolveModulePath(query, ".") is {} queryParent)
+            {
+                files = FileResolver.GetFiles(queryParent, "");
+                dirs = FileResolver.GetDirectories(queryParent,"");
+            }
+            // "./" will not be preserved when making relative Uris. We have to go and manually add it.
+            // Prioritize .bicep files higher than other files.
+            var fileItems = files
+                .Where(file => file != model.SyntaxTree.FileUri)
+                .Where(file => file.Segments.Last().EndsWith(LanguageServerConstants.LanguageFileExtension))
+                .Select(file => CreateModulePathCompletion(
+                    file.Segments.Last(),
+                    (entered.StartsWith("./") ? "./" : "") + cwdUri.MakeRelativeUri(file).ToString(),
+                    context.ReplacementRange,
+                    CompletionItemKind.File,
+                    file.Segments.Last().EndsWith(LanguageServerConstants.LanguageId) ? CompletionPriority.High : CompletionPriority.Medium))
+                .ToList();
+
+            var dirItems = dirs
+                .Select(dir => CreateModulePathCompletion(
+                    dir.Segments.Last(), 
+                    (entered.StartsWith("./") ? "./" : "") + cwdUri.MakeRelativeUri(dir).ToString(),
+                    context.ReplacementRange,
+                    CompletionItemKind.Folder,
+                    CompletionPriority.Medium)
+                .WithCommand(new Command {Name = EditorCommands.RequestCompletions }))
+                .ToList();
+            return fileItems.Concat(dirItems);
         }
 
         private static IEnumerable<CompletionItem> GetParameterTypeSnippets(Range replacementRange)
@@ -192,7 +263,7 @@ namespace Bicep.LanguageServer.Completions
             // maps insert text to the completion item
             var completions = new Dictionary<string, CompletionItem>();
 
-            var enclosingDeclarationSymbol = context.EnclosingDeclaration == null 
+            var enclosingDeclarationSymbol = context.EnclosingDeclaration == null
                 ? null
                 : model.GetSymbolInfo(context.EnclosingDeclaration);
 
@@ -347,7 +418,7 @@ namespace Bicep.LanguageServer.Completions
             }
 
             var declaredTypeAssignment = GetDeclaredTypeAssignment(model, context.Property);
-            if(declaredTypeAssignment == null)
+            if (declaredTypeAssignment == null)
             {
                 return Enumerable.Empty<CompletionItem>();
             }
@@ -378,7 +449,7 @@ namespace Bicep.LanguageServer.Completions
                 case PrimitiveType _ when ReferenceEquals(propertyType, LanguageConstants.Bool):
                     yield return CreateKeywordCompletion(LanguageConstants.TrueKeyword, LanguageConstants.TrueKeyword, replacementRange, preselect: true, CompletionPriority.High);
                     yield return CreateKeywordCompletion(LanguageConstants.FalseKeyword, LanguageConstants.FalseKeyword, replacementRange, preselect: true, CompletionPriority.High);
-                    
+
                     break;
 
                 case StringLiteralType stringLiteral:
@@ -395,11 +466,11 @@ namespace Bicep.LanguageServer.Completions
                     const string arrayLabel = "[]";
                     yield return CompletionItemBuilder.Create(CompletionItemKind.Value)
                         .WithLabel(arrayLabel)
-                        .WithSnippetEdit(replacementRange, "[$0]")
+                        .WithSnippetEdit(replacementRange, "[\n\t$0\n]", InsertTextMode.AdjustIndentation)
                         .WithDetail(arrayLabel)
                         .Preselect()
                         .WithSortText(GetSortText(arrayLabel, CompletionPriority.High));
-                    
+
                     break;
 
                 case DiscriminatedObjectType _:
@@ -423,7 +494,7 @@ namespace Bicep.LanguageServer.Completions
             const string objectLabel = "{}";
             return CompletionItemBuilder.Create(CompletionItemKind.Value)
                 .WithLabel(objectLabel)
-                .WithSnippetEdit(replacementRange, "{$0}")
+                .WithSnippetEdit(replacementRange, "{\n\t$0\n}", InsertTextMode.AdjustIndentation)
                 .WithDetail(objectLabel)
                 .Preselect()
                 .WithSortText(GetSortText(objectLabel, CompletionPriority.High));
@@ -509,6 +580,25 @@ namespace Bicep.LanguageServer.Completions
                 .WithSortText(index.ToString("x8"));
         }
 
+        private static CompletionItem CreateModulePathCompletion(string name, string path, Range replacementRange, CompletionItemKind completionItemKind, CompletionPriority priority)
+        {
+            path = StringUtils.EscapeBicepString(path);
+            var item = CompletionItemBuilder.Create(completionItemKind)
+                .WithLabel(name)
+                .WithFilterText(path)
+                .WithSortText(GetSortText(name, priority));
+            // Folder completions should keep us within the completion string
+            if (completionItemKind.Equals(CompletionItemKind.Folder))
+            {
+                item.WithSnippetEdit(replacementRange, $"{path.Substring(0, path.Length - 1)}$0'");
+            }
+            else
+            {
+                item = item.WithPlainTextEdit(replacementRange, path);
+            }
+            return item;
+        }
+
         /// <summary>
         /// Creates a completion with a contextual snippet. This will look like a snippet to the user.
         /// </summary>
@@ -532,12 +622,18 @@ namespace Bicep.LanguageServer.Completions
 
             if (symbol is FunctionSymbol function)
             {
-                // for functions withouth any parameters on all the overloads, we should be placing the cursor after the parentheses
+                // for functions without any parameters on all the overloads, we should be placing the cursor after the parentheses
                 // for all other functions, the cursor should land between the parentheses so the user can specify the arguments
                 bool hasParameters = function.Overloads.Any(overload => overload.HasParameters);
                 var snippet = hasParameters
                     ? $"{insertText}($0)"
                     : $"{insertText}()$0";
+
+                if (hasParameters)
+                {
+                    // if parameters may need to be specified, automatically request signature help
+                    completion.WithCommand(new Command {Name = EditorCommands.SignatureHelp});
+                }
 
                 return completion
                     .WithDetail($"{insertText}()")

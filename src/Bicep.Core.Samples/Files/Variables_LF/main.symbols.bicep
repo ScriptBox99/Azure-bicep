@@ -111,6 +111,20 @@ var expressionIndexOnAny = any({
 var anyIndexOnAny = any(true)[any(false)]
 //@[4:17) Variable anyIndexOnAny. Type: any. Declaration start char: 0, length: 41
 
+var deploymentName = deployment().name
+//@[4:18) Variable deploymentName. Type: string. Declaration start char: 0, length: 38
+var templateLinkUri = deployment().properties.templateLink.uri
+//@[4:19) Variable templateLinkUri. Type: string. Declaration start char: 0, length: 62
+var templateLinkId = deployment().properties.templateLink.id
+//@[4:18) Variable templateLinkId. Type: string. Declaration start char: 0, length: 60
+
+var portalEndpoint = environment().portal
+//@[4:18) Variable portalEndpoint. Type: string. Declaration start char: 0, length: 41
+var loginEndpoint = environment().authentication.loginEndpoint
+//@[4:17) Variable loginEndpoint. Type: string. Declaration start char: 0, length: 62
+var firstLocation = environment().locations[0].displayName
+//@[4:17) Variable firstLocation. Type: string. Declaration start char: 0, length: 58
+
 var namedPropertyIndexer = {
 //@[4:24) Variable namedPropertyIndexer. Type: 's'. Declaration start char: 0, length: 48
   foo: 's'
@@ -297,3 +311,23 @@ var scopesWithoutArmRepresentation = {
   subscription: subscription('10b57a01-6350-4ce2-972a-6a13642f00bf')
   resourceGroup: az.resourceGroup('10b57a01-6350-4ce2-972a-6a13642f00bf', 'myRgName')
 }
+
+// Issue #1332
+var issue1332_propname = 'ptest'
+//@[4:22) Variable issue1332_propname. Type: 'ptest'. Declaration start char: 0, length: 32
+var issue1332 = true ? {
+//@[4:13) Variable issue1332. Type: object | object. Declaration start char: 0, length: 86
+    prop1: {
+        '${issue1332_propname}': {}
+    }
+} : {}
+
+// Issue #486
+var myBigInt = 2199023255552
+//@[4:12) Variable myBigInt. Type: int. Declaration start char: 0, length: 28
+var myIntExpression = 5 * 5
+//@[4:19) Variable myIntExpression. Type: int. Declaration start char: 0, length: 27
+var myBigIntExpression = 2199023255552 * 2
+//@[4:22) Variable myBigIntExpression. Type: int. Declaration start char: 0, length: 42
+var myBigIntExpression2 = 2199023255552 * 2199023255552
+//@[4:23) Variable myBigIntExpression2. Type: int. Declaration start char: 0, length: 55

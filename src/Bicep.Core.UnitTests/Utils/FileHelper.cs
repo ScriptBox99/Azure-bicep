@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Bicep.Core.UnitTests.Utils
@@ -16,7 +17,7 @@ namespace Bicep.Core.UnitTests.Utils
         {
             string filePath = Path.Combine(testContext.TestRunResultsDirectory, testContext.TestName, fileName);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath) ?? throw new AssertFailedException($"There is no directory path for file '{filePath}'."));
             testContext.AddResultFile(filePath);
 
             return filePath;
@@ -45,7 +46,7 @@ namespace Bicep.Core.UnitTests.Utils
                 }
 
                 var filePath = Path.Combine(outputDirectory, relativePath);
-                var directoryPath = Path.GetDirectoryName(filePath);
+                var directoryPath = Path.GetDirectoryName(filePath) ?? throw new AssertFailedException($"There is no directory path for file '{filePath}'.");
                 Directory.CreateDirectory(directoryPath);
 
                 var fileStream = File.Create(filePath);

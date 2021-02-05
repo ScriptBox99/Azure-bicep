@@ -119,6 +119,15 @@ var resourceGroup = ''
 var rgName = resourceGroup().name
 //@[4:10) Variable rgName. Type: error. Declaration start char: 0, length: 33
 
+// this does not work at the resource group scope
+var invalidLocationVar = deployment().location
+//@[4:22) Variable invalidLocationVar. Type: error. Declaration start char: 0, length: 46
+
+var invalidEnvironmentVar = environment().aosdufhsad
+//@[4:25) Variable invalidEnvironmentVar. Type: error. Declaration start char: 0, length: 52
+var invalidEnvAuthVar = environment().authentication.asdgdsag
+//@[4:21) Variable invalidEnvAuthVar. Type: error. Declaration start char: 0, length: 61
+
 // invalid use of reserved namespace
 var az = 1
 //@[4:6) Variable az. Type: int. Declaration start char: 0, length: 10
@@ -178,3 +187,17 @@ var objectVarTopLevelArrayIndexCompletions = objectLiteralType[f]
 var oneArrayIndexCompletions = objectLiteralType.sixth[0][]
 //@[4:28) Variable oneArrayIndexCompletions. Type: error. Declaration start char: 0, length: 59
 
+// Issue 486
+var myFloat = 3.14
+//@[4:11) Variable myFloat. Type: error. Declaration start char: 0, length: 16
+
+// secure cannot be used as a varaible decorator
+@sys.secure()
+var something = 1
+//@[4:13) Variable something. Type: int. Declaration start char: 0, length: 31
+
+// invalid identifier character classes
+var ☕ = true
+//@[4:5) Variable <error>. Type: bool. Declaration start char: 0, length: 12
+var a☕ = true
+//@[4:5) Variable a. Type: error. Declaration start char: 0, length: 13

@@ -4,9 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bicep.Core;
-using Bicep.Core.Parser;
+using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
-using Bicep.LanguageServer.CompilationManager;
 using Bicep.LanguageServer.Extensions;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document.Proposals;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models.Proposals;
@@ -40,9 +39,12 @@ namespace Bicep.LanguageServer
             }
         }
 
-        private void AddTokenType(IPositionable positionable, SemanticTokenType tokenType)
+        private void AddTokenType(IPositionable? positionable, SemanticTokenType tokenType)
         {
-            tokens.Add((positionable, tokenType));
+            if (positionable is not null)
+            {
+                tokens.Add((positionable, tokenType));
+            }
         }
 
         public override void VisitArrayAccessSyntax(ArrayAccessSyntax syntax)
@@ -100,10 +102,10 @@ namespace Bicep.LanguageServer
             base.VisitNullLiteralSyntax(syntax);
         }
 
-        public override void VisitNumericLiteralSyntax(NumericLiteralSyntax syntax)
+        public override void VisitIntegerLiteralSyntax(IntegerLiteralSyntax syntax)
         {
             AddTokenType(syntax.Literal, SemanticTokenType.Number);
-            base.VisitNumericLiteralSyntax(syntax);
+            base.VisitIntegerLiteralSyntax(syntax);
         }
 
         public override void VisitObjectPropertySyntax(ObjectPropertySyntax syntax)
@@ -163,6 +165,7 @@ namespace Bicep.LanguageServer
         {
             AddTokenType(syntax.Keyword, SemanticTokenType.Keyword);
             AddTokenType(syntax.Name, SemanticTokenType.Variable);
+            AddTokenType(syntax.ExistingKeyword, SemanticTokenType.Keyword);
             base.VisitResourceDeclarationSyntax(syntax);
         }
 
@@ -171,6 +174,12 @@ namespace Bicep.LanguageServer
             AddTokenType(syntax.Keyword, SemanticTokenType.Keyword);
             AddTokenType(syntax.Name, SemanticTokenType.Variable);
             base.VisitModuleDeclarationSyntax(syntax);
+        }
+
+        public override void VisitIfConditionSyntax(IfConditionSyntax syntax)
+        {
+            AddTokenType(syntax.Keyword, SemanticTokenType.Keyword);
+            base.VisitIfConditionSyntax(syntax);
         }
 
         public override void VisitSkippedTriviaSyntax(SkippedTriviaSyntax syntax)

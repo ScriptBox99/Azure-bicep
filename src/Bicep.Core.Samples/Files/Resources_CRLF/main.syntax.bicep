@@ -241,24 +241,24 @@ resource myStorageAccount 'Microsoft.Storage/storageAccounts@2017-10-01' = {
 //@[1:5) NewLine |\r\n\r\n|
 
 resource withExpressions 'Microsoft.Storage/storageAccounts@2017-10-01' = {
-//@[0:538) ResourceDeclarationSyntax
+//@[0:539) ResourceDeclarationSyntax
 //@[0:8)  Identifier |resource|
 //@[9:24)  IdentifierSyntax
 //@[9:24)   Identifier |withExpressions|
 //@[25:71)  StringSyntax
 //@[25:71)   StringComplete |'Microsoft.Storage/storageAccounts@2017-10-01'|
 //@[72:73)  Assignment |=|
-//@[74:538)  ObjectSyntax
+//@[74:539)  ObjectSyntax
 //@[74:75)   LeftBrace |{|
 //@[75:77)   NewLine |\r\n|
-  name: 'myencryptedone'
-//@[2:24)   ObjectPropertySyntax
+  name: 'myencryptedone2'
+//@[2:25)   ObjectPropertySyntax
 //@[2:6)    IdentifierSyntax
 //@[2:6)     Identifier |name|
 //@[6:7)    Colon |:|
-//@[8:24)    StringSyntax
-//@[8:24)     StringComplete |'myencryptedone'|
-//@[24:26)   NewLine |\r\n|
+//@[8:25)    StringSyntax
+//@[8:25)     StringComplete |'myencryptedone2'|
+//@[25:27)   NewLine |\r\n|
   location: 'eastus2'
 //@[2:21)   ObjectPropertySyntax
 //@[2:10)    IdentifierSyntax
@@ -1510,8 +1510,8 @@ resource resourceWithInterp 'My.Rp/interp@2020-01-01' = {
 //@[7:18)         Identifier |myInterpKey|
 //@[18:20)       StringRightPiece |}'|
 //@[20:21)      Colon |:|
-//@[22:23)      NumericLiteralSyntax
-//@[22:23)       Number |1|
+//@[22:23)      IntegerLiteralSyntax
+//@[22:23)       Integer |1|
 //@[23:25)     NewLine |\r\n|
     'abc${myInterpKey}def': 2
 //@[4:29)     ObjectPropertySyntax
@@ -1522,8 +1522,8 @@ resource resourceWithInterp 'My.Rp/interp@2020-01-01' = {
 //@[10:21)         Identifier |myInterpKey|
 //@[21:26)       StringRightPiece |}def'|
 //@[26:27)      Colon |:|
-//@[28:29)      NumericLiteralSyntax
-//@[28:29)       Number |2|
+//@[28:29)      IntegerLiteralSyntax
+//@[28:29)       Integer |2|
 //@[29:31)     NewLine |\r\n|
     '${myInterpKey}abc${myInterpKey}': 3
 //@[4:40)     ObjectPropertySyntax
@@ -1538,8 +1538,8 @@ resource resourceWithInterp 'My.Rp/interp@2020-01-01' = {
 //@[24:35)         Identifier |myInterpKey|
 //@[35:37)       StringRightPiece |}'|
 //@[37:38)      Colon |:|
-//@[39:40)      NumericLiteralSyntax
-//@[39:40)       Number |3|
+//@[39:40)      IntegerLiteralSyntax
+//@[39:40)       Integer |3|
 //@[40:42)     NewLine |\r\n|
   }
 //@[2:3)     RightBrace |}|
@@ -1588,6 +1588,384 @@ resource resourceWithEscaping 'My.Rp/mockResource@2020-01-01' = {
   }
 //@[2:3)     RightBrace |}|
 //@[3:5)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+param shouldDeployVm bool = true
+//@[0:32) ParameterDeclarationSyntax
+//@[0:5)  Identifier |param|
+//@[6:20)  IdentifierSyntax
+//@[6:20)   Identifier |shouldDeployVm|
+//@[21:25)  TypeSyntax
+//@[21:25)   Identifier |bool|
+//@[26:32)  ParameterDefaultValueSyntax
+//@[26:27)   Assignment |=|
+//@[28:32)   BooleanLiteralSyntax
+//@[28:32)    TrueKeyword |true|
+//@[32:34) NewLine |\r\n|
+resource vmWithCondition 'Microsoft.Compute/virtualMachines@2020-06-01' = if (shouldDeployVm) {
+//@[0:263) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:24)  IdentifierSyntax
+//@[9:24)   Identifier |vmWithCondition|
+//@[25:71)  StringSyntax
+//@[25:71)   StringComplete |'Microsoft.Compute/virtualMachines@2020-06-01'|
+//@[72:73)  Assignment |=|
+//@[74:263)  IfConditionSyntax
+//@[74:76)   Identifier |if|
+//@[77:93)   ParenthesizedExpressionSyntax
+//@[77:78)    LeftParen |(|
+//@[78:92)    VariableAccessSyntax
+//@[78:92)     IdentifierSyntax
+//@[78:92)      Identifier |shouldDeployVm|
+//@[92:93)    RightParen |)|
+//@[94:263)   ObjectSyntax
+//@[94:95)    LeftBrace |{|
+//@[95:97)    NewLine |\r\n|
+  name: 'vmName'
+//@[2:16)    ObjectPropertySyntax
+//@[2:6)     IdentifierSyntax
+//@[2:6)      Identifier |name|
+//@[6:7)     Colon |:|
+//@[8:16)     StringSyntax
+//@[8:16)      StringComplete |'vmName'|
+//@[16:18)    NewLine |\r\n|
+  location: 'westus'
+//@[2:20)    ObjectPropertySyntax
+//@[2:10)     IdentifierSyntax
+//@[2:10)      Identifier |location|
+//@[10:11)     Colon |:|
+//@[12:20)     StringSyntax
+//@[12:20)      StringComplete |'westus'|
+//@[20:22)    NewLine |\r\n|
+  properties: {
+//@[2:123)    ObjectPropertySyntax
+//@[2:12)     IdentifierSyntax
+//@[2:12)      Identifier |properties|
+//@[12:13)     Colon |:|
+//@[14:123)     ObjectSyntax
+//@[14:15)      LeftBrace |{|
+//@[15:17)      NewLine |\r\n|
+    osProfile: {
+//@[4:101)      ObjectPropertySyntax
+//@[4:13)       IdentifierSyntax
+//@[4:13)        Identifier |osProfile|
+//@[13:14)       Colon |:|
+//@[15:101)       ObjectSyntax
+//@[15:16)        LeftBrace |{|
+//@[16:18)        NewLine |\r\n|
+      windowsConfiguration: {
+//@[6:76)        ObjectPropertySyntax
+//@[6:26)         IdentifierSyntax
+//@[6:26)          Identifier |windowsConfiguration|
+//@[26:27)         Colon |:|
+//@[28:76)         ObjectSyntax
+//@[28:29)          LeftBrace |{|
+//@[29:31)          NewLine |\r\n|
+        enableAutomaticUpdates: true
+//@[8:36)          ObjectPropertySyntax
+//@[8:30)           IdentifierSyntax
+//@[8:30)            Identifier |enableAutomaticUpdates|
+//@[30:31)           Colon |:|
+//@[32:36)           BooleanLiteralSyntax
+//@[32:36)            TrueKeyword |true|
+//@[36:38)          NewLine |\r\n|
+      }
+//@[6:7)          RightBrace |}|
+//@[7:9)        NewLine |\r\n|
+    }
+//@[4:5)        RightBrace |}|
+//@[5:7)      NewLine |\r\n|
+  }
+//@[2:3)      RightBrace |}|
+//@[3:5)    NewLine |\r\n|
+}
+//@[0:1)    RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource extension1 'My.Rp/extensionResource@2020-12-01' = {
+//@[0:110) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:19)  IdentifierSyntax
+//@[9:19)   Identifier |extension1|
+//@[20:56)  StringSyntax
+//@[20:56)   StringComplete |'My.Rp/extensionResource@2020-12-01'|
+//@[57:58)  Assignment |=|
+//@[59:110)  ObjectSyntax
+//@[59:60)   LeftBrace |{|
+//@[60:62)   NewLine |\r\n|
+  name: 'extension'
+//@[2:19)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:19)    StringSyntax
+//@[8:19)     StringComplete |'extension'|
+//@[19:21)   NewLine |\r\n|
+  scope: vmWithCondition
+//@[2:24)   ObjectPropertySyntax
+//@[2:7)    IdentifierSyntax
+//@[2:7)     Identifier |scope|
+//@[7:8)    Colon |:|
+//@[9:24)    VariableAccessSyntax
+//@[9:24)     IdentifierSyntax
+//@[9:24)      Identifier |vmWithCondition|
+//@[24:26)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource extension2 'My.Rp/extensionResource@2020-12-01' = {
+//@[0:105) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:19)  IdentifierSyntax
+//@[9:19)   Identifier |extension2|
+//@[20:56)  StringSyntax
+//@[20:56)   StringComplete |'My.Rp/extensionResource@2020-12-01'|
+//@[57:58)  Assignment |=|
+//@[59:105)  ObjectSyntax
+//@[59:60)   LeftBrace |{|
+//@[60:62)   NewLine |\r\n|
+  name: 'extension'
+//@[2:19)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:19)    StringSyntax
+//@[8:19)     StringComplete |'extension'|
+//@[19:21)   NewLine |\r\n|
+  scope: extension1
+//@[2:19)   ObjectPropertySyntax
+//@[2:7)    IdentifierSyntax
+//@[2:7)     Identifier |scope|
+//@[7:8)    Colon |:|
+//@[9:19)    VariableAccessSyntax
+//@[9:19)     IdentifierSyntax
+//@[9:19)      Identifier |extension1|
+//@[19:21)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource extensionDependencies 'My.Rp/mockResource@2020-01-01' = {
+//@[0:359) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:30)  IdentifierSyntax
+//@[9:30)   Identifier |extensionDependencies|
+//@[31:62)  StringSyntax
+//@[31:62)   StringComplete |'My.Rp/mockResource@2020-01-01'|
+//@[63:64)  Assignment |=|
+//@[65:359)  ObjectSyntax
+//@[65:66)   LeftBrace |{|
+//@[66:68)   NewLine |\r\n|
+  name: 'extensionDependencies'
+//@[2:31)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:31)    StringSyntax
+//@[8:31)     StringComplete |'extensionDependencies'|
+//@[31:33)   NewLine |\r\n|
+  properties: {
+//@[2:255)   ObjectPropertySyntax
+//@[2:12)    IdentifierSyntax
+//@[2:12)     Identifier |properties|
+//@[12:13)    Colon |:|
+//@[14:255)    ObjectSyntax
+//@[14:15)     LeftBrace |{|
+//@[15:17)     NewLine |\r\n|
+    res1: vmWithCondition.id
+//@[4:28)     ObjectPropertySyntax
+//@[4:8)      IdentifierSyntax
+//@[4:8)       Identifier |res1|
+//@[8:9)      Colon |:|
+//@[10:28)      PropertyAccessSyntax
+//@[10:25)       VariableAccessSyntax
+//@[10:25)        IdentifierSyntax
+//@[10:25)         Identifier |vmWithCondition|
+//@[25:26)       Dot |.|
+//@[26:28)       IdentifierSyntax
+//@[26:28)        Identifier |id|
+//@[28:30)     NewLine |\r\n|
+    res1runtime: vmWithCondition.properties.something
+//@[4:53)     ObjectPropertySyntax
+//@[4:15)      IdentifierSyntax
+//@[4:15)       Identifier |res1runtime|
+//@[15:16)      Colon |:|
+//@[17:53)      PropertyAccessSyntax
+//@[17:43)       PropertyAccessSyntax
+//@[17:32)        VariableAccessSyntax
+//@[17:32)         IdentifierSyntax
+//@[17:32)          Identifier |vmWithCondition|
+//@[32:33)        Dot |.|
+//@[33:43)        IdentifierSyntax
+//@[33:43)         Identifier |properties|
+//@[43:44)       Dot |.|
+//@[44:53)       IdentifierSyntax
+//@[44:53)        Identifier |something|
+//@[53:55)     NewLine |\r\n|
+    res2: extension1.id
+//@[4:23)     ObjectPropertySyntax
+//@[4:8)      IdentifierSyntax
+//@[4:8)       Identifier |res2|
+//@[8:9)      Colon |:|
+//@[10:23)      PropertyAccessSyntax
+//@[10:20)       VariableAccessSyntax
+//@[10:20)        IdentifierSyntax
+//@[10:20)         Identifier |extension1|
+//@[20:21)       Dot |.|
+//@[21:23)       IdentifierSyntax
+//@[21:23)        Identifier |id|
+//@[23:25)     NewLine |\r\n|
+    res2runtime: extension1.properties.something
+//@[4:48)     ObjectPropertySyntax
+//@[4:15)      IdentifierSyntax
+//@[4:15)       Identifier |res2runtime|
+//@[15:16)      Colon |:|
+//@[17:48)      PropertyAccessSyntax
+//@[17:38)       PropertyAccessSyntax
+//@[17:27)        VariableAccessSyntax
+//@[17:27)         IdentifierSyntax
+//@[17:27)          Identifier |extension1|
+//@[27:28)        Dot |.|
+//@[28:38)        IdentifierSyntax
+//@[28:38)         Identifier |properties|
+//@[38:39)       Dot |.|
+//@[39:48)       IdentifierSyntax
+//@[39:48)        Identifier |something|
+//@[48:50)     NewLine |\r\n|
+    res3: extension2.id
+//@[4:23)     ObjectPropertySyntax
+//@[4:8)      IdentifierSyntax
+//@[4:8)       Identifier |res3|
+//@[8:9)      Colon |:|
+//@[10:23)      PropertyAccessSyntax
+//@[10:20)       VariableAccessSyntax
+//@[10:20)        IdentifierSyntax
+//@[10:20)         Identifier |extension2|
+//@[20:21)       Dot |.|
+//@[21:23)       IdentifierSyntax
+//@[21:23)        Identifier |id|
+//@[23:25)     NewLine |\r\n|
+    res3runtime: extension2.properties.something
+//@[4:48)     ObjectPropertySyntax
+//@[4:15)      IdentifierSyntax
+//@[4:15)       Identifier |res3runtime|
+//@[15:16)      Colon |:|
+//@[17:48)      PropertyAccessSyntax
+//@[17:38)       PropertyAccessSyntax
+//@[17:27)        VariableAccessSyntax
+//@[17:27)         IdentifierSyntax
+//@[17:27)          Identifier |extension2|
+//@[27:28)        Dot |.|
+//@[28:38)        IdentifierSyntax
+//@[28:38)         Identifier |properties|
+//@[38:39)       Dot |.|
+//@[39:48)       IdentifierSyntax
+//@[39:48)        Identifier |something|
+//@[48:50)     NewLine |\r\n|
+  }
+//@[2:3)     RightBrace |}|
+//@[3:5)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource existing1 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+//@[0:123) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:18)  IdentifierSyntax
+//@[9:18)   Identifier |existing1|
+//@[19:65)  StringSyntax
+//@[19:65)   StringComplete |'Mock.Rp/existingExtensionResource@2020-01-01'|
+//@[66:74)  Identifier |existing|
+//@[75:76)  Assignment |=|
+//@[77:123)  ObjectSyntax
+//@[77:78)   LeftBrace |{|
+//@[78:80)   NewLine |\r\n|
+  name: 'existing1'
+//@[2:19)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:19)    StringSyntax
+//@[8:19)     StringComplete |'existing1'|
+//@[19:21)   NewLine |\r\n|
+  scope: extension1
+//@[2:19)   ObjectPropertySyntax
+//@[2:7)    IdentifierSyntax
+//@[2:7)     Identifier |scope|
+//@[7:8)    Colon |:|
+//@[9:19)    VariableAccessSyntax
+//@[9:19)     IdentifierSyntax
+//@[9:19)      Identifier |extension1|
+//@[19:21)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource existing2 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
+//@[0:122) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:18)  IdentifierSyntax
+//@[9:18)   Identifier |existing2|
+//@[19:65)  StringSyntax
+//@[19:65)   StringComplete |'Mock.Rp/existingExtensionResource@2020-01-01'|
+//@[66:74)  Identifier |existing|
+//@[75:76)  Assignment |=|
+//@[77:122)  ObjectSyntax
+//@[77:78)   LeftBrace |{|
+//@[78:80)   NewLine |\r\n|
+  name: 'existing2'
+//@[2:19)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:19)    StringSyntax
+//@[8:19)     StringComplete |'existing2'|
+//@[19:21)   NewLine |\r\n|
+  scope: existing1
+//@[2:18)   ObjectPropertySyntax
+//@[2:7)    IdentifierSyntax
+//@[2:7)     Identifier |scope|
+//@[7:8)    Colon |:|
+//@[9:18)    VariableAccessSyntax
+//@[9:18)     IdentifierSyntax
+//@[9:18)      Identifier |existing1|
+//@[18:20)   NewLine |\r\n|
+}
+//@[0:1)   RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+resource extension3 'My.Rp/extensionResource@2020-12-01' = {
+//@[0:105) ResourceDeclarationSyntax
+//@[0:8)  Identifier |resource|
+//@[9:19)  IdentifierSyntax
+//@[9:19)   Identifier |extension3|
+//@[20:56)  StringSyntax
+//@[20:56)   StringComplete |'My.Rp/extensionResource@2020-12-01'|
+//@[57:58)  Assignment |=|
+//@[59:105)  ObjectSyntax
+//@[59:60)   LeftBrace |{|
+//@[60:62)   NewLine |\r\n|
+  name: 'extension3'
+//@[2:20)   ObjectPropertySyntax
+//@[2:6)    IdentifierSyntax
+//@[2:6)     Identifier |name|
+//@[6:7)    Colon |:|
+//@[8:20)    StringSyntax
+//@[8:20)     StringComplete |'extension3'|
+//@[20:22)   NewLine |\r\n|
+  scope: existing1
+//@[2:18)   ObjectPropertySyntax
+//@[2:7)    IdentifierSyntax
+//@[2:7)     Identifier |scope|
+//@[7:8)    Colon |:|
+//@[9:18)    VariableAccessSyntax
+//@[9:18)     IdentifierSyntax
+//@[9:18)      Identifier |existing1|
+//@[18:20)   NewLine |\r\n|
 }
 //@[0:1)   RightBrace |}|
 //@[1:1) EndOfFile ||

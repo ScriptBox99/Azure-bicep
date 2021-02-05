@@ -8,7 +8,7 @@ namespace Bicep.Core.TypeSystem
 {
     public interface IResourceTypeProvider
     {
-        ResourceType GetType(ResourceTypeReference reference);
+        ResourceType GetType(ResourceTypeReference reference, bool isExistingResource);
 
         bool HasType(ResourceTypeReference typeReference);
 

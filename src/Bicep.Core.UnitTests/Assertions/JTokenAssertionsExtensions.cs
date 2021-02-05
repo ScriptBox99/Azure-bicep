@@ -15,7 +15,7 @@ namespace Bicep.Core.UnitTests.Assertions
     {
         public static JTokenAssertions Should(this JToken instance)
         {
-            return new JTokenAssertions(instance); 
+            return new JTokenAssertions(instance);
         }
 
         public static AndConstraint<JTokenAssertions> EqualWithJsonDiffOutput(this JTokenAssertions instance, TestContext testContext, JToken expected, string expectedLocation, string actualLocation, string because = "", params object[] becauseArgs)
@@ -48,6 +48,16 @@ namespace Bicep.Core.UnitTests.Assertions
                     string.Join('\n', lineLogs),
                     BaselineHelper.GetAbsolutePathRelativeToRepoRoot(actualLocation),
                     BaselineHelper.GetAbsolutePathRelativeToRepoRoot(expectedLocation));
+
+            return new AndConstraint<JTokenAssertions>(instance);
+        }
+
+        public static AndConstraint<JTokenAssertions> DeepEqual(this JTokenAssertions instance, JToken expected, string because = "", params object[] becauseArgs)
+        {
+            Execute.Assertion
+                .BecauseOf(because, becauseArgs)
+                .ForCondition(JToken.DeepEquals(instance.Subject, expected))
+                .FailWith("Expected '{0}' but got '{1}'", expected?.ToString(), instance.Subject?.ToString());
 
             return new AndConstraint<JTokenAssertions>(instance);
         }

@@ -159,6 +159,47 @@
       }
     },
     {
+      "condition": "[equals(add(1, 1), 2)]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "modBWithCondition",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "East US"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "location": {
+              "type": "string"
+            }
+          },
+          "functions": [],
+          "resources": [
+            {
+              "type": "Mock.Rp/mockResource",
+              "apiVersion": "2020-01-01",
+              "name": "mockResource",
+              "location": "[parameters('location')]"
+            }
+          ],
+          "outputs": {
+            "myResourceId": {
+              "type": "string",
+              "value": "[resourceId('Mock.Rp/mockResource', 'mockResource')]"
+            }
+          }
+        }
+      }
+    },
+    {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2019-10-01",
       "name": "optionalWithNoParams1",
@@ -266,7 +307,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2019-10-01",
-      "name": "optionalWithNoParams2",
+      "name": "optionalWithNoParams3",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -395,7 +436,7 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(resourceGroup().id, 'Microsoft.Resources/deployments', 'optionalWithNoParams2')]",
+        "[extensionResourceId(resourceGroup().id, 'Microsoft.Resources/deployments', 'optionalWithNoParams3')]",
         "[resourceId('Mock.Rp/mockResource', 'harry')]"
       ]
     },

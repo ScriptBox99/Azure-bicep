@@ -6,8 +6,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
-using Bicep.Core.Parser;
-using Bicep.Core.SemanticModel;
+using Bicep.Core.Parsing;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Text;
 
@@ -50,7 +50,7 @@ namespace Bicep.Core.TypeSystem
 
         public ImmutableDictionary<string, FunctionSymbol> GetKnownFunctions()
             => this.FunctionCache.Values.ToImmutableDictionaryExcludingNullValues(symbol => symbol.Name, LanguageConstants.IdentifierComparer);
-        
+
         private Symbol? TryGetBannedFunction(IdentifierSyntax identifierSyntax)
         {
             if (BannedFunctions.TryGetValue(identifierSyntax.IdentifierName, out var banned))

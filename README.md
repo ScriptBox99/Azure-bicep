@@ -30,7 +30,9 @@ To get going with bicep, start by [installing the tooling](./docs/installing.md)
 
 Once the tooling is installed, you can start the [bicep tutorial](./docs/tutorial/01-simple-template.md), which walks you through the structure and capabilities of bicep, deploying bicep files, and converting an ARM template into the equivalent bicep file.
 
-Alternatively, you can try the [Bicep Playground](https://aka.ms/bicepdemo).
+Alternatively, you can try the [Bicep Playground](https://aka.ms/bicepdemo) or use the [VSCode Devcontainer/Codespaces](https://github.com/Azure/vscode-remote-try-bicep) repo to get a preconfigured environment.
+
+If you have an existing ARM Template or set of resources that you would like to convert to `.bicep` format, see [Decompiling an ARM Template](./docs/decompiling.md).
 
 ## How does Bicep work?
 
@@ -63,11 +65,13 @@ az deployment group create -f ./main.json -g my-rg
 * Automatic dependency management in certain scenarios. Bicep will automatically add `dependsOn` in the compiled ARM Template if the symbolic name is used in another resource declaration.
 * Richer validation and intellisense than what is available in the ARM Tools VS Code extension. For example, in bicep we have intellisense on GET properties (`output sample string = resource.properties.*`)
 
+For more detail on taking advantage of new bicep constructs that replace an equivalent from ARM Templates, you can read the [moving from ARM => Bicep](./docs/arm2bicep.md) doc.
+
 ## Known limitations
 
-* No support for the `copy` or `condition` property [[#185](https://github.com/Azure/bicep/issues/185), [#186](https://github.com/Azure/bicep/issues/186)]
-* Single line object and arrays (i.e. `['a', 'b', 'c']`) are not yet supported
-* You still need to deploy the compiled template yourself, though we plan to build native support for bicep into the powershell `Az` deployment cmdlets and `az cli` deployment commands
+* No support for the `copy` property ([#185](https://github.com/Azure/bicep/issues/185)).
+* Single line object and arrays (i.e. `['a', 'b', 'c']`) are not yet supported ([#146](https://github.com/Azure/bicep/issues/146)).
+* You still need to deploy the compiled template yourself, though we plan to build native support for bicep into the powershell `Az` deployment cmdlets and `az cli` deployment commands ([#858](https://github.com/Azure/bicep/issues/858)).
 * Bicep is currently not covered by [Azure support plans](https://azure.microsoft.com/en-us/support/plans/) as it is still in early development stages. Expect Bicep to be covered by all support plans starting on the 0.3 version.
 
 ## FAQ
@@ -83,7 +87,7 @@ That being said, there is a huge customer base using ARM templates today because
 Fundamentally, we believe that configuration languages and tools are always going to be polyglot and different users will prefer different tools for different situations. We want to make sure all of these tools are great on Azure, Bicep is only a part of that effort.
 
 **Is this ready for production use? If not, when will it be ready?**
-Not yet. We wanted to get the 0.1 release out quickly and get feedback while we still have an opportunity to make breaking changes. By the end of the year, we plan to ship an 0.3 release which will be at parity with what you can accomplish with ARM templates. At that point, we will start recommending production usage.
+Not yet. We wanted to get the 0.1 release out quickly and get feedback while we still have an opportunity to make breaking changes. In early 2021, we plan to ship an 0.3 release which will be at parity with what you can accomplish with ARM templates. At that point, we will start recommending production usage and customer support will be trained on bicep.
 
 **What are you looking for feedback on?**
 The language syntax and the tooling. Now is the best time to make breaking changes, so syntax feedback is very appreciated.
@@ -92,13 +96,22 @@ The language syntax and the tooling. Now is the best time to make breaking chang
 Bicep is a DSL focused on deploying end-to-end solutions in Azure. In practice, that usually means working with some non-Azure APIs (i.e. creating kubernetes deployments or users in a database), so we expect to provide some extensibility points. That being said, in the 0.1 release, you can only create Azure resources that are exposed through the ARM API.
 
 **What happens to my existing ARM Template investments?**
-One of our goals is to make the transition from ARM Templates to Bicep as easy as possible. We plan to ship a "decompiler", which will convert an ARM template into an equivalent Bicep file. We also will support using a standard ARM template as a Bicep module without converting it to bicep.
+One of our goals is to make the transition from ARM Templates to Bicep as easy as possible. The Bicep CLI supports a `decompile` command to generate Bicep code from an ARM template. Please see [Decompiling an ARM Template](https://github.com/Azure/bicep/blob/main/docs/decompiling.md) for usage information.
+
+Note that while we want to make it easy to transition to Bicep, we will continue to support the underlying ARM Template JSON language. As mentioned in [What is Bicep?](#what-is-bicep), ARM Template JSON remains the wire format that will be sent to Azure to carry out a deployment.
 
 ## Reference
 
 * [Complete language spec](./docs/spec/bicep.md)
 * [@BicepLang](https://twitter.com/BicepLang)
 * [ARM Template Reference](https://docs.microsoft.com/azure/templates/)
+
+## Community Bicep projects
+
+* [Bicep GitHub Action](https://github.com/marketplace/actions/bicep-build)
+* [Bicep Language Service support in Neovim](https://github.com/Azure/bicep/issues/1141#issuecomment-749372637)
+* [Bicep PowerShell Module](https://github.com/StefanIvemo/BicepPowerShell)
+* [Bicep Tasks extension for Azure Pipelines](https://marketplace.visualstudio.com/items?itemName=piraces.bicep-tasks)
 
 ## Alternatives
 

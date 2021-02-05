@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using Azure.Deployments.Core.Extensions;
 using Azure.Deployments.Expression.Expressions;
 using Bicep.Core.Extensions;
 using Bicep.Core.Resources;
-using Bicep.Core.SemanticModel;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
 using Newtonsoft.Json.Linq;
@@ -34,18 +34,18 @@ namespace Bicep.Core.Emit
             switch (expression)
             {
                 case BooleanLiteralSyntax boolSyntax:
-                    return CreateParameterlessFunction(boolSyntax.Value ? "true" : "false");
-                    
-                case NumericLiteralSyntax numericSyntax:
-                    return new JTokenExpression(numericSyntax.Value);
+                    return CreateFunction(boolSyntax.Value ? "true" : "false");
+
+                case IntegerLiteralSyntax integerSyntax:
+                    return integerSyntax.Value > int.MaxValue || integerSyntax.Value < int.MinValue ? CreateFunction("json", new JTokenExpression(integerSyntax.Value.ToInvariantString())) : new JTokenExpression((int)integerSyntax.Value);
 
                 case StringSyntax stringSyntax:
                     // using the throwing method to get semantic value of the string because
                     // error checking should have caught any errors by now
                     return ConvertString(stringSyntax);
-                    
+
                 case NullLiteralSyntax _:
-                    return CreateParameterlessFunction("null");
+                    return CreateFunction("null");
 
                 case ObjectSyntax @object:
                     return ConvertObject(@object);
@@ -64,20 +64,16 @@ namespace Bicep.Core.Emit
                     return ConvertBinary(binary);
 
                 case TernaryOperationSyntax ternary:
-                    return new FunctionExpression(
+                    return CreateFunction(
                         "if",
-                        new[]
-                        {
-                            ConvertExpression(ternary.ConditionExpression),
-                            ConvertExpression(ternary.TrueExpression),
-                            ConvertExpression(ternary.FalseExpression)
-                        },
-                        Array.Empty<LanguageExpression>());
+                        ConvertExpression(ternary.ConditionExpression),
+                        ConvertExpression(ternary.TrueExpression),
+                        ConvertExpression(ternary.FalseExpression));
 
                 case FunctionCallSyntax function:
                     return ConvertFunction(
                         function.Name.IdentifierName,
-                        function.Arguments.Select(a => ConvertExpression(a.Expression)).ToArray());
+                        function.Arguments.Select(a => ConvertExpression(a.Expression)));
 
                 case InstanceFunctionCallSyntax instanceFunctionCall:
                     var namespaceSymbol = context.SemanticModel.GetSymbolInfo(instanceFunctionCall.BaseExpression);
@@ -85,10 +81,10 @@ namespace Bicep.Core.Emit
 
                     return ConvertFunction(
                         instanceFunctionCall.Name.IdentifierName,
-                        instanceFunctionCall.Arguments.Select(a => ConvertExpression(a.Expression)).ToArray());
+                        instanceFunctionCall.Arguments.Select(a => ConvertExpression(a.Expression)));
 
                 case ArrayAccessSyntax arrayAccess:
-                    return AppendProperty(
+                    return AppendProperties(
                         ToFunctionExpression(arrayAccess.BaseExpression),
                         ConvertExpression(arrayAccess.IndexExpression));
 
@@ -103,16 +99,16 @@ namespace Bicep.Core.Emit
                         switch (propertyAccess.PropertyName.IdentifierName)
                         {
                             case "id":
-                                return GetLocallyScopedResourceIdExpression(resourceSymbol.DeclaringResource, typeReference);
+                                return GetLocallyScopedResourceId(resourceSymbol);
                             case "name":
-                                return GetResourceNameExpression(resourceSymbol.DeclaringResource);
+                                return GetResourceNameExpression(resourceSymbol);
                             case "type":
                                 return new JTokenExpression(typeReference.FullyQualifiedType);
                             case "apiVersion":
                                 return new JTokenExpression(typeReference.ApiVersion);
                             case "properties":
                                 // use the reference() overload without "full" to generate a shorter expression
-                                return GetReferenceExpression(resourceSymbol.DeclaringResource, typeReference, false);
+                                return GetReferenceExpression(resourceSymbol, typeReference, false);
                         }
                     }
 
@@ -120,14 +116,13 @@ namespace Bicep.Core.Emit
                     if (moduleAccess != null)
                     {
                         var (moduleSymbol, outputName) = moduleAccess.Value;
-                        return AppendProperty(
-                            AppendProperty(
-                                GetModuleOutputsReferenceExpression(moduleSymbol),
-                                new JTokenExpression(outputName)),
+                        return AppendProperties(
+                            GetModuleOutputsReferenceExpression(moduleSymbol),
+                            new JTokenExpression(outputName),
                             new JTokenExpression("value"));
                     }
 
-                    return AppendProperty(
+                    return AppendProperties(
                         ToFunctionExpression(propertyAccess.BaseExpression),
                         new JTokenExpression(propertyAccess.PropertyName.IdentifierName));
 
@@ -156,53 +151,54 @@ namespace Bicep.Core.Emit
             return (moduleSymbol, propertyAccess.PropertyName.IdentifierName);
         }
 
-        private LanguageExpression GetResourceNameExpression(ResourceDeclarationSyntax resourceSyntax)
+        private LanguageExpression GetResourceNameExpression(ResourceSymbol resourceSymbol)
         {
-            if (!(resourceSyntax.Body is ObjectSyntax objectSyntax))
-            {
-                // this condition should have already been validated by the type checker
-                throw new ArgumentException($"Expected resource syntax to have type {typeof(ObjectSyntax)}, but found {resourceSyntax.Body.GetType()}");
-            }
-            
             // this condition should have already been validated by the type checker
-            var namePropertySyntax = objectSyntax.SafeGetPropertyByName("name") ?? throw new ArgumentException($"Expected resource syntax body to contain property 'name'");
-            return  ConvertExpression(namePropertySyntax.Value);
+            var nameValueSyntax = resourceSymbol.SafeGetBodyPropertyValue(LanguageConstants.ResourceNamePropertyName) ?? throw new ArgumentException($"Expected resource syntax body to contain property 'name'");
+            return ConvertExpression(nameValueSyntax);
         }
 
-        private LanguageExpression GetModuleNameExpression(ModuleDeclarationSyntax moduleSyntax)
+        private LanguageExpression GetModuleNameExpression(ModuleSymbol moduleSymbol)
         {
-            if (!(moduleSyntax.Body is ObjectSyntax objectSyntax))
-            {
-                // this condition should have already been validated by the type checker
-                throw new ArgumentException($"Expected module syntax to have type {typeof(ObjectSyntax)}, but found {moduleSyntax.Body.GetType()}");
-            }
-            
             // this condition should have already been validated by the type checker
-            var namePropertySyntax = objectSyntax.SafeGetPropertyByName("name") ?? throw new ArgumentException($"Expected module syntax body to contain property 'name'");
-            return  ConvertExpression(namePropertySyntax.Value);
+            var nameValueSyntax = moduleSymbol.SafeGetBodyPropertyValue(LanguageConstants.ResourceNamePropertyName) ?? throw new ArgumentException($"Expected module syntax body to contain property 'name'");
+            return ConvertExpression(nameValueSyntax);
         }
 
-        public LanguageExpression GetLocallyScopedResourceIdExpression(ResourceDeclarationSyntax resourceSyntax, ResourceTypeReference typeReference)
+        public IEnumerable<LanguageExpression> GetResourceNameSegments(ResourceSymbol resourceSymbol, ResourceTypeReference typeReference)
         {
-            IEnumerable<LanguageExpression> nameSegments;
             if (typeReference.Types.Length == 1)
             {
-                nameSegments = GetResourceNameExpression(resourceSyntax).AsEnumerable();
-            }
-            else
-            {
-                nameSegments = typeReference.Types.Select(
-                    (type, i) => new FunctionExpression(
-                        "split",
-                        new LanguageExpression[] { GetResourceNameExpression(resourceSyntax), new JTokenExpression("/") },
-                        new LanguageExpression[] { new JTokenExpression(i) }));
+                return GetResourceNameExpression(resourceSymbol).AsEnumerable();
             }
 
-            return ScopeHelper.FormatLocallyScopedResourceId(
-                context.SemanticModel,
-                typeReference.FullyQualifiedType,
-                nameSegments);
+            return typeReference.Types.Select(
+                (type, i) => AppendProperties(
+                    CreateFunction(
+                        "split",
+                        GetResourceNameExpression(resourceSymbol),
+                        new JTokenExpression("/")),
+                    new JTokenExpression(i)));
         }
+
+        private LanguageExpression GenerateScopedResourceId(ResourceSymbol resourceSymbol, ResourceScope? targetScope)
+        {
+            var typeReference = EmitHelpers.GetTypeReference(resourceSymbol);
+            var nameSegments = GetResourceNameSegments(resourceSymbol, typeReference);
+
+            if (!context.ResourceScopeData.TryGetValue(resourceSymbol, out var scopeData))
+            {
+                return ScopeHelper.FormatLocallyScopedResourceId(targetScope, typeReference.FullyQualifiedType, nameSegments);
+            }
+
+            return ScopeHelper.FormatCrossScopeResourceId(this, scopeData, typeReference.FullyQualifiedType, nameSegments);
+        }
+
+        public LanguageExpression GetUnqualifiedResourceId(ResourceSymbol resourceSymbol)
+            => GenerateScopedResourceId(resourceSymbol, null);
+
+        public LanguageExpression GetLocallyScopedResourceId(ResourceSymbol resourceSymbol)
+            => GenerateScopedResourceId(resourceSymbol, context.SemanticModel.TargetScope);
 
         public LanguageExpression GetModuleResourceIdExpression(ModuleSymbol moduleSymbol)
         {
@@ -210,47 +206,41 @@ namespace Bicep.Core.Emit
                 this,
                 context.ModuleScopeData[moduleSymbol],
                 TemplateWriter.NestedDeploymentResourceType,
-                GetModuleNameExpression(moduleSymbol.DeclaringModule).AsEnumerable());
-        }
-        
-        public FunctionExpression GetModuleOutputsReferenceExpression(ModuleSymbol moduleSymbol)
-        {
-            return new FunctionExpression(
-                "reference",
-                new LanguageExpression[]
-                {
-                    GetModuleResourceIdExpression(moduleSymbol),
-                    new JTokenExpression(TemplateWriter.NestedDeploymentResourceApiVersion),
-                },
-                new LanguageExpression[]
-                {
-                    new JTokenExpression("outputs"),
-                });
+                GetModuleNameExpression(moduleSymbol).AsEnumerable());
         }
 
-        public FunctionExpression GetReferenceExpression(ResourceDeclarationSyntax resourceSyntax, ResourceTypeReference typeReference, bool full)
+        public FunctionExpression GetModuleOutputsReferenceExpression(ModuleSymbol moduleSymbol)
+            => AppendProperties(
+                CreateFunction(
+                    "reference",
+                    GetModuleResourceIdExpression(moduleSymbol),
+                    new JTokenExpression(TemplateWriter.NestedDeploymentResourceApiVersion)),
+                new JTokenExpression("outputs"));
+
+        public FunctionExpression GetReferenceExpression(ResourceSymbol resourceSymbol, ResourceTypeReference typeReference, bool full)
         {
             // full gives access to top-level resource properties, but generates a longer statement
             if (full)
             {
-                return new FunctionExpression(
+                return CreateFunction(
                     "reference",
-                    new LanguageExpression[]
-                    {
-                        GetLocallyScopedResourceIdExpression(resourceSyntax, typeReference),
-                        new JTokenExpression(typeReference.ApiVersion),
-                        new JTokenExpression("full"),
-                    },
-                    Array.Empty<LanguageExpression>());
+                    GetLocallyScopedResourceId(resourceSymbol),
+                    new JTokenExpression(typeReference.ApiVersion),
+                    new JTokenExpression("full"));
             }
 
-            return new FunctionExpression(
+            if (resourceSymbol.DeclaringResource.IsExistingResource())
+            {
+                // we must include an API version for an existing resource, because it cannot be inferred from any deployed template resource
+                return CreateFunction(
+                    "reference",
+                    GetLocallyScopedResourceId(resourceSymbol),
+                    new JTokenExpression(typeReference.ApiVersion));
+            }
+
+            return CreateFunction(
                 "reference",
-                new LanguageExpression[]
-                {
-                    GetLocallyScopedResourceIdExpression(resourceSyntax, typeReference),
-                },
-                Array.Empty<LanguageExpression>());
+                GetLocallyScopedResourceId(resourceSymbol));
         }
 
         private LanguageExpression ConvertVariableAccess(VariableAccessSyntax variableAccessSyntax)
@@ -263,7 +253,7 @@ namespace Bicep.Core.Emit
             switch (symbol)
             {
                 case ParameterSymbol _:
-                    return CreateUnaryFunction("parameters", new JTokenExpression(name));
+                    return CreateFunction("parameters", new JTokenExpression(name));
 
                 case VariableSymbol variableSymbol:
                     if (context.VariablesToInline.Contains(variableSymbol))
@@ -271,11 +261,11 @@ namespace Bicep.Core.Emit
                         // we've got a runtime dependency, so we have to inline the variable usage
                         return ConvertExpression(variableSymbol.DeclaringVariable.Value);
                     }
-                    return CreateUnaryFunction("variables", new JTokenExpression(name));
+                    return CreateFunction("variables", new JTokenExpression(name));
 
                 case ResourceSymbol resourceSymbol:
                     var typeReference = EmitHelpers.GetTypeReference(resourceSymbol);
-                    return GetReferenceExpression(resourceSymbol.DeclaringResource, typeReference, true);
+                    return GetReferenceExpression(resourceSymbol, typeReference, true);
 
                 case ModuleSymbol moduleSymbol:
                     return GetModuleOutputsReferenceExpression(moduleSymbol);
@@ -290,7 +280,7 @@ namespace Bicep.Core.Emit
             if (syntax.TryGetLiteralValue() is string literalStringValue)
             {
                 // no need to build a format string
-                return new JTokenExpression(literalStringValue);;
+                return new JTokenExpression(literalStringValue);
             }
 
             if (syntax.Expressions.Length == 1)
@@ -316,7 +306,7 @@ namespace Bicep.Core.Emit
                 formatArgs[i + 1] = ConvertExpression(syntax.Expressions[i]);
             }
 
-            return new FunctionExpression("format", formatArgs, Array.Empty<LanguageExpression>());
+            return CreateFunction("format", formatArgs);
         }
 
         /// <summary>
@@ -340,11 +330,11 @@ namespace Bicep.Core.Emit
                     {
                         case JTokenType.Integer:
                             // convert integer literal to a function call via int() function
-                            return CreateUnaryFunction("int", valueExpression);
+                            return CreateFunction("int", valueExpression);
 
                         case JTokenType.String:
                             // convert string literal to function call via string() function
-                            return CreateUnaryFunction("string", valueExpression);
+                            return CreateFunction("string", valueExpression);
                     }
 
                     break;
@@ -353,7 +343,7 @@ namespace Bicep.Core.Emit
             throw new NotImplementedException($"Unexpected expression type '{converted.GetType().Name}'.");
         }
 
-        private static LanguageExpression ConvertFunction(string functionName, LanguageExpression[] arguments)
+        private static LanguageExpression ConvertFunction(string functionName, IEnumerable<LanguageExpression> arguments)
         {
             if (string.Equals("any", functionName, LanguageConstants.IdentifierComparison))
             {
@@ -366,18 +356,18 @@ namespace Bicep.Core.Emit
                 return replacementExpression;
             }
 
-            return new FunctionExpression(functionName, arguments, Array.Empty<LanguageExpression>());
+            return CreateFunction(functionName, arguments);
         }
 
-        private static bool ShouldReplaceUnsupportedFunction(string functionName, LanguageExpression[] arguments, [NotNullWhen(true)] out LanguageExpression? replacementExpression)
+        private static bool ShouldReplaceUnsupportedFunction(string functionName, IEnumerable<LanguageExpression> arguments, [NotNullWhen(true)] out LanguageExpression? replacementExpression)
         {
             switch (functionName)
             {
                 // These functions have not yet been implemented in ARM. For now, we will just return an empty object if they are accessed directly.
                 case "tenant":
                 case "managementGroup":
-                case "subscription" when arguments.Length > 0:
-                case "resourceGroup" when arguments.Length > 0:
+                case "subscription" when arguments.Any():
+                case "resourceGroup" when arguments.Any():
                     replacementExpression = GetCreateObjectExpression();
                     return true;
             }
@@ -389,10 +379,9 @@ namespace Bicep.Core.Emit
         private FunctionExpression ConvertArray(ArraySyntax syntax)
         {
             // we are using the createArray() function as a proxy for an array literal
-            return new FunctionExpression(
+            return CreateFunction(
                 "createArray",
-                syntax.Items.Select(item => ConvertExpression(item.Value)).ToArray(),
-                Array.Empty<LanguageExpression>());
+                syntax.Items.Select(item => ConvertExpression(item.Value)));
         }
 
         private FunctionExpression ConvertObject(ObjectSyntax syntax)
@@ -403,7 +392,12 @@ namespace Bicep.Core.Emit
             int index = 0;
             foreach (var propertySyntax in syntax.Properties)
             {
-                parameters[index] = new JTokenExpression(propertySyntax.TryGetKeyText());
+                parameters[index] = propertySyntax.Key switch
+                {
+                    IdentifierSyntax identifier => new JTokenExpression(identifier.IdentifierName),
+                    StringSyntax @string => ConvertString(@string),
+                    _ => throw new NotImplementedException($"Encountered an unexpected type '{propertySyntax.Key.GetType().Name}' when generating object's property name.")
+                };
                 index++;
 
                 parameters[index] = ConvertExpression(propertySyntax.Value);
@@ -415,7 +409,7 @@ namespace Bicep.Core.Emit
         }
 
         private static FunctionExpression GetCreateObjectExpression(params LanguageExpression[] parameters)
-            =>  new FunctionExpression("createObject", parameters, Array.Empty<LanguageExpression>());
+            => CreateFunction("createObject", parameters);
 
         private LanguageExpression ConvertBinary(BinaryOperationSyntax syntax)
         {
@@ -425,55 +419,55 @@ namespace Bicep.Core.Emit
             switch (syntax.Operator)
             {
                 case BinaryOperator.LogicalOr:
-                    return CreateBinaryFunction("or", operand1, operand2);
+                    return CreateFunction("or", operand1, operand2);
 
                 case BinaryOperator.LogicalAnd:
-                    return CreateBinaryFunction("and", operand1, operand2);
+                    return CreateFunction("and", operand1, operand2);
 
                 case BinaryOperator.Equals:
-                    return CreateBinaryFunction("equals", operand1, operand2);
+                    return CreateFunction("equals", operand1, operand2);
 
                 case BinaryOperator.NotEquals:
-                    return CreateUnaryFunction("not", 
-                        CreateBinaryFunction("equals", operand1, operand2));
+                    return CreateFunction("not",
+                        CreateFunction("equals", operand1, operand2));
 
                 case BinaryOperator.EqualsInsensitive:
-                    return CreateBinaryFunction("equals",
-                        CreateUnaryFunction("toLower", operand1),
-                        CreateUnaryFunction("toLower", operand2));
+                    return CreateFunction("equals",
+                        CreateFunction("toLower", operand1),
+                        CreateFunction("toLower", operand2));
 
                 case BinaryOperator.NotEqualsInsensitive:
-                    return CreateUnaryFunction("not",
-                        CreateBinaryFunction("equals",
-                            CreateUnaryFunction("toLower", operand1),
-                            CreateUnaryFunction("toLower", operand2)));
+                    return CreateFunction("not",
+                        CreateFunction("equals",
+                            CreateFunction("toLower", operand1),
+                            CreateFunction("toLower", operand2)));
 
                 case BinaryOperator.LessThan:
-                    return CreateBinaryFunction("less", operand1, operand2);
+                    return CreateFunction("less", operand1, operand2);
 
                 case BinaryOperator.LessThanOrEqual:
-                    return CreateBinaryFunction("lessOrEquals", operand1, operand2);
+                    return CreateFunction("lessOrEquals", operand1, operand2);
 
                 case BinaryOperator.GreaterThan:
-                    return CreateBinaryFunction("greater", operand1, operand2);
+                    return CreateFunction("greater", operand1, operand2);
 
                 case BinaryOperator.GreaterThanOrEqual:
-                    return CreateBinaryFunction("greaterOrEquals", operand1, operand2);
+                    return CreateFunction("greaterOrEquals", operand1, operand2);
 
                 case BinaryOperator.Add:
-                    return CreateBinaryFunction("add", operand1, operand2);
+                    return CreateFunction("add", operand1, operand2);
 
                 case BinaryOperator.Subtract:
-                    return CreateBinaryFunction("sub", operand1, operand2);
+                    return CreateFunction("sub", operand1, operand2);
 
                 case BinaryOperator.Multiply:
-                    return CreateBinaryFunction("mul", operand1, operand2);
+                    return CreateFunction("mul", operand1, operand2);
 
                 case BinaryOperator.Divide:
-                    return CreateBinaryFunction("div", operand1, operand2);
+                    return CreateFunction("div", operand1, operand2);
 
                 case BinaryOperator.Modulo:
-                    return CreateBinaryFunction("mod", operand1, operand2);
+                    return CreateFunction("mod", operand1, operand2);
 
                 default:
                     throw new NotImplementedException($"Cannot emit unexpected binary operator '{syntax.Operator}'.");
@@ -487,7 +481,7 @@ namespace Bicep.Core.Emit
             switch (syntax.Operator)
             {
                 case UnaryOperator.Not:
-                    return CreateUnaryFunction("not", convertedOperand);
+                    return CreateFunction("not", convertedOperand);
 
                 case UnaryOperator.Minus:
                     if (convertedOperand is JTokenExpression literal && literal.Value.Type == JTokenType.Integer)
@@ -497,10 +491,10 @@ namespace Bicep.Core.Emit
                         return new JTokenExpression(-literalValue);
                     }
 
-                    return new FunctionExpression(
+                    return CreateFunction(
                         "sub",
-                        new[] {new JTokenExpression(0), convertedOperand},
-                        Array.Empty<LanguageExpression>());
+                        new JTokenExpression(0),
+                        convertedOperand);
 
                 default:
                     throw new NotImplementedException($"Cannot emit unexpected unary operator '{syntax.Operator}.");
@@ -514,48 +508,54 @@ namespace Bicep.Core.Emit
             // Generate a format string that looks like: My.Rp/type1/{0}/type2/{1}
             var formatString = $"{typeSegments[0]}/" + string.Join('/', typeSegments.Skip(1).Select((type, i) => $"{type}/{{{i}}}"));
 
-            return new FunctionExpression(
+            return CreateFunction(
                 "format",
-                new JTokenExpression(formatString).AsEnumerable().Concat(nameSegments).ToArray(),
-                new LanguageExpression[0]);
+                new JTokenExpression(formatString).AsEnumerable().Concat(nameSegments));
         }
 
         public static LanguageExpression GenerateScopedResourceId(LanguageExpression scope, string fullyQualifiedType, IEnumerable<LanguageExpression> nameSegments)
-            => new FunctionExpression(
+            => CreateFunction(
                 "extensionResourceId",
-                new [] { scope, new JTokenExpression(fullyQualifiedType), }.Concat(nameSegments).ToArray(),
-                new LanguageExpression[0]);
+                new[] { scope, new JTokenExpression(fullyQualifiedType), }.Concat(nameSegments));
 
         public static LanguageExpression GenerateResourceGroupScope(LanguageExpression subscriptionId, LanguageExpression resourceGroup)
-            => new FunctionExpression("format", new LanguageExpression[] 
-            {
+            => CreateFunction(
+                "format",
                 new JTokenExpression("/subscriptions/{0}/resourceGroups/{1}"),
                 subscriptionId,
-                resourceGroup,
-            }, new LanguageExpression[0]);
+                resourceGroup);
 
-        public static LanguageExpression GetManagementGroupScopeExpression(LanguageExpression managementGroupName)
-            => new FunctionExpression(
+        public static LanguageExpression GenerateTenantResourceId(string fullyQualifiedType, IEnumerable<LanguageExpression> nameSegments)
+            => CreateFunction(
                 "tenantResourceId",
-                new LanguageExpression[] {
-                    new JTokenExpression("Microsoft.Management/managementGroups"),
-                    managementGroupName,
-                },
-                Array.Empty<LanguageExpression>());
+                new[] { new JTokenExpression(fullyQualifiedType), }.Concat(nameSegments));
 
-        private static FunctionExpression AppendProperty(FunctionExpression function, LanguageExpression newProperty) => 
-            // technically we could just mutate the provided function object, but let's hold off on that optimization
-            // until we have evidence that it is needed
-            new FunctionExpression(function.Function, function.Parameters, function.Properties.Append(newProperty).ToArray());
+        public LanguageExpression GenerateManagementGroupResourceId(SyntaxBase managementGroupNameProperty, bool fullyQualified)
+        {
+            const string managementGroupType = "Microsoft.Management/managementGroups";
+            var managementGroupName = ConvertExpression(managementGroupNameProperty);
 
-        private static FunctionExpression CreateParameterlessFunction(string function) =>
-            new FunctionExpression(function, Array.Empty<LanguageExpression>(), Array.Empty<LanguageExpression>());
+            if (fullyQualified)
+            {
+                return GenerateTenantResourceId(managementGroupType, new[] { managementGroupName });
+            }
+            else
+            {
+                return GenerateUnqualifiedResourceId(managementGroupType, new[] { managementGroupName });
+            }
+        }
 
-        private static FunctionExpression CreateUnaryFunction(string function, LanguageExpression operand) => 
-            new FunctionExpression(function, new[] {operand}, Array.Empty<LanguageExpression>());
+        private static FunctionExpression CreateFunction(string name, params LanguageExpression[] parameters)
+            => CreateFunction(name, parameters as IEnumerable<LanguageExpression>);
 
-        private static FunctionExpression CreateBinaryFunction(string name, LanguageExpression operand1, LanguageExpression operand2) =>
-            new FunctionExpression(name, new[] {operand1, operand2}, Array.Empty<LanguageExpression>());
+        private static FunctionExpression CreateFunction(string name, IEnumerable<LanguageExpression> parameters)
+            => new FunctionExpression(name, parameters.ToArray(), Array.Empty<LanguageExpression>());
+
+        private static FunctionExpression AppendProperties(FunctionExpression function, params LanguageExpression[] properties)
+            => AppendProperties(function, properties as IEnumerable<LanguageExpression>);
+
+        private static FunctionExpression AppendProperties(FunctionExpression function, IEnumerable<LanguageExpression> properties)
+            => new FunctionExpression(function.Function, function.Parameters, function.Properties.Concat(properties).ToArray());
 
         protected static void Assert(bool predicate, string message)
         {

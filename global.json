@@ -1,10 +1,10 @@
 {
   "msbuild-sdks": {
-    "Microsoft.Build.NoTargets": "2.0.1"
+    "Microsoft.Build.NoTargets": "2.0.17"
   },
   "sdk": {
     "allowPrerelease": false,
-    "version": "3.1.301",
+    "version": "5.0.100",
     "rollForward": "latestFeature"
   }
 }
