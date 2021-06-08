@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 using System;
 using System.IO;
-using System.Linq;
 using Bicep.Cli.CommandLine.Arguments;
 
 namespace Bicep.Cli.CommandLine
@@ -17,21 +16,16 @@ namespace Bicep.Cli.CommandLine
             }
 
             // parse verb
-            switch (args[0].ToLowerInvariant())
+            return (args[0].ToLowerInvariant()) switch
             {
-                case CliConstants.CommandBuild:
-                    return ParseBuild(args[1..]);
-                case CliConstants.CommandDecompile:
-                    return ParseDecompile(args[1..]);
-                case CliConstants.ArgumentHelp:
-                case CliConstants.ArgumentHelpShort:
-                    return new HelpArguments();
-                case CliConstants.ArgumentVersion:
-                case CliConstants.ArgumentVersionShort:
-                    return new VersionArguments();
-            }
-            
-            return null;
+                CliConstants.CommandBuild => new BuildOrDecompileArguments(args[1..], CliConstants.CommandBuild),
+                CliConstants.CommandDecompile => new BuildOrDecompileArguments(args[1..], CliConstants.CommandDecompile),
+                CliConstants.ArgumentHelp => new HelpArguments(CliConstants.ArgumentHelp),
+                CliConstants.ArgumentHelpShort => new HelpArguments(CliConstants.ArgumentHelpShort),
+                CliConstants.ArgumentVersion => new VersionArguments(CliConstants.ArgumentVersion),
+                CliConstants.ArgumentVersionShort => new VersionArguments(CliConstants.ArgumentVersionShort),
+                _ => null,
+            };
         }
 
         public static string GetExeName()
@@ -42,7 +36,7 @@ namespace Bicep.Cli.CommandLine
             var versionSplit = ThisAssembly.AssemblyInformationalVersion.Split('+');
 
             // <major>.<minor>.<patch> (<commmithash>)
-            return $"{versionSplit[0]} ({versionSplit[1]})";
+            return $"{versionSplit[0]} ({(versionSplit.Length > 1 ? versionSplit[1] : "custom")})";
         }
 
         public static void PrintVersion(TextWriter writer)
@@ -60,20 +54,39 @@ namespace Bicep.Cli.CommandLine
 $@"Bicep CLI version {GetVersionString()}
 
 Usage:
-  {exeName} build [options] [<files>...]
-    Builds one or more .bicep files
+  {exeName} build [options] <file>
+    Builds a .bicep file
 
     Arguments:
-      <files>     The list of one or more .bicep files to build
+      <file>        The input file.
 
     Options:
-      --stdout    Prints all output to stdout instead of corresponding files
+      --outdir <dir>    Saves the output at the specified directory.
+      --outfile <file>  Saves the output as the specified file path.
+      --stdout          Prints the output to stdout.
 
-  {exeName} decompile [options] [<files>...]
-    Attempts to decompile one or more template .json files to .bicep
+    Examples:
+      bicep build file.bicep
+      bicep build file.bicep --stdout
+      bicep build file.bicep --outdir dir1
+      bicep build file.bicep --outfile file.json
+
+  {exeName} decompile [options] <file>
+    Attempts to decompile a template .json file to .bicep
 
     Arguments:
-      <files>     The list of one or more .json files to decompile
+      <file>        The input file.
+
+    Options:
+      --outdir <dir>    Saves the output at the specified directory.
+      --outfile <file>  Saves the output as the specified file path.
+      --stdout          Prints the output to stdout.
+
+    Examples:
+      bicep decompile file.json
+      bicep decompile file.json --stdout
+      bicep decompile file.json --outdir dir1
+      bicep decompile file.json --outfile file.bicep
 
   {exeName} [options]
     Options:
@@ -83,16 +96,6 @@ Usage:
 
             writer.Write(output);
             writer.Flush();
-        }
-
-        private static BuildArguments ParseBuild(string[] files)
-        {
-            return new BuildArguments(files);
-        }
-
-        private static DecompileArguments ParseDecompile(string[] files)
-        {
-            return new DecompileArguments(files);
         }
     }
 }

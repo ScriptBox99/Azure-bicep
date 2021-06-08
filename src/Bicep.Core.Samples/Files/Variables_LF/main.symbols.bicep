@@ -26,9 +26,10 @@ var curliesInInterp = '{${123}{0}${true}}'
 // verify correct bracket escaping
 var bracketInTheMiddle = 'a[b]'
 //@[4:22) Variable bracketInTheMiddle. Type: 'a[b]'. Declaration start char: 0, length: 31
-// #completionTest(25) -> symbolsPlusTypes
+// #completionTest(25) -> empty
 var bracketAtBeginning = '[test'
 //@[4:22) Variable bracketAtBeginning. Type: '[test'. Declaration start char: 0, length: 32
+// #completionTest(23) -> symbolsPlusTypes
 var enclosingBrackets = '[test]'
 //@[4:21) Variable enclosingBrackets. Type: '[test]'. Declaration start char: 0, length: 32
 var emptyJsonArray = '[]'
@@ -122,8 +123,6 @@ var portalEndpoint = environment().portal
 //@[4:18) Variable portalEndpoint. Type: string. Declaration start char: 0, length: 41
 var loginEndpoint = environment().authentication.loginEndpoint
 //@[4:17) Variable loginEndpoint. Type: string. Declaration start char: 0, length: 62
-var firstLocation = environment().locations[0].displayName
-//@[4:17) Variable firstLocation. Type: string. Declaration start char: 0, length: 58
 
 var namedPropertyIndexer = {
 //@[4:24) Variable namedPropertyIndexer. Type: 's'. Declaration start char: 0, length: 48
@@ -302,7 +301,7 @@ var isTrue = sys.max(1, 2) == 3
 var isFalse = !isTrue
 //@[4:11) Variable isFalse. Type: bool. Declaration start char: 0, length: 21
 var someText = isTrue ? sys.concat('a', sys.concat('b', 'c')) : 'someText'
-//@[4:12) Variable someText. Type: 'someText' | string. Declaration start char: 0, length: 74
+//@[4:12) Variable someText. Type: string. Declaration start char: 0, length: 74
 
 // Bicep functions that cannot be converted into ARM functions
 var scopesWithoutArmRepresentation = {
@@ -331,3 +330,102 @@ var myBigIntExpression = 2199023255552 * 2
 //@[4:22) Variable myBigIntExpression. Type: int. Declaration start char: 0, length: 42
 var myBigIntExpression2 = 2199023255552 * 2199023255552
 //@[4:23) Variable myBigIntExpression2. Type: int. Declaration start char: 0, length: 55
+
+// variable loops
+var incrementingNumbers = [for i in range(0,10) : i]
+//@[31:32) Local i. Type: int. Declaration start char: 31, length: 1
+//@[4:23) Variable incrementingNumbers. Type: int[]. Declaration start char: 0, length: 52
+var loopInput = [
+//@[4:13) Variable loopInput. Type: array. Declaration start char: 0, length: 35
+  'one'
+  'two'
+]
+var arrayOfStringsViaLoop = [for (name, i) in loopInput: 'prefix-${i}-${name}']
+//@[34:38) Local name. Type: any. Declaration start char: 34, length: 4
+//@[40:41) Local i. Type: int. Declaration start char: 40, length: 1
+//@[4:25) Variable arrayOfStringsViaLoop. Type: string[]. Declaration start char: 0, length: 79
+var arrayOfObjectsViaLoop = [for (name, i) in loopInput: {
+//@[34:38) Local name. Type: any. Declaration start char: 34, length: 4
+//@[40:41) Local i. Type: int. Declaration start char: 40, length: 1
+//@[4:25) Variable arrayOfObjectsViaLoop. Type: object[]. Declaration start char: 0, length: 123
+  index: i
+  name: name
+  value: 'prefix-${i}-${name}-suffix'
+}]
+var arrayOfArraysViaLoop = [for (name, i) in loopInput: [
+//@[33:37) Local name. Type: any. Declaration start char: 33, length: 4
+//@[39:40) Local i. Type: int. Declaration start char: 39, length: 1
+//@[4:24) Variable arrayOfArraysViaLoop. Type: array[]. Declaration start char: 0, length: 102
+  i
+  name
+  'prefix-${i}-${name}-suffix'
+]]
+var arrayOfBooleans = [for (name, i) in loopInput: i % 2 == 0]
+//@[28:32) Local name. Type: any. Declaration start char: 28, length: 4
+//@[34:35) Local i. Type: int. Declaration start char: 34, length: 1
+//@[4:19) Variable arrayOfBooleans. Type: bool[]. Declaration start char: 0, length: 62
+var arrayOfHardCodedNumbers = [for i in range(0,10): 3]
+//@[35:36) Local i. Type: int. Declaration start char: 35, length: 1
+//@[4:27) Variable arrayOfHardCodedNumbers. Type: int[]. Declaration start char: 0, length: 55
+var arrayOfHardCodedBools = [for i in range(0,10): false]
+//@[33:34) Local i. Type: int. Declaration start char: 33, length: 1
+//@[4:25) Variable arrayOfHardCodedBools. Type: bool[]. Declaration start char: 0, length: 57
+var arrayOfHardCodedStrings = [for i in range(0,3): 'hi']
+//@[35:36) Local i. Type: int. Declaration start char: 35, length: 1
+//@[4:27) Variable arrayOfHardCodedStrings. Type: 'hi'[]. Declaration start char: 0, length: 57
+var arrayOfNonRuntimeFunctionCalls = [for i in range(0,3): concat('hi', i)]
+//@[42:43) Local i. Type: int. Declaration start char: 42, length: 1
+//@[4:34) Variable arrayOfNonRuntimeFunctionCalls. Type: string[]. Declaration start char: 0, length: 75
+
+var multilineString = '''
+//@[4:19) Variable multilineString. Type: 'HELLO!\n'. Declaration start char: 0, length: 36
+HELLO!
+'''
+
+var multilineEmpty = ''''''
+//@[4:18) Variable multilineEmpty. Type: ''. Declaration start char: 0, length: 27
+var multilineEmptyNewline = '''
+//@[4:25) Variable multilineEmptyNewline. Type: ''. Declaration start char: 0, length: 35
+'''
+
+// evaluates to '\'abc\''
+var multilineExtraQuotes = ''''abc''''
+//@[4:24) Variable multilineExtraQuotes. Type: '\'abc\''. Declaration start char: 0, length: 38
+
+// evaluates to '\'\nabc\n\''
+var multilineExtraQuotesNewlines = ''''
+//@[4:32) Variable multilineExtraQuotesNewlines. Type: '\'\nabc\n\''. Declaration start char: 0, length: 48
+abc
+''''
+
+var multilineSingleLine = '''hello!'''
+//@[4:23) Variable multilineSingleLine. Type: 'hello!'. Declaration start char: 0, length: 38
+
+var multilineFormatted = format('''
+//@[4:22) Variable multilineFormatted. Type: string. Declaration start char: 0, length: 73
+Hello,
+my
+name is
+{0}
+''', 'Anthony')
+
+var multilineJavaScript = '''
+//@[4:23) Variable multilineJavaScript. Type: '// NOT RECOMMENDED PATTERN\nconst fs = require(\'fs\');\n\nmodule.exports = function (context) {\n    fs.readFile(\'./hello.txt\', (err, data) => {\n        if (err) {\n            context.log.error(\'ERROR\', err);\n            // BUG #1: This will result in an uncaught exception that crashes the entire process\n            throw err;\n        }\n        context.log(`Data from file: \${data}`);\n        // context.done() should be called here\n    });\n    // BUG #2: Data is not guaranteed to be read before the Azure Function\'s invocation ends\n    context.done();\n}\n'. Declaration start char: 0, length: 586
+// NOT RECOMMENDED PATTERN
+const fs = require('fs');
+
+module.exports = function (context) {
+    fs.readFile('./hello.txt', (err, data) => {
+        if (err) {
+            context.log.error('ERROR', err);
+            // BUG #1: This will result in an uncaught exception that crashes the entire process
+            throw err;
+        }
+        context.log(`Data from file: ${data}`);
+        // context.done() should be called here
+    });
+    // BUG #2: Data is not guaranteed to be read before the Azure Function's invocation ends
+    context.done();
+}
+'''
+

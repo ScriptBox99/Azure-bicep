@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Syntax;
@@ -11,6 +11,7 @@ namespace Bicep.Core.Semantics
         DecoratorSyntax decoratorSyntax,
         TypeSymbol targetType,
         ITypeManager typeManager,
+        IBinder binder,
         IDiagnosticWriter diagnosticWriter);
 
     public delegate ObjectSyntax? DecoratorEvaluator(
@@ -20,27 +21,43 @@ namespace Bicep.Core.Semantics
 
     public class Decorator
     {
+        private readonly TypeSymbol attachableType;
+
         private readonly DecoratorValidator? validator;
 
         private readonly DecoratorEvaluator? evaluator;
 
-        public Decorator(FunctionOverload overload, DecoratorValidator? validator, DecoratorEvaluator? evaluator)
+        public Decorator(FunctionOverload overload, TypeSymbol attachableType, DecoratorValidator? validator, DecoratorEvaluator? evaluator)
         {
             this.Overload = overload;
+            this.attachableType = attachableType;
             this.validator = validator;
             this.evaluator = evaluator;
         }
 
         public FunctionOverload Overload { get; }
 
-        public void Validate(DecoratorSyntax decoratorSyntax, TypeSymbol targetType, ITypeManager typeManager, IDiagnosticWriter diagnosticWriter)
+        public bool CanAttachTo(TypeSymbol targetType) => TypeValidator.AreTypesAssignable(targetType, attachableType);
+
+        public void Validate(DecoratorSyntax decoratorSyntax, TypeSymbol targetType, ITypeManager typeManager, IBinder binder, IDiagnosticWriter diagnosticWriter)
         {
             if (targetType is ErrorType)
             {
                 return;
             }
 
-            this.validator?.Invoke(this.Overload.Name, decoratorSyntax, targetType, typeManager, diagnosticWriter);
+            if (!this.CanAttachTo(targetType))
+            {
+                diagnosticWriter.Write(DiagnosticBuilder.ForPosition(decoratorSyntax).CannotAttachDecoratorToTarget(this.Overload.Name, attachableType, targetType));
+            }
+
+            // Custom validator provided.
+            if (this.validator != null)
+            {
+                this.validator.Invoke(this.Overload.Name, decoratorSyntax, targetType, typeManager, binder, diagnosticWriter);
+
+                return;
+            }
         }
 
         public ObjectSyntax? Evaluate(DecoratorSyntax decoratorSyntax, TypeSymbol targetType, ObjectSyntax? targetObject)

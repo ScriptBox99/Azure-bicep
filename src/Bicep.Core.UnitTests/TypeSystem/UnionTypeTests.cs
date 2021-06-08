@@ -84,12 +84,51 @@ namespace Bicep.Core.UnitTests.TypeSystem
         }
 
         [TestMethod]
+        public void UnionTypeInvolvingResourceScopeTypesShouldProduceExpectedDisplayString()
+        {
+            var unionType = UnionType.Create(
+                new StringLiteralType("Test"),
+                LanguageConstants.CreateResourceScopeReference(ResourceScope.Resource),
+                LanguageConstants.CreateResourceScopeReference(ResourceScope.Subscription | ResourceScope.Tenant)
+            );
+
+            unionType.Name.Should().Be("'Test' | resource | (tenant | subscription)");
+        }
+
+        [TestMethod]
         public void SingletonUnionCreationShouldProduceSingletonType()
         {
             UnionType.Create(LanguageConstants.Int).Should().BeSameAs(LanguageConstants.Int);
             UnionType.Create(LanguageConstants.String).Should().BeSameAs(LanguageConstants.String);
 
             UnionType.Create(UnionType.Create(UnionType.Create(LanguageConstants.Bool))).Should().BeSameAs(LanguageConstants.Bool);
+        }
+
+        [TestMethod]
+        public void UnionsOfStringsAndStringLiteralTypesShouldProduceStringType()
+        {
+            UnionType.Create(LanguageConstants.String, new StringLiteralType("hello"), new StringLiteralType("there")).Should().BeSameAs(LanguageConstants.String);
+
+            UnionType.Create(LanguageConstants.String, new StringLiteralType("hello"), LanguageConstants.Bool, new StringLiteralType("there")).Name.Should().Be("bool | string");
+        }
+
+        [TestMethod]
+        public void UnionsOfUntypedAndTypedArraysShouldProduceUntypedArrayType()
+        {
+            UnionType.Create(LanguageConstants.Array, new TypedArrayType(LanguageConstants.String, TypeSymbolValidationFlags.Default)).Should().BeSameAs(LanguageConstants.Array);
+
+            var actual = UnionType.Create(
+                LanguageConstants.Array,
+                new TypedArrayType(LanguageConstants.Int, TypeSymbolValidationFlags.Default),
+                LanguageConstants.String,
+                new ObjectType("myObj", TypeSymbolValidationFlags.Default, Enumerable.Empty<TypeProperty>(), null));
+            actual.Name.Should().Be("array | myObj | string");
+        }
+
+        [TestMethod]
+        public void UnionsInvolvingAnyTypeShouldProduceAnyType()
+        {
+            UnionType.Create(LanguageConstants.String, LanguageConstants.Int, new TypedArrayType(LanguageConstants.Int, TypeSymbolValidationFlags.Default), LanguageConstants.Any).Should().BeSameAs(LanguageConstants.Any);
         }
     }
 }

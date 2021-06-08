@@ -5,20 +5,17 @@
     "detail": "dependsOn",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `resource | module[]`  \nWrite-only property  \n"
+      "value": "Type: `(module[] | (resource | module) | resource[])[]`  \nWrite-only property  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_dependsOn",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "dependsOn"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "dependsOn:"
+    }
   },
   {
     "label": "params",
@@ -32,14 +29,11 @@
     "preselect": false,
     "sortText": "2_params",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "params"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "params:"
+    }
   },
   {
     "label": "scope",
@@ -53,13 +47,10 @@
     "preselect": false,
     "sortText": "2_scope",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "scope"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "scope:"
+    }
   }
 ]

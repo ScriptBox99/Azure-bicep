@@ -30,6 +30,8 @@ namespace Bicep.Core.Parsing
             .Append("\\u{...}")
             .ToImmutableArray();
 
+        private const int MultilineStringTerminatingQuoteCount = 3;
+
         // the rules for parsing are slightly different if we are inside an interpolated string (for example, a new line should result in a lex error).
         // to handle this, we use a modal lexing pattern with a stack to ensure we're applying the correct set of rules.
         private readonly Stack<TokenType> templateStack = new Stack<TokenType>();
@@ -88,6 +90,46 @@ namespace Bicep.Core.Parsing
             }
 
             return segments;
+        }
+
+        public static string? TryGetMultilineStringValue(Token stringToken)
+        {
+            var tokenText = stringToken.Text;
+
+            if (tokenText.Length < MultilineStringTerminatingQuoteCount * 2)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < MultilineStringTerminatingQuoteCount; i++)
+            {
+                if (tokenText[i] != '\'')
+                {
+                    return null;
+                }
+            }
+
+            for (var i = tokenText.Length - MultilineStringTerminatingQuoteCount; i < tokenText.Length; i++)
+            {
+                if (tokenText[i] != '\'')
+                {
+                    return null;
+                }
+            }
+
+            var startOffset = MultilineStringTerminatingQuoteCount;
+
+            // we strip a leading \r\n or \n
+            if (tokenText[startOffset] == '\r')
+            {
+                startOffset++;
+            }
+            if (tokenText[startOffset] == '\n')
+            {
+                startOffset++;
+            }
+
+            return tokenText.Substring(startOffset, tokenText.Length - startOffset - MultilineStringTerminatingQuoteCount);
         }
 
         /// <summary>
@@ -163,7 +205,7 @@ namespace Bicep.Core.Parsing
                         {
                             return null;
                         }
-                        
+
                         char charOrHighSurrogate = CodepointToString(codePoint, out char lowSurrogate);
                         buffer.Append(charOrHighSurrogate);
                         if (lowSurrogate != SlidingTextWindow.InvalidCharacter)
@@ -239,7 +281,7 @@ namespace Bicep.Core.Parsing
             {
                 yield return ScanWhitespace();
             }
-            
+
             if (textWindow.Peek() == '/' && textWindow.Peek(1) == '/')
             {
                 yield return ScanSingleLineComment();
@@ -280,7 +322,7 @@ namespace Bicep.Core.Parsing
         private void LexToken()
         {
             textWindow.Reset();
-            
+
             // important to force enum evaluation here via .ToImmutableArray()!
             var leadingTrivia = ScanLeadingTrivia().ToImmutableArray();
 
@@ -288,14 +330,14 @@ namespace Bicep.Core.Parsing
             var tokenType = ScanToken();
             var tokenText = textWindow.GetText();
             var tokenSpan = textWindow.GetSpan();
-            
+
             if (tokenType == TokenType.Unrecognized)
             {
                 if (tokenText == "\"")
                 {
                     AddDiagnostic(b => b.DoubleQuoteToken(tokenText));
-                } 
-                else 
+                }
+                else
                 {
                     AddDiagnostic(b => b.UnrecognizedToken(tokenText));
                 }
@@ -409,6 +451,44 @@ namespace Bicep.Core.Parsing
             }
         }
 
+        private TokenType ScanMultilineString()
+        {
+            var successiveQuotes = 0;
+
+            // we've already scanned the "'''", so get straight to scanning the string contents.
+            while (!textWindow.IsAtEnd())
+            {
+                var nextChar = textWindow.Peek();
+                textWindow.Advance();
+
+                switch (nextChar)
+                {
+                    case '\'':
+                        successiveQuotes++;
+                        if (successiveQuotes == MultilineStringTerminatingQuoteCount)
+                        {
+                            // we've scanned the terminating "'''". Keep scanning as long as we find more "'" characters;
+                            // it is possible for the verbatim string's last character to be "'", and we should accept this.
+                            while (textWindow.Peek() == '\'')
+                            {
+                                textWindow.Advance();
+                            }
+
+                            return TokenType.MultilineString;
+                        }
+                        break;
+                    default:
+                        successiveQuotes = 0;
+                        break;
+                }
+            }
+
+            // We've reached the end of the file without finding terminating quotes.
+            // We still want to return a string token so that highlighting shows up.
+            AddDiagnostic(b => b.UnterminatedMultilineString());
+            return TokenType.MultilineString;
+        }
+
         private TokenType ScanStringSegment(bool isAtStartOfString)
         {
             // to handle interpolation, strings are broken down into multiple segments, to detect the portions of string between the 'holes'.
@@ -469,7 +549,7 @@ namespace Bicep.Core.Parsing
                 if (nextChar == 'u')
                 {
                     // unicode escape
-                    
+
                     if (textWindow.IsAtEnd())
                     {
                         // string was prematurely terminated
@@ -656,8 +736,26 @@ namespace Bicep.Core.Parsing
                 case '.':
                     return TokenType.Dot;
                 case '?':
+                    if (!textWindow.IsAtEnd())
+                    {
+                        switch (textWindow.Peek())
+                        {
+                            case '?':
+                                textWindow.Advance();
+                                return TokenType.DoubleQuestion;
+                        }
+                    }
                     return TokenType.Question;
                 case ':':
+                    if (!textWindow.IsAtEnd())
+                    {
+                        switch (textWindow.Peek())
+                        {
+                            case ':':
+                                textWindow.Advance();
+                                return TokenType.DoubleColon;
+                        }
+                    }
                     return TokenType.Colon;
                 case ';':
                     return TokenType.Semicolon;
@@ -744,6 +842,13 @@ namespace Bicep.Core.Parsing
                     }
                     return TokenType.Unrecognized;
                 case '\'':
+                    // "'''" means we're starting a multiline string.
+                    if (textWindow.Peek(0) == '\'' && textWindow.Peek(1) == '\'')
+                    {
+                        textWindow.Advance(2);
+                        return ScanMultilineString();
+                    }
+
                     var token = ScanStringSegment(true);
                     if (token == TokenType.StringLeftPiece)
                     {

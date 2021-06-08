@@ -1,7 +1,8 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using Bicep.Core;
 
 namespace Bicep.LangServer.IntegrationTests.Helpers
 {
@@ -12,7 +13,7 @@ namespace Bicep.LangServer.IntegrationTests.Helpers
             {
                 TextDocument = new TextDocumentItem
                 {
-                    LanguageId = "bicep",
+                    LanguageId = LanguageConstants.LanguageId,
                     Version = version,
                     Uri = documentUri,
                     Text = text,
@@ -22,7 +23,7 @@ namespace Bicep.LangServer.IntegrationTests.Helpers
         public static DidChangeTextDocumentParams CreateDidChangeTextDocumentParams(DocumentUri documentUri, string text, int version) =>
             new DidChangeTextDocumentParams
             {
-                TextDocument = new VersionedTextDocumentIdentifier
+                TextDocument = new OptionalVersionedTextDocumentIdentifier
                 {
                     Version = version,
                     Uri = documentUri

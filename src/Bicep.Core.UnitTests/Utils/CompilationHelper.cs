@@ -8,11 +8,11 @@ using Bicep.Core.Emit;
 using Bicep.Core.Semantics;
 using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.UnitTests.Assertions;
-using FluentAssertions.Execution;
 using FluentAssertions;
 using System;
 using Bicep.Core.TypeSystem;
 using Newtonsoft.Json.Linq;
+using Bicep.Core.Syntax;
 
 namespace Bicep.Core.UnitTests.Utils
 {
@@ -20,8 +20,11 @@ namespace Bicep.Core.UnitTests.Utils
     {
         public record CompilationResult(
             JToken? Template,
-            IEnumerable<Diagnostic> Diagnostics,
-            Compilation compilation);
+            IEnumerable<IDiagnostic> Diagnostics,
+            Compilation Compilation)
+        {
+            public SyntaxTree SyntaxTree => Compilation.SyntaxTreeGrouping.EntryPoint;
+        }
 
         public static CompilationResult Compile(IResourceTypeProvider resourceTypeProvider, params (string fileName, string fileContents)[] files)
         {
@@ -33,7 +36,7 @@ namespace Bicep.Core.UnitTests.Utils
         }
 
         public static CompilationResult Compile(params (string fileName, string fileContents)[] files)
-            => Compile(new AzResourceTypeProvider(), files);
+            => Compile(AzResourceTypeProvider.CreateWithAzTypes(), files);
 
         public static CompilationResult Compile(string fileContents)
             => Compile(("main.bicep", fileContents));
@@ -52,7 +55,7 @@ namespace Bicep.Core.UnitTests.Utils
 
         private static CompilationResult Compile(Compilation compilation)
         {
-            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel());
+            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel(), BicepTestConstants.DevAssemblyFileVersion);
 
             var diagnostics = compilation.GetEntrypointSemanticModel().GetAllDiagnostics();
 

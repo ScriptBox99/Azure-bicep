@@ -6,6 +6,8 @@
 !out/**/*
 !bicepLanguageServer/**/*
 !icons/**/*
+!schemas/**/*
+!syntaxes/**/*
 !language-configuration.json
 !package.json
 !README.md

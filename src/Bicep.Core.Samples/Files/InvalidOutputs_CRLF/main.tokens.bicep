@@ -36,6 +36,33 @@ output missingValue string =
 //@[27:28) Assignment |=|
 //@[29:33) NewLine |\r\n\r\n|
 
+// #completionTest(31,32) -> arrayPlusSymbols
+//@[45:47) NewLine |\r\n|
+output arrayCompletions array = 
+//@[0:6) Identifier |output|
+//@[7:23) Identifier |arrayCompletions|
+//@[24:29) Identifier |array|
+//@[30:31) Assignment |=|
+//@[32:36) NewLine |\r\n\r\n|
+
+// #completionTest(33,34) -> objectPlusSymbols
+//@[46:48) NewLine |\r\n|
+output objectCompletions object = 
+//@[0:6) Identifier |output|
+//@[7:24) Identifier |objectCompletions|
+//@[25:31) Identifier |object|
+//@[32:33) Assignment |=|
+//@[34:38) NewLine |\r\n\r\n|
+
+// #completionTest(29,30) -> boolPlusSymbols
+//@[44:46) NewLine |\r\n|
+output boolCompletions bool = 
+//@[0:6) Identifier |output|
+//@[7:22) Identifier |boolCompletions|
+//@[23:27) Identifier |bool|
+//@[28:29) Assignment |=|
+//@[30:34) NewLine |\r\n\r\n|
+
 output foo
 //@[0:6) Identifier |output|
 //@[7:10) Identifier |foo|
@@ -393,6 +420,20 @@ output deeper bool = true ? -true : (14 && 's') + 10
 //@[50:52) Integer |10|
 //@[52:56) NewLine |\r\n\r\n|
 
+output myOutput string = 'hello'
+//@[0:6) Identifier |output|
+//@[7:15) Identifier |myOutput|
+//@[16:22) Identifier |string|
+//@[23:24) Assignment |=|
+//@[25:32) StringComplete |'hello'|
+//@[32:34) NewLine |\r\n|
+var attemptToReferenceAnOutput = myOutput
+//@[0:3) Identifier |var|
+//@[4:30) Identifier |attemptToReferenceAnOutput|
+//@[31:32) Assignment |=|
+//@[33:41) Identifier |myOutput|
+//@[41:45) NewLine |\r\n\r\n|
+
 @sys.maxValue(20)
 //@[0:1) At |@|
 //@[1:4) Identifier |sys|
@@ -415,6 +456,244 @@ output notAttachableDecorators int = 32
 //@[31:34) Identifier |int|
 //@[35:36) Assignment |=|
 //@[37:39) Integer |32|
-//@[39:41) NewLine |\r\n|
+//@[39:43) NewLine |\r\n\r\n|
 
-//@[0:0) EndOfFile ||
+// nested loops inside output loops are not supported
+//@[53:55) NewLine |\r\n|
+output noNestedLoops array = [for thing in things: {
+//@[0:6) Identifier |output|
+//@[7:20) Identifier |noNestedLoops|
+//@[21:26) Identifier |array|
+//@[27:28) Assignment |=|
+//@[29:30) LeftSquare |[|
+//@[30:33) Identifier |for|
+//@[34:39) Identifier |thing|
+//@[40:42) Identifier |in|
+//@[43:49) Identifier |things|
+//@[49:50) Colon |:|
+//@[51:52) LeftBrace |{|
+//@[52:54) NewLine |\r\n|
+  something: [
+//@[2:11) Identifier |something|
+//@[11:12) Colon |:|
+//@[13:14) LeftSquare |[|
+//@[14:16) NewLine |\r\n|
+    [for thing in things: true]
+//@[4:5) LeftSquare |[|
+//@[5:8) Identifier |for|
+//@[9:14) Identifier |thing|
+//@[15:17) Identifier |in|
+//@[18:24) Identifier |things|
+//@[24:25) Colon |:|
+//@[26:30) TrueKeyword |true|
+//@[30:31) RightSquare |]|
+//@[31:33) NewLine |\r\n|
+  ]
+//@[2:3) RightSquare |]|
+//@[3:5) NewLine |\r\n|
+}]
+//@[0:1) RightBrace |}|
+//@[1:2) RightSquare |]|
+//@[2:6) NewLine |\r\n\r\n|
+
+// loops in inner properties inside outputs are not supported
+//@[61:63) NewLine |\r\n|
+output noInnerLoopsInOutputs object = {
+//@[0:6) Identifier |output|
+//@[7:28) Identifier |noInnerLoopsInOutputs|
+//@[29:35) Identifier |object|
+//@[36:37) Assignment |=|
+//@[38:39) LeftBrace |{|
+//@[39:41) NewLine |\r\n|
+  a: [for i in range(0,10): i]
+//@[2:3) Identifier |a|
+//@[3:4) Colon |:|
+//@[5:6) LeftSquare |[|
+//@[6:9) Identifier |for|
+//@[10:11) Identifier |i|
+//@[12:14) Identifier |in|
+//@[15:20) Identifier |range|
+//@[20:21) LeftParen |(|
+//@[21:22) Integer |0|
+//@[22:23) Comma |,|
+//@[23:25) Integer |10|
+//@[25:26) RightParen |)|
+//@[26:27) Colon |:|
+//@[28:29) Identifier |i|
+//@[29:30) RightSquare |]|
+//@[30:32) NewLine |\r\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\r\n|
+output noInnerLoopsInOutputs2 object = {
+//@[0:6) Identifier |output|
+//@[7:29) Identifier |noInnerLoopsInOutputs2|
+//@[30:36) Identifier |object|
+//@[37:38) Assignment |=|
+//@[39:40) LeftBrace |{|
+//@[40:42) NewLine |\r\n|
+  a: [for i in range(0,10): {
+//@[2:3) Identifier |a|
+//@[3:4) Colon |:|
+//@[5:6) LeftSquare |[|
+//@[6:9) Identifier |for|
+//@[10:11) Identifier |i|
+//@[12:14) Identifier |in|
+//@[15:20) Identifier |range|
+//@[20:21) LeftParen |(|
+//@[21:22) Integer |0|
+//@[22:23) Comma |,|
+//@[23:25) Integer |10|
+//@[25:26) RightParen |)|
+//@[26:27) Colon |:|
+//@[28:29) LeftBrace |{|
+//@[29:31) NewLine |\r\n|
+    b: [for j in range(0,10): i+j]
+//@[4:5) Identifier |b|
+//@[5:6) Colon |:|
+//@[7:8) LeftSquare |[|
+//@[8:11) Identifier |for|
+//@[12:13) Identifier |j|
+//@[14:16) Identifier |in|
+//@[17:22) Identifier |range|
+//@[22:23) LeftParen |(|
+//@[23:24) Integer |0|
+//@[24:25) Comma |,|
+//@[25:27) Integer |10|
+//@[27:28) RightParen |)|
+//@[28:29) Colon |:|
+//@[30:31) Identifier |i|
+//@[31:32) Plus |+|
+//@[32:33) Identifier |j|
+//@[33:34) RightSquare |]|
+//@[34:36) NewLine |\r\n|
+  }]
+//@[2:3) RightBrace |}|
+//@[3:4) RightSquare |]|
+//@[4:6) NewLine |\r\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+//KeyVault Secret Reference
+//@[27:29) NewLine |\r\n|
+resource kv 'Microsoft.KeyVault/vaults@2019-09-01' existing = {
+//@[0:8) Identifier |resource|
+//@[9:11) Identifier |kv|
+//@[12:50) StringComplete |'Microsoft.KeyVault/vaults@2019-09-01'|
+//@[51:59) Identifier |existing|
+//@[60:61) Assignment |=|
+//@[62:63) LeftBrace |{|
+//@[63:65) NewLine |\r\n|
+  name: 'testkeyvault'
+//@[2:6) Identifier |name|
+//@[6:7) Colon |:|
+//@[8:22) StringComplete |'testkeyvault'|
+//@[22:24) NewLine |\r\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:5) NewLine |\r\n\r\n|
+
+output keyVaultSecretOutput string = kv.getSecret('mySecret')
+//@[0:6) Identifier |output|
+//@[7:27) Identifier |keyVaultSecretOutput|
+//@[28:34) Identifier |string|
+//@[35:36) Assignment |=|
+//@[37:39) Identifier |kv|
+//@[39:40) Dot |.|
+//@[40:49) Identifier |getSecret|
+//@[49:50) LeftParen |(|
+//@[50:60) StringComplete |'mySecret'|
+//@[60:61) RightParen |)|
+//@[61:63) NewLine |\r\n|
+output keyVaultSecretInterpolatedOutput string = '${kv.getSecret('mySecret')}'
+//@[0:6) Identifier |output|
+//@[7:39) Identifier |keyVaultSecretInterpolatedOutput|
+//@[40:46) Identifier |string|
+//@[47:48) Assignment |=|
+//@[49:52) StringLeftPiece |'${|
+//@[52:54) Identifier |kv|
+//@[54:55) Dot |.|
+//@[55:64) Identifier |getSecret|
+//@[64:65) LeftParen |(|
+//@[65:75) StringComplete |'mySecret'|
+//@[75:76) RightParen |)|
+//@[76:78) StringRightPiece |}'|
+//@[78:80) NewLine |\r\n|
+output keyVaultSecretObjectOutput object = {
+//@[0:6) Identifier |output|
+//@[7:33) Identifier |keyVaultSecretObjectOutput|
+//@[34:40) Identifier |object|
+//@[41:42) Assignment |=|
+//@[43:44) LeftBrace |{|
+//@[44:46) NewLine |\r\n|
+  secret: kv.getSecret('mySecret')
+//@[2:8) Identifier |secret|
+//@[8:9) Colon |:|
+//@[10:12) Identifier |kv|
+//@[12:13) Dot |.|
+//@[13:22) Identifier |getSecret|
+//@[22:23) LeftParen |(|
+//@[23:33) StringComplete |'mySecret'|
+//@[33:34) RightParen |)|
+//@[34:36) NewLine |\r\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\r\n|
+output keyVaultSecretArrayOutput array = [
+//@[0:6) Identifier |output|
+//@[7:32) Identifier |keyVaultSecretArrayOutput|
+//@[33:38) Identifier |array|
+//@[39:40) Assignment |=|
+//@[41:42) LeftSquare |[|
+//@[42:44) NewLine |\r\n|
+  kv.getSecret('mySecret')
+//@[2:4) Identifier |kv|
+//@[4:5) Dot |.|
+//@[5:14) Identifier |getSecret|
+//@[14:15) LeftParen |(|
+//@[15:25) StringComplete |'mySecret'|
+//@[25:26) RightParen |)|
+//@[26:28) NewLine |\r\n|
+]
+//@[0:1) RightSquare |]|
+//@[1:3) NewLine |\r\n|
+output keyVaultSecretArrayInterpolatedOutput array = [
+//@[0:6) Identifier |output|
+//@[7:44) Identifier |keyVaultSecretArrayInterpolatedOutput|
+//@[45:50) Identifier |array|
+//@[51:52) Assignment |=|
+//@[53:54) LeftSquare |[|
+//@[54:56) NewLine |\r\n|
+  '${kv.getSecret('mySecret')}'
+//@[2:5) StringLeftPiece |'${|
+//@[5:7) Identifier |kv|
+//@[7:8) Dot |.|
+//@[8:17) Identifier |getSecret|
+//@[17:18) LeftParen |(|
+//@[18:28) StringComplete |'mySecret'|
+//@[28:29) RightParen |)|
+//@[29:31) StringRightPiece |}'|
+//@[31:33) NewLine |\r\n|
+]
+//@[0:1) RightSquare |]|
+//@[1:5) NewLine |\r\n\r\n|
+
+// WARNING!!!!! dangling decorators
+//@[35:39) NewLine |\r\n\r\n|
+
+// #completionTest(1) -> decoratorsPlusNamespace
+//@[48:50) NewLine |\r\n|
+@
+//@[0:1) At |@|
+//@[1:3) NewLine |\r\n|
+// #completionTest(5) -> decorators
+//@[35:37) NewLine |\r\n|
+@sys.
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:9) NewLine |\r\n\r\n|
+
+// WARNING!!!!! dangling decorators - to make sure the tests work, please do not add contents after this line 
+//@[110:110) EndOfFile ||

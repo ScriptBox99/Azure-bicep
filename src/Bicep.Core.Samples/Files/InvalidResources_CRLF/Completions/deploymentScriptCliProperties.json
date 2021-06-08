@@ -5,20 +5,17 @@
     "detail": "arguments",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nCommand line arguments to pass to the script. Arguments are separated by spaces. ex: -Name blue* -Location 'West US 2'  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_arguments",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "arguments"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "arguments:"
+    }
   },
   {
     "label": "azCliVersion",
@@ -26,20 +23,17 @@
     "detail": "azCliVersion (Required)",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nAzure CLI module version to be used.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_azCliVersion",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "azCliVersion"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "azCliVersion:"
+    }
   },
   {
     "label": "cleanupPreference",
@@ -47,20 +41,17 @@
     "detail": "cleanupPreference",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `'Always' | 'OnExpiration' | 'OnSuccess'`  \n"
+      "value": "Type: `'Always' | 'OnExpiration' | 'OnSuccess'`  \nThe clean up preference when the script execution gets in a terminal state. Default setting is 'Always'.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_cleanupPreference",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "cleanupPreference"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "cleanupPreference:"
+    }
   },
   {
     "label": "containerSettings",
@@ -68,20 +59,17 @@
     "detail": "containerSettings",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `ContainerConfiguration`  \n"
+      "value": "Type: `ContainerConfiguration`  \nSettings to customize ACI container instance.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_containerSettings",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "containerSettings"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "containerSettings:"
+    }
   },
   {
     "label": "environmentVariables",
@@ -89,20 +77,17 @@
     "detail": "environmentVariables",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `EnvironmentVariable[]`  \n"
+      "value": "Type: `EnvironmentVariable[]`  \nThe environment variables to pass over to the script.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_environmentVariables",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "environmentVariables"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "environmentVariables:"
+    }
   },
   {
     "label": "forceUpdateTag",
@@ -110,20 +95,17 @@
     "detail": "forceUpdateTag",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nGets or sets how the deployment script should be forced to execute even if the script resource has not changed. Can be current time stamp or a GUID.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_forceUpdateTag",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "forceUpdateTag"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "forceUpdateTag:"
+    }
   },
   {
     "label": "primaryScriptUri",
@@ -131,20 +113,17 @@
     "detail": "primaryScriptUri",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nUri for the script. This is the entry point for the external script.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_primaryScriptUri",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "primaryScriptUri"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "primaryScriptUri:"
+    }
   },
   {
     "label": "retentionInterval",
@@ -152,20 +131,17 @@
     "detail": "retentionInterval (Required)",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nInterval for which the service retains the script resource after it reaches a terminal state. Resource will be deleted when this duration expires. Duration is based on ISO 8601 pattern (for example P1D means one day).  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_retentionInterval",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "retentionInterval"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "retentionInterval:"
+    }
   },
   {
     "label": "scriptContent",
@@ -173,20 +149,17 @@
     "detail": "scriptContent",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nScript body.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_scriptContent",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "scriptContent"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "scriptContent:"
+    }
   },
   {
     "label": "storageAccountSettings",
@@ -194,20 +167,17 @@
     "detail": "storageAccountSettings",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `StorageAccountConfiguration`  \n"
+      "value": "Type: `StorageAccountConfiguration`  \nSettings to use an existing storage account. Valid storage account kinds are: Storage, StorageV2 and FileStorage  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_storageAccountSettings",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "storageAccountSettings"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "storageAccountSettings:"
+    }
   },
   {
     "label": "supportingScriptUris",
@@ -215,20 +185,17 @@
     "detail": "supportingScriptUris",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string[]`  \n"
+      "value": "Type: `string[]`  \nSupporting files for the external script.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_supportingScriptUris",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "supportingScriptUris"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "supportingScriptUris:"
+    }
   },
   {
     "label": "timeout",
@@ -236,19 +203,16 @@
     "detail": "timeout",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nMaximum allowed script execution time specified in ISO 8601 format. Default value is P1D  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_timeout",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "timeout"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "timeout:"
+    }
   }
 ]

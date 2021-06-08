@@ -39,11 +39,14 @@ namespace Bicep.Core.Parsing
         StringMiddlePiece,
         StringRightPiece,
         StringComplete,
+        MultilineString,
         Integer,
         TrueKeyword,
         FalseKeyword,
         NullKeyword,
         NewLine,
         EndOfFile,
+        DoubleQuestion,
+        DoubleColon,
     }
 }

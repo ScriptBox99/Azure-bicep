@@ -1,6 +1,7 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
+using System.Linq;
 using System.Text;
 using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
@@ -79,8 +80,32 @@ namespace Bicep.Core.UnitTests.Parsing
         }
 
         [DataTestMethod]
+        // empty
+        [DataRow("''''''", "")]
+        [DataRow("'''\r\n'''", "")]
+        [DataRow("'''\n'''", "")]
+        // basic
+        [DataRow("'''abc'''", "abc")]
+        // first preceding newline should be stripped
+        [DataRow("'''\r\nabc'''", "abc")]
+        [DataRow("'''\nabc'''", "abc")]
+        [DataRow("'''\rabc'''", "abc")]
+        // only the first should be stripped!
+        [DataRow("'''\n\nabc'''", "\nabc")]
+        [DataRow("'''\n\rabc'''", "\rabc")]
+        // no escaping necessary
+        [DataRow("''' \n \r \t \\ ' ${ } '''", " \n \r \t \\ ' ${ } ")]
+        // leading and terminating ' characters
+        [DataRow("''''a''''", "'a'")]
+        public void Multiline_strings_should_parse_correctly(string text, string expectedValue)
+        {
+            var stringSyntax = ParseAndVerifyType<StringSyntax>(text);
+
+            stringSyntax.TryGetLiteralValue().Should().Be(expectedValue);
+        }
+
+        [DataTestMethod]
         [DataRow("'${>}def'")]
-        [DataRow("'${b+}def'")]
         [DataRow("'${concat(}def'")]
         [DataRow("'${concat)}def'")]
         [DataRow("'${'nest\\ed'}def'")]
@@ -93,7 +118,22 @@ namespace Bicep.Core.UnitTests.Parsing
         public void Interpolation_with_bad_expressions_should_parse_successfully(string text)
         {
             var expression = ParseAndVerifyType<StringSyntax>(text);
-            expression.Expressions.Should().Contain(x => x is SkippedTriviaSyntax);
+            expression.Expressions.Should().Contain(x => x is SkippedTriviaSyntax || x is BinaryOperationSyntax);
+        }
+
+        [DataTestMethod]
+        [DataRow("'${!}def'")]
+        [DataRow("'${ -}def'")]
+        [DataRow("'${b+}def'")]
+        [DataRow("'${b + (d /}def'")]
+        [DataRow("'${true ? }def'")]
+        [DataRow("'${true ? false }def'")]
+        [DataRow("'${true ? : }def'")]
+        [DataRow("'${true ? : null}def'")]
+        public void Interpolation_with_incomplete_expressions_should_parse_successfully(string text)
+        {
+            var expression = ParseAndVerifyType<StringSyntax>(text);
+            expression.Expressions.Should().Contain(x => x is UnaryOperationSyntax || x is BinaryOperationSyntax || x is TernaryOperationSyntax);
         }
 
         [DataTestMethod]
@@ -129,8 +169,9 @@ namespace Bicep.Core.UnitTests.Parsing
         [DataRow("-!null")]
         public void UnaryOperatorsCannotBeChained(string text)
         {
-            Action fail = () => ParserHelper.ParseExpression(text);
-            fail.Should().Throw<ExpectedTokenException>().WithMessage("Expected a literal value, an array, an object, a parenthesized expression, or a function call at this location.");
+            var expression = ParseAndVerifyType<UnaryOperationSyntax>(text);
+            expression.Expression.Should().BeOfType<SkippedTriviaSyntax>()
+                .Which.Diagnostics.Single().Message.Should().Be("Expected a literal value, an array, an object, a parenthesized expression, or a function call at this location.");
         }
 
         [DataTestMethod]
@@ -198,6 +239,7 @@ namespace Bicep.Core.UnitTests.Parsing
         [DataRow("(2+3)*4","(((2+3))*4)")]
         [DataRow("true && (false || null)", "(true&&((false||null)))")]
         [DataRow("(null ? 1 : 2) + 3", "(((null?1:2))+3)")]
+        [DataRow("null ?? (b ?? c) ?? a", "((null??((b??c)))??a)")]
         public void ParenthesizedExpressionsShouldHaveHighestPrecedence(string text, string expected)
         {
             RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
@@ -221,8 +263,27 @@ namespace Bicep.Core.UnitTests.Parsing
         }
 
         [DataTestMethod]
+        [DataRow("a::b","(a::b)")]
+        [DataRow("null::fail", "(null::fail)")]
+        [DataRow("foo()::bar","(foo()::bar)")]
+        public void ResourceAccessShouldParseSuccessfully(string text, string expected)
+        {
+            RunExpressionTest(text, expected, typeof(ResourceAccessSyntax));
+        }
+
+        [DataTestMethod]
+        [DataRow("foo?bar:baz::biz","(foo?bar:(baz::biz))")]
+        [DataRow("foo?bar::biz.prop1:baz::boo","(foo?((bar::biz).prop1):(baz::boo))")]
+        [DataRow("foo::boo?bar:baz","((foo::boo)?bar:baz)")]
+        public void ResourceAccessShouldParseSuccessfullyWithTernaries(string text, string expected)
+        {
+            RunExpressionTest(text, expected, typeof(TernaryOperationSyntax));
+        }
+
+        [DataTestMethod]
         [DataRow("a.b.c.foo()", "((a.b).c).foo()")]
         [DataRow("a.b.c.d.e.f.g.foo()", "((((((a.b).c).d).e).f).g).foo()")]
+        [DataRow("a::b::c.d::e::f::g.foo()", "((((((a::b)::c).d)::e)::f)::g).foo()")]
         public void InstanceFunctionCallShouldParseSuccessfully(string text, string expected)
         {
             RunExpressionTest(text, expected, typeof(InstanceFunctionCallSyntax));
@@ -238,8 +299,24 @@ namespace Bicep.Core.UnitTests.Parsing
         }
 
         [DataTestMethod]
+        [DataRow("a::b::c + 0","(((a::b)::c)+0)")]
+        [DataRow("(a::b[c])::c[d]+q()", "((((((a::b)[c]))::c)[d])+q())")]
+        public void ResourceAccessShouldBeLeftToRightAssociative(string text, string expected)
+        {
+            // this also asserts that (), [], and . have equal precedence
+            RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
+        }
+
+        [DataTestMethod]
         [DataRow("a + b.c * z[12].a && q[foo()] == c.a", "((a+((b.c)*((z[12]).a)))&&((q[foo()])==(c.a)))")]
         public void MemberAccessShouldHaveHighestPrecedence(string text, string expected)
+        {
+            RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
+        }
+
+        [DataTestMethod]
+        [DataRow("a + b::c * z[12]::a && q[foo()] == c::a", "((a+((b::c)*((z[12])::a)))&&((q[foo()])==(c::a)))")]
+        public void ResourceAccessShouldHaveHighestPrecedence(string text, string expected)
         {
             RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
         }
@@ -270,6 +347,16 @@ namespace Bicep.Core.UnitTests.Parsing
             var value = syntax.TryGetLiteralValue();
             value.Should().NotBeNull();
             value.Should().Be(expectedLiteralValue);
+        }
+
+        [DataTestMethod]
+        [DataRow("a ?? b", "(a??b)")]
+        [DataRow("a ?? b ?? c", "((a??b)??c)")]
+        [DataRow("a ?? b || d ?? c", "((a??(b||d))??c)")]
+        [DataRow("foo() ?? bar().v ?? null", "((foo()??(bar().v))??null)")]
+        public void CoalesceShouldParseSuccessfully(string text, string expected)
+        {
+            RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
         }
 
         private static SyntaxBase RunExpressionTest(string text, string expected, Type expectedRootType)

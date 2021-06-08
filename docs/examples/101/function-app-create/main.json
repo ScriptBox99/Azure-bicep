@@ -1,6 +1,13 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "dev",
+      "templateHash": "15435256629397286543"
+    }
+  },
   "parameters": {
     "location": {
       "type": "string",
@@ -62,7 +69,7 @@
     {
       "type": "Microsoft.Storage/storageAccounts/blobServices",
       "apiVersion": "2019-06-01",
-      "name": "[format('{0}/default', variables('storageAccountName'))]",
+      "name": "[format('{0}/{1}', variables('storageAccountName'), 'default')]",
       "properties": {
         "cors": {
           "corsRules": []
@@ -185,7 +192,7 @@
     {
       "type": "Microsoft.Web/sites/config",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/web', variables('functionAppName'))]",
+      "name": "[format('{0}/{1}', variables('functionAppName'), 'web')]",
       "properties": {
         "numberOfWorkers": -1,
         "defaultDocuments": [
@@ -207,7 +214,6 @@
         "logsDirectorySizeLimit": 35,
         "detailedErrorLoggingEnabled": false,
         "publishingUsername": "[format('${0}', variables('functionAppName'))]",
-        "azureStorageAccounts": {},
         "scmType": "None",
         "use32BitWorkerProcess": true,
         "webSocketsEnabled": false,
@@ -256,9 +262,8 @@
         "http20Enabled": true,
         "minTlsVersion": "1.2",
         "ftpsState": "AllAllowed",
-        "PreWarmedInstanceCount": 0
+        "preWarmedInstanceCount": 0
       },
-      "tags": "[variables('appTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
@@ -266,7 +271,7 @@
     {
       "type": "Microsoft.Web/sites/hostNameBindings",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/{1}.azurewebsites.net', variables('functionAppName'), variables('functionAppName'))]",
+      "name": "[format('{0}/{1}', variables('functionAppName'), format('{0}.azurewebsites.net', variables('functionAppName')))]",
       "properties": {
         "siteName": "[variables('functionAppName')]",
         "hostNameType": "Verified"

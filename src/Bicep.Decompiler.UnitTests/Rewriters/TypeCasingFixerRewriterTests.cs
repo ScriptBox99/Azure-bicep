@@ -26,7 +26,7 @@ resource resA 'My.Rp/resA@2020-01-01' = {
 
             var newProgramSyntax = rewriter.Rewrite(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax);
 
-            // Check that the two references are exactly the same
+            // Reference equality check to ensure we're not regenerating syntax unnecessarily
             newProgramSyntax.Should().BeSameAs(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax);
         }
 
@@ -54,7 +54,7 @@ output myObj object = {
 }
 ";
 
-            var typeDefinition = ResourceTypeProviderHelper.CreateCustomResourceType("My.Rp/resA", "2020-01-01", TypeSymbolValidationFlags.WarnOnTypeMismatch,
+            var typeDefinition = TestTypeHelper.CreateCustomResourceType("My.Rp/resA", "2020-01-01", TypeSymbolValidationFlags.WarnOnTypeMismatch,
                 new TypeProperty("lowercaseprop", LanguageConstants.String),
                 new TypeProperty("camelCaseProp", LanguageConstants.String),
                 new TypeProperty("lowercasequoted=+.prop", LanguageConstants.String),
@@ -63,13 +63,13 @@ output myObj object = {
                 new TypeProperty("pascalCaseEnumProp", new StringLiteralType("MyEnum")),
                 new TypeProperty("lowerCaseEnumUnionProp", UnionType.Create(new StringLiteralType("myenum"), new StringLiteralType("blahblah"))),
                 new TypeProperty("pascalCaseEnumUnionProp", UnionType.Create(new StringLiteralType("MyEnum"), new StringLiteralType("BlahBlah"))));
-            var typeProvider = ResourceTypeProviderHelper.CreateMockTypeProvider(typeDefinition.AsEnumerable());
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(typeDefinition.AsEnumerable());
 
             var (_, _, compilation) = CompilationHelper.Compile(typeProvider, ("main.bicep", bicepFile));
             var rewriter = new TypeCasingFixerRewriter(compilation.GetEntrypointSemanticModel());
 
             var newProgramSyntax = rewriter.Rewrite(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax);
-            PrintHelper.PrettyPrint(newProgramSyntax).Should().Be(
+            PrintHelper.PrintAndCheckForParseErrors(newProgramSyntax).Should().Be(
 @"resource resA 'My.Rp/resA@2020-01-01' = {
   name: 'resA'
   properties: {
@@ -108,17 +108,17 @@ output myObj object = {
 }
 ";
 
-            var typeDefinition = ResourceTypeProviderHelper.CreateCustomResourceType("My.Rp/resA", "2020-01-01", TypeSymbolValidationFlags.WarnOnTypeMismatch,
-                new TypeProperty("lowercaseobj", new NamedObjectType("lowercaseobj", TypeSymbolValidationFlags.Default, new [] {
+            var typeDefinition = TestTypeHelper.CreateCustomResourceType("My.Rp/resA", "2020-01-01", TypeSymbolValidationFlags.WarnOnTypeMismatch,
+                new TypeProperty("lowercaseobj", new ObjectType("lowercaseobj", TypeSymbolValidationFlags.Default, new [] {
                   new TypeProperty("lowercasestr", LanguageConstants.String)
                 }, null)));
-            var typeProvider = ResourceTypeProviderHelper.CreateMockTypeProvider(typeDefinition.AsEnumerable());
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(typeDefinition.AsEnumerable());
 
             var (_, _, compilation) = CompilationHelper.Compile(typeProvider, ("main.bicep", bicepFile));
             var rewriter = new TypeCasingFixerRewriter(compilation.GetEntrypointSemanticModel());
 
             var newProgramSyntax = rewriter.Rewrite(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax);
-            var firstPassBicepFile = PrintHelper.PrettyPrint(newProgramSyntax);
+            var firstPassBicepFile = PrintHelper.PrintAndCheckForParseErrors(newProgramSyntax);
             firstPassBicepFile.Should().Be(
 @"resource resA 'My.Rp/resA@2020-01-01' = {
   name: 'resA'
@@ -137,7 +137,7 @@ output myObj object = {
             rewriter = new TypeCasingFixerRewriter(compilation.GetEntrypointSemanticModel());
 
             newProgramSyntax = rewriter.Rewrite(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax);
-            PrintHelper.PrettyPrint(newProgramSyntax).Should().Be(
+            PrintHelper.PrintAndCheckForParseErrors(newProgramSyntax).Should().Be(
 @"resource resA 'My.Rp/resA@2020-01-01' = {
   name: 'resA'
   properties: {

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
 using Bicep.Core.PrettyPrint;
@@ -117,7 +117,7 @@ aaa: bbb
 			}
 		]
 	}
-}".Replace("\r\n", Environment.NewLine),
+}".Replace("\n", Environment.NewLine),
             new PrettyPrintOptions(NewlineOption.Auto, IndentKindOption.Tab, 5, false));
 
         [TestMethod]
@@ -407,18 +407,6 @@ param bar array = []");
 @"targetScope=                    'managementGroup'
 
 param string banana
-param  string apple {
-
-    allowed   : [
-'Static'
-'Dynamic'
-]
-
-        metadata: {
-    description        : 'no description'
-}
-
-}
 
    var num = 1
 var call = func1(     func2 (1), func3 (true)[0]       .a   .    b.c    )
@@ -480,16 +468,6 @@ output       myOutput1 int    =     1 +    num *    3
 @"targetScope = 'managementGroup'
 
 param string banana
-param string apple {
-  allowed: [
-    'Static'
-    'Dynamic'
-  ]
-
-  metadata: {
-    description: 'no description'
-  }
-}
 
 var num = 1
 var call = func1(func2(1), func3(true)[0].a.b.c)
@@ -553,13 +531,6 @@ var foo = {
 }
 
 
-param foo bool {
-  default: (true /* I can be anywhere */ ? /*
-I can be any
-where
-*/null : false /* I can be anywhere */)
-/* I can be anywhere */}
-
 
 /* I can be anywhere */              // I can be anywhere
 // I can be anywhere
@@ -607,14 +578,6 @@ where */module /* I can be anywhere */ foo /* I can be anywhere */ './myModule' 
 
 var foo = {
   // I can be any where
-}
-
-param foo bool {
-  default: (true /* I can be anywhere */ ? /*
-I can be any
-where
-*/ null : false /* I can be anywhere */)
-  /* I can be anywhere */
 }
 
 /* I can be anywhere */ // I can be anywhere

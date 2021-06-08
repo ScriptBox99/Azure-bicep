@@ -35,16 +35,17 @@ this */
 The sections below cover common types of literals you will encounter in Bicep. See [Bicep Data Types](./types.md) for additional information about the type system and validation rules.
 
 ### Strings
-Strings are defined by a sequence of characters between single quote (`'`) characters, and must be declared on a single line.
+Strings are defined by a sequence of characters between single quote (`'`) characters, and must be declared on a single line. All Unicode characters with codepoints between `0` and `10FFFF` are allowed.
 
 The following are the set of reserved characters which must be escaped by a backslash (`\`) character:
 | Escape Sequence | Represented value | Notes |
 |:-|:-|:-|
 | `\\` | `\` ||
 | `\'` | `'` ||
-| `\n` | `line feed (LF)` ||
-| `\r` | `carriage return (CR)` ||
-| `\t` | `tab character` ||
+| `\n` | line feed (LF) ||
+| `\r` | carriage return (CR) ||
+| `\t` | tab character ||
+| `\u{x}` | Unicode code point `x` | `x` represents a hexadecimal codepoint value between `0` and `10FFFF` (both inclusive). Leading zeros are allowed. Codepoints above `FFFF` will be emitted as a surrogate pair.
 | `\$` | `$` | Only needs to be escaped if it is followed by `{` |
 
 All strings in Bicep support interpolation, in order to reference expressions in-place. To inject an expression, surround it by `${` and `}`. Expressions that are referenced cannot span multiple lines.
@@ -60,10 +61,56 @@ var myVar2 = 'what\'s up?'
 // myVar evaluates to "hello steve!"
 var name = 'steve'
 var myVar3 = 'hello ${name}!'
+
+// smiley evaluates to "😁🙂"
+var smiley = '😁\u{1F642}'
+```
+
+### Multi-line strings
+> Requires Bicep CLI v0.3 or later
+
+Multi-line strings are defined between 3 single quote characters (`'''`) followed optionally by a newline (the opening sequence), and 3 single quote characters (`'''` - the closing sequence). Characters that are entered between the opening and closing sequence are read verbatim, and no escaping is necessary or possible.
+
+Note that:
+* Because the Bicep parser reads all characters as-is, depending on the line endings of your Bicep file, newlines will either be interpreted as `\r\n` or `\n`.
+* Interpolation is not currently supported in multi-line strings.
+* Multi-line strings containing `'''` are not supported.
+
+#### Examples
+```bicep
+// evaluates to "hello!"
+var myVar = '''hello!'''
+
+// also evaluates to "hello!" as the first newline is skipped
+var myVar2 = '''
+hello!'''
+
+// evaluates to "hello!\n" as the final newline is included
+var myVar3 = '''
+hello!
+'''
+
+// evaluates to "  this\n    is\n      indented\n"
+var myVar4 = '''
+  this
+    is
+      indented
+'''
+
+// evaluates to "comments // are included\n/* because everything is read as-is */\n"
+var myVar5 = '''
+comments // are included
+/* because everything is read as-is */
+'''
+
+// evaluates to "interpolation\nis ${blocked}"
+// note ${blocked} is part of the string, and is not evaluated as an expression
+myVar6 = '''interpolation
+is ${blocked}'''
 ```
 
 ### Numbers
-Number literals are formatted as integers - a list of digits optionally preceeded by a `-`. Floating point, decimal or binary formats are not currently supported.
+Number literals are formatted as integers - a list of digits optionally preceded by a `-`. Floating point, decimal or binary formats are not currently supported.
 
 #### Examples
 ```bicep

@@ -3,10 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit;
 using Bicep.Core.Extensions;
 using Bicep.Core.Syntax;
+using Bicep.Core.Syntax.Visitors;
 using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core.Semantics
@@ -14,6 +17,9 @@ namespace Bicep.Core.Semantics
     public class SemanticModel
     {
         private readonly Lazy<EmitLimitationInfo> emitLimitationInfoLazy;
+        private readonly Lazy<SymbolHierarchy> symbolHierarchyLazy;
+        private readonly Lazy<ResourceAncestorGraph> resourceAncestorsLazy;
+        private readonly Lazy<LinterAnalyzer> linterAnalyzerLazy;
 
         public SemanticModel(Compilation compilation, SyntaxTree syntaxTree)
         {
@@ -34,6 +40,18 @@ namespace Bicep.Core.Semantics
             symbolContext.Unlock();
 
             this.emitLimitationInfoLazy = new Lazy<EmitLimitationInfo>(() => EmitLimitationCalculator.Calculate(this));
+            this.symbolHierarchyLazy = new Lazy<SymbolHierarchy>(() =>
+            {
+                var hierarchy = new SymbolHierarchy();
+                hierarchy.AddRoot(this.Root);
+
+                return hierarchy;
+            });
+            this.resourceAncestorsLazy = new Lazy<ResourceAncestorGraph>(() => ResourceAncestorGraph.Compute(syntaxTree, Binder));
+
+            // lazy loading the linter will delay linter rule loading
+            // and configuration loading until the linter is actually needed
+            this.linterAnalyzerLazy = new Lazy<LinterAnalyzer>( () => new LinterAnalyzer());
         }
 
         public SyntaxTree SyntaxTree { get; }
@@ -48,26 +66,53 @@ namespace Bicep.Core.Semantics
 
         public EmitLimitationInfo EmitLimitationInfo => emitLimitationInfoLazy.Value;
 
+        public ResourceAncestorGraph ResourceAncestors => resourceAncestorsLazy.Value;
+
+        private LinterAnalyzer LinterAnalyzer => linterAnalyzerLazy.Value;
+
         /// <summary>
         /// Gets all the parser and lexer diagnostics unsorted. Does not include diagnostics from the semantic model.
         /// </summary>
-        public IEnumerable<Diagnostic> GetParseDiagnostics() => this.Root.Syntax.GetParseDiagnostics();
+        public IEnumerable<IDiagnostic> GetParseDiagnostics() => this.Root.Syntax.GetParseDiagnostics();
 
         /// <summary>
         /// Gets all the semantic diagnostics unsorted. Does not include parser and lexer diagnostics.
         /// </summary>
         /// <returns></returns>
-        public IReadOnlyList<Diagnostic> GetSemanticDiagnostics()
+        public IReadOnlyList<IDiagnostic> GetSemanticDiagnostics()
         {
             var diagnosticWriter = ToListDiagnosticWriter.Create();
 
             var visitor = new SemanticDiagnosticVisitor(diagnosticWriter);
             visitor.Visit(this.Root);
 
+            foreach (var missingDeclarationSyntax in this.SyntaxTree.ProgramSyntax.Children.OfType<MissingDeclarationSyntax>())
+            {
+                // Trigger type checking manually as missing declarations are not bound to any symbol.
+                this.TypeManager.GetTypeInfo(missingDeclarationSyntax);
+            }
+
             var typeValidationDiagnostics = TypeManager.GetAllDiagnostics();
             diagnosticWriter.WriteMultiple(typeValidationDiagnostics);
-
             diagnosticWriter.WriteMultiple(EmitLimitationInfo.Diagnostics);
+
+            return diagnosticWriter.GetDiagnostics();
+        }
+
+        /// <summary>
+        /// Gets all the analyzer diagnostics unsorted.
+        /// </summary>
+        /// <returns></returns>
+        public IReadOnlyList<IDiagnostic> GetAnalyzerDiagnostics(ConfigHelper? overrideConfig = default)
+        {
+            if (overrideConfig != default)
+            {
+                LinterAnalyzer.OverrideConfig(overrideConfig);
+            }
+
+            var diagnostics = LinterAnalyzer.Analyze(this, overrideConfig);
+            var diagnosticWriter = ToListDiagnosticWriter.Create();
+            diagnosticWriter.WriteMultiple(diagnostics);
 
             return diagnosticWriter.GetDiagnostics();
         }
@@ -75,8 +120,10 @@ namespace Bicep.Core.Semantics
         /// <summary>
         /// Gets all the diagnostics sorted by span position ascending. This includes lexer, parser, and semantic diagnostics.
         /// </summary>
-        public IEnumerable<Diagnostic> GetAllDiagnostics() => GetParseDiagnostics()
+        public IEnumerable<IDiagnostic> GetAllDiagnostics(ConfigHelper? overrideConfig = default) =>
+            GetParseDiagnostics()
             .Concat(GetSemanticDiagnostics())
+            .Concat(GetAnalyzerDiagnostics(overrideConfig))
             .OrderBy(diag => diag.Span.Position);
 
         public bool HasErrors()
@@ -88,19 +135,100 @@ namespace Bicep.Core.Semantics
 
         public DeclaredTypeAssignment? GetDeclaredTypeAssignment(SyntaxBase syntax) => this.TypeManager.GetDeclaredTypeAssignment(syntax);
 
+        public Symbol? GetSymbolParent(Symbol symbol) => this.symbolHierarchyLazy.Value.GetParent(symbol);
+
         /// <summary>
         /// Returns the symbol that was bound to the specified syntax node. Will return null for syntax nodes that never get bound to symbols. Otherwise,
         /// a symbol will always be returned. Binding failures are represented with a non-null error symbol.
         /// </summary>
         /// <param name="syntax">the syntax node</param>
-        public Symbol? GetSymbolInfo(SyntaxBase syntax) => this.Binder.GetSymbolInfo(syntax);
+        public Symbol? GetSymbolInfo(SyntaxBase syntax)
+        {
+            static PropertySymbol? GetPropertySymbol(TypeSymbol? baseType, string property)
+            {
+                if (baseType is null)
+                {
+                    return null;
+                }
+
+                var typeProperty = TypeAssignmentVisitor.UnwrapType(baseType) switch {
+                    ObjectType x => x.Properties.TryGetValue(property, out var tp) ? tp : null,
+                    DiscriminatedObjectType x => x.TryGetDiscriminatorProperty(property),
+                    _ => null
+                };
+
+                if (typeProperty is null)
+                {
+                    return null;
+                }
+
+                return new PropertySymbol(property, typeProperty.Description, typeProperty.TypeReference.Type);
+            }
+
+            switch (syntax)
+            {
+                case InstanceFunctionCallSyntax ifc:
+                {
+                    var baseType = GetDeclaredType(ifc.BaseExpression);
+
+                    if (baseType is null)
+                    {
+                        return null;
+                    }
+
+                    switch (TypeAssignmentVisitor.UnwrapType(baseType))
+                    {
+                        case NamespaceType namespaceType when SyntaxTree.Hierarchy.GetParent(ifc) is DecoratorSyntax:
+                            return namespaceType.DecoratorResolver.TryGetSymbol(ifc.Name);
+                        case ObjectType objectType:
+                            return objectType.MethodResolver.TryGetSymbol(ifc.Name);
+                    }
+
+                    return null;
+                }
+                case PropertyAccessSyntax propertyAccess:
+                {
+                    var baseType = GetDeclaredType(propertyAccess.BaseExpression);
+                    var property = propertyAccess.PropertyName.IdentifierName;
+
+                    return GetPropertySymbol(baseType, property);
+                }
+                case ObjectPropertySyntax objectProperty:
+                {
+                    if (Binder.GetParent(objectProperty) is not {} parentSyntax)
+                    {
+                        return null;
+                    }
+                    
+                    var baseType = GetDeclaredType(parentSyntax);
+                    if (objectProperty.TryGetKeyText() is not {} property)
+                    {
+                        return null;
+                    }
+
+                    return GetPropertySymbol(baseType, property);
+                }
+            }
+
+            return this.Binder.GetSymbolInfo(syntax);
+        }
 
         /// <summary>
         /// Returns all syntax nodes that represent a reference to the specified symbol. This includes the definitions of the symbol as well.
         /// Unusued declarations will return 1 result. Unused and undeclared symbols (functions, namespaces, for example) may return an empty list.
         /// </summary>
         /// <param name="symbol">The symbol</param>
-        public IEnumerable<SyntaxBase> FindReferences(Symbol symbol) => this.Binder.FindReferences(symbol);
+        public IEnumerable<SyntaxBase> FindReferences(Symbol symbol)
+            => SyntaxAggregator.Aggregate(this.SyntaxTree.ProgramSyntax, new List<SyntaxBase>(), (accumulated, current) =>
+                {
+                    if (object.ReferenceEquals(symbol, this.GetSymbolInfo(current)))
+                    {
+                        accumulated.Add(current);
+                    }
+
+                    return accumulated;
+                },
+                accumulated => accumulated);
 
         /// <summary>
         /// Gets the file that was compiled.

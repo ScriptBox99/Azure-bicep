@@ -16,6 +16,7 @@ using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Utils;
 using Bicep.Core.Workspaces;
 using FluentAssertions;
@@ -23,6 +24,9 @@ using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Bicep.Core.Configuration;
+using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.UnitTests.Configuration;
 
 namespace Bicep.Core.Samples
 {
@@ -84,7 +88,7 @@ namespace Bicep.Core.Samples
             }
         }
 
-        private static bool IsPermittedMissingTypeDiagnostic(Diagnostic diagnostic)
+        private static bool IsPermittedMissingTypeDiagnostic(IDiagnostic diagnostic)
         {
             if (diagnostic.Code != "BCP081")
             {
@@ -93,13 +97,8 @@ namespace Bicep.Core.Samples
 
             var permittedMissingTypeDiagnostics = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "Resource type \"Microsoft.AppConfiguration/configurationStores/keyValues@2020-07-01-preview\" does not have types available.",
-                "Resource type \"Microsoft.AppConfiguration/configurationStores@2020-07-01-preview\" does not have types available.",
-                "Resource type \"microsoft.network/networkSecurityGroups@2020-08-01\" does not have types available.",
-                "Resource type \"Microsoft.Sql/servers/databases/transparentDataEncryption@2017-03-01-preview\" does not have types available.",
-                "Resource type \"Microsoft.Sql/servers@2020-02-02-preview\" does not have types available.",
-                "Resource type \"Microsoft.Web/sites/config@2020-06-01\" does not have types available.",
-                "Resource type \"Microsoft.Web/sites/siteextensions@2020-06-01\" does not have types available.",
+                // To exclude a particular type for BCP081 (if there are missing types), add an entry of format:
+                // "Resource type \"<type>\" does not have types available.",
             };
 
             return permittedMissingTypeDiagnostics.Contains(diagnostic.Message);
@@ -113,28 +112,35 @@ namespace Bicep.Core.Samples
 
         [DataTestMethod]
         [DynamicData(nameof(GetExampleData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(ExampleData), DynamicDataDisplayName = nameof(ExampleData.GetDisplayName))]
+        [TestCategory(BaselineHelper.BaselineTestCategory)]
         public void ExampleIsValid(ExampleData example)
         {
             // save all the files in the containing directory to disk so that we can test module resolution
             var parentStream = GetParentStreamName(example.BicepStreamName);
-            var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(TestContext, typeof(ExamplesTests).Assembly, example.OutputFolderName, parentStream);
+            var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(TestContext, typeof(ExamplesTests).Assembly, parentStream);
             var bicepFileName = Path.Combine(outputDirectory, Path.GetFileName(example.BicepStreamName));
             var jsonFileName = Path.Combine(outputDirectory, Path.GetFileName(example.JsonStreamName));
             
             var syntaxTreeGrouping = SyntaxTreeGroupingBuilder.Build(new FileResolver(), new Workspace(), PathHelper.FilePathToFileUrl(bicepFileName));
-            var compilation = new Compilation(new AzResourceTypeProvider(), syntaxTreeGrouping);
-            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel());
+            var compilation = new Compilation(AzResourceTypeProvider.CreateWithAzTypes(), syntaxTreeGrouping);
+            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel(), BicepTestConstants.DevAssemblyFileVersion);
+
+            // quiet the linter diagnostics
+            var overrideConfig = new ConfigHelper().GetDisabledLinterConfig();
+
+            foreach (var (syntaxTree, diagnostics) in compilation.GetAllDiagnosticsBySyntaxTree(overrideConfig))
+            {
+                DiagnosticAssertions.DoWithDiagnosticAnnotations(
+                    syntaxTree,
+                    diagnostics.Where(x => !IsPermittedMissingTypeDiagnostic(x)),
+                    diagnostics => {
+                        diagnostics.Should().BeEmpty("{0} should not have warnings or errors", syntaxTree.FileUri.LocalPath);
+                    });
+            }
 
             // group assertion failures using AssertionScope, rather than reporting the first failure
             using (new AssertionScope())
             {
-                foreach (var (syntaxTree, diagnostics) in compilation.GetAllDiagnosticsBySyntaxTree())
-                {
-                    var nonPermittedDiagnostics = diagnostics.Where(x => !IsPermittedMissingTypeDiagnostic(x));
-
-                    nonPermittedDiagnostics.Should().BeEmpty($"\"{syntaxTree.FileUri.LocalPath}\" should not have warnings or errors");
-                }
-
                 var exampleExists = File.Exists(jsonFileName);
                 exampleExists.Should().BeTrue($"Generated example \"{jsonFileName}\" should be checked in");
 
@@ -162,11 +168,12 @@ namespace Bicep.Core.Samples
 
         [DataTestMethod]
         [DynamicData(nameof(GetExampleData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(ExampleData), DynamicDataDisplayName = nameof(ExampleData.GetDisplayName))]
+        [TestCategory(BaselineHelper.BaselineTestCategory)]
         public void Example_uses_consistent_formatting(ExampleData example)
         {
             // save all the files in the containing directory to disk so that we can test module resolution
             var parentStream = GetParentStreamName(example.BicepStreamName);
-            var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(TestContext, typeof(ExamplesTests).Assembly, example.OutputFolderName, parentStream);
+            var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(TestContext, typeof(ExamplesTests).Assembly, parentStream);
 
             var bicepFileName = Path.Combine(outputDirectory, Path.GetFileName(example.BicepStreamName));
             var originalContents = File.ReadAllText(bicepFileName);
@@ -197,7 +204,7 @@ namespace Bicep.Core.Samples
             indexContents.Should().NotContain(x => string.IsNullOrWhiteSpace(x.FilePath));
             indexContents.Should().NotContain(x => string.IsNullOrWhiteSpace(x.Description));
 
-            var indexFiles = indexContents.Select(x => $"docs/examples/{x.FilePath}");
+            var indexFiles = indexContents!.Select(x => $"docs/examples/{x.FilePath}");
             var exampleFiles = exampleData.Select(x => x.BicepStreamName).Where(x => x.EndsWith("/main.bicep", StringComparison.Ordinal));
 
             exampleFiles.Should().BeSubsetOf(indexFiles, $"all \"main.bicep\" example files should be added to \"{indexFile}\"");

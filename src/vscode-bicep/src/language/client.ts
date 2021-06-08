@@ -19,8 +19,8 @@ const extensionId = "ms-azuretools.vscode-bicep";
 export async function launchLanguageServiceWithProgressReport(
   context: vscode.ExtensionContext,
   outputChannel: vscode.OutputChannel
-): Promise<void> {
-  await vscode.window.withProgress(
+): Promise<lsp.LanguageClient> {
+  return await vscode.window.withProgress(
     {
       title: "Launching Bicep language service...",
       location: vscode.ProgressLocation.Notification,
@@ -32,7 +32,7 @@ export async function launchLanguageServiceWithProgressReport(
 async function launchLanguageService(
   context: vscode.ExtensionContext,
   outputChannel: vscode.OutputChannel
-): Promise<void> {
+): Promise<lsp.LanguageClient> {
   getLogger().info("Launching Bicep language service...");
 
   const dotnetCommandPath = await ensureDotnetRuntimeInstalled();
@@ -42,11 +42,8 @@ async function launchLanguageService(
   getLogger().debug(`Found language server at '${languageServerPath}'.`);
 
   const serverExecutable: lsp.Executable = {
-    command: `.${path.sep}${path.basename(dotnetCommandPath)}`,
+    command: dotnetCommandPath,
     args: [languageServerPath],
-    options: {
-      cwd: path.dirname(dotnetCommandPath),
-    },
   };
 
   const serverOptions: lsp.ServerOptions = {
@@ -58,6 +55,20 @@ async function launchLanguageService(
     documentSelector: [{ language: "bicep" }],
     progressOnInitialization: true,
     outputChannel,
+    middleware: {
+      provideDocumentFormattingEdits: (document, options, token, next) =>
+        next(
+          document,
+          {
+            ...options,
+            insertFinalNewline:
+              vscode.workspace
+                .getConfiguration("files")
+                .get("insertFinalNewline") ?? false,
+          },
+          token
+        ),
+    },
     synchronize: {
       // These file watcher globs should be kept in-sync with those defined in BicepDidChangeWatchedFilesHander.cs
       fileEvents: [
@@ -88,6 +99,8 @@ async function launchLanguageService(
   await client.onReady();
 
   getLogger().info("Bicep language service ready.");
+
+  return client;
 }
 
 async function ensureDotnetRuntimeInstalled(): Promise<string> {

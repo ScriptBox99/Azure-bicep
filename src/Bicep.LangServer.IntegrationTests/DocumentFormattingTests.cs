@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
@@ -16,13 +16,16 @@ namespace Bicep.LangServer.IntegrationTests
     [SuppressMessage("Style", "VSTHRD200:Use \"Async\" suffix for async methods", Justification = "Test methods do not need to follow this convention.")]
     public class DocumentFormattingTests
     {
+        [NotNull]
+        public TestContext? TestContext { get; set; }
+
         [TestMethod]
         public async Task RequestDocumentFormattingShouldReturnFullRangeTextEdit()
         {
             var documentUri = DocumentUri.From("/template.bicep");
             var diagnosticsReceived = new TaskCompletionSource<PublishDiagnosticsParams>();
 
-            var client = await IntegrationTestHelper.StartServerWithClientConnectionAsync(options => 
+            var client = await IntegrationTestHelper.StartServerWithClientConnectionAsync(this.TestContext, options => 
             {
                 options.OnPublishDiagnostics(diagnostics => {
                     diagnosticsReceived.SetResult(diagnostics);
@@ -37,7 +40,7 @@ param myParam object
 var myVar1 = 1 + mod(1, 2)
 var myVar2 = myParam.foo[1]
 
-resource myResesource 'myRP/provider@2020-11-01' = {
+resource myResource 'myRP/provider@2020-11-01' = {
 /* block
   comment
   */

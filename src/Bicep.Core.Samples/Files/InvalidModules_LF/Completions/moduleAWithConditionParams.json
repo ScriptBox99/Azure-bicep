@@ -11,14 +11,11 @@
     "preselect": false,
     "sortText": "2_arrayParam",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "arrayParam"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "arrayParam:"
+    }
   },
   {
     "label": "objParam",
@@ -32,14 +29,11 @@
     "preselect": false,
     "sortText": "2_objParam",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "objParam"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "objParam:"
+    }
   },
   {
     "label": "stringParamA",
@@ -53,14 +47,11 @@
     "preselect": false,
     "sortText": "2_stringParamA",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "stringParamA"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "stringParamA:"
+    }
   },
   {
     "label": "stringParamB",
@@ -74,13 +65,10 @@
     "preselect": false,
     "sortText": "2_stringParamB",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "stringParamB"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "stringParamB:"
+    }
   }
 ]

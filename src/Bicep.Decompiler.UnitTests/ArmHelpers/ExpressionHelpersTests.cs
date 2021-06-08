@@ -6,6 +6,10 @@ using Azure.Deployments.Expression.Serializers;
 using Bicep.Decompiler.ArmHelpers;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json.Linq;
+using Bicep.Core.UnitTests.Assertions;
+using Azure.Deployments.Expression.Expressions;
+using System;
 
 namespace Bicep.Core.IntegrationTests.ArmHelpers
 {
@@ -72,6 +76,9 @@ namespace Bicep.Core.IntegrationTests.ArmHelpers
         [DataRow("[uri('test.com', 'path/to/file.json', parameters('sasUri'))]", "path/to/file.json")]
         [DataRow("[concat(uri('test.com', 'path/to/file.json'), parameters('sasUri'))]", "path/to/file.json")]
         [DataRow("[concat(parameters('myUri'), '/path/to/file.json')]", "path/to/file.json")]
+        [DataRow("./artifacts/linkedTemplate.json", "artifacts/linkedTemplate.json")]
+        [DataRow("/artifacts/linkedTemplate.json", "artifacts/linkedTemplate.json")]
+        [DataRow("artifacts/linkedTemplate.json", "artifacts/linkedTemplate.json")]
         public void TryGetLocalFilePathForTemplateLink_finds_path_for_specific_expression_formats(string input, string expectedOutput)
         {
             var inputExpression = ExpressionHelpers.ParseExpression(input);
@@ -81,7 +88,6 @@ namespace Bicep.Core.IntegrationTests.ArmHelpers
         }
 
         [DataTestMethod]
-        [DataRow("https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/modules/Microsoft.KeyVault/vaults/keys/0.9/azuredeploy.json")]
         [DataRow("[parameters('location')]")]
         [DataRow("[variables('networkSettings').subnet.dse]")]
         public void TryGetLocalFilePathForTemplateLink_fails_to_find_path_for_undecidable_expression(string input)
@@ -90,6 +96,46 @@ namespace Bicep.Core.IntegrationTests.ArmHelpers
             var output = ExpressionHelpers.TryGetLocalFilePathForTemplateLink(inputExpression);
 
             output.Should().BeNull();
+        }
+
+        [DataTestMethod]
+        [DataRow("{\"val\": \"[replaceMe()]\"}", "{\"val\": \"[replaced()]\"}")]
+        [DataRow("{\"val\": [\"[replaceMe()]\"]}", "{\"val\": [\"[replaced()]\"]}")]
+        [DataRow("{\"val\": [\"[nested(replaceMe())]\"]}", "{\"val\": [\"[nested(replaced())]\"]}")]
+        [DataRow("{\"[replaceMe()]\": \"val\"}", "{\"[replaced()]\": \"val\"}")]
+        [DataRow("\"[replaceMe()]\"", "\"[replaced()]\"")]
+        public void RewriteExpressions_replaces_expressions(string jsonInput, string expectedJsonOutput)
+        {
+            var input = JToken.Parse(jsonInput);
+            var output = JTokenHelpers.RewriteExpressions(input, expression => {
+                if (expression is FunctionExpression function && function.Function == "replaceMe") {
+                    return new FunctionExpression("replaced", Array.Empty<LanguageExpression>(), Array.Empty<LanguageExpression>());
+                }
+
+                return expression;
+            });
+
+            output.Should().DeepEqual(JToken.Parse(expectedJsonOutput));
+        }
+
+        [DataTestMethod]
+        [DataRow("{\"val\": \"[visitMe()]\"}")]
+        [DataRow("{\"val\": [\"[visitMe()]\"]}")]
+        [DataRow("{\"val\": [\"[nested(visitMe())]\"]}")]
+        [DataRow("{\"[visitMe()]\": \"val\"}")]
+        [DataRow("\"[visitMe()]\"")]
+        public void VisitExpressions_visits_expressions(string jsonInput)
+        {
+            var input = JToken.Parse(jsonInput);
+
+            var visited = false;
+            JTokenHelpers.VisitExpressions(input, expression => {
+                if (expression is FunctionExpression function && function.Function == "visitMe") {
+                    visited = true;
+                }
+            });
+
+            visited.Should().BeTrue();
         }
     }
 }

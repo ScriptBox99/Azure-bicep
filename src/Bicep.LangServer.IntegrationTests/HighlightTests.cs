@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -11,11 +11,11 @@ using Bicep.Core.Samples;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
-using Bicep.Core.Text;
-using Bicep.Core.UnitTests.Utils;
+using Bicep.LangServer.IntegrationTests.Assertions;
 using Bicep.LangServer.IntegrationTests.Extensions;
 using Bicep.LanguageServer.Utils;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -37,16 +37,21 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var uri = DocumentUri.From($"/{dataSet.Name}");
 
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(dataSet.Bicep, uri);
+            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
 
-            var symbolToSyntaxLookup = symbolTable
-                .Where(pair => pair.Value.Kind != SymbolKind.Error)
-                .ToLookup(pair => pair.Value, pair => pair.Key);
+            // filter out binding failures and locals with invalid identifiers
+            // (locals are special because their full span is the same as the identifier span,
+            // which makes it impossible to highlight locals with invalid identifiers)
+            var filteredSymbolTable = symbolTable.Where(pair => pair.Value.Kind != SymbolKind.Error && (pair.Value is not LocalVariableSymbol local || local.NameSyntax.IsValid));
+            // TODO: Implement for PropertySymbol
+            filteredSymbolTable = filteredSymbolTable.Where(pair => pair.Value is not PropertySymbol);
 
-            foreach (var (syntax, symbol) in symbolTable.Where(s => s.Value.Kind != SymbolKind.Error))
+            var symbolToSyntaxLookup = filteredSymbolTable.ToLookup(pair => pair.Value, pair => pair.Key);
+
+            foreach (var (syntax, symbol) in filteredSymbolTable)
             {
                 var highlights = await client.RequestDocumentHighlight(new DocumentHighlightParams
                 {
@@ -57,8 +62,13 @@ namespace Bicep.LangServer.IntegrationTests
                 // calculate expected highlights
                 var expectedHighlights = symbolToSyntaxLookup[symbol].Select(node => CreateExpectedHighlight(lineStarts, node));
 
-                // ranges should match what we got from our own symbol table
-                highlights.Should().BeEquivalentTo(expectedHighlights);
+                using (new AssertionScope()
+                    .WithAnnotations(compilation.SyntaxTreeGrouping.EntryPoint, "expected", expectedHighlights, _ => "here", x => x.Range)
+                    .WithAnnotations(compilation.SyntaxTreeGrouping.EntryPoint, "actual", highlights, _ => "here", x => x.Range))
+                {
+                    // ranges should match what we got from our own symbol table
+                    highlights.Should().BeEquivalentTo(expectedHighlights);
+                }
             }
         }
 
@@ -67,11 +77,15 @@ namespace Bicep.LangServer.IntegrationTests
         public async Task RequestingHighlightsForWrongNodeShouldProduceNoHighlights(DataSet dataSet)
         {
             // local function
-            bool IsWrongNode(SyntaxBase node) => !(node is ISymbolReference) && !(node is INamedDeclarationSyntax) && !(node is Token);
+            static bool IsWrongNode(SyntaxBase node) =>
+                !(node is PropertyAccessSyntax propertyAccessSyntax && propertyAccessSyntax.BaseExpression is ISymbolReference) &&
+                node is not ISymbolReference &&
+                node is not ITopLevelNamedDeclarationSyntax &&
+                node is not Token;
 
             var uri = DocumentUri.From($"/{dataSet.Name}");
 
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(dataSet.Bicep, uri);
+            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
             var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
 
@@ -113,10 +127,12 @@ namespace Bicep.LangServer.IntegrationTests
         {
             switch (syntax)
             {
-                case ISymbolReference _:
+                case ISymbolReference:
+                case PropertyAccessSyntax:
                     return DocumentHighlightKind.Read;
 
-                case INamedDeclarationSyntax _:
+                case INamedDeclarationSyntax:
+                case ObjectPropertySyntax:
                     return DocumentHighlightKind.Write;
 
                 default:
@@ -126,7 +142,7 @@ namespace Bicep.LangServer.IntegrationTests
 
         private static IEnumerable<object[]> GetData()
         {
-            return DataSets.AllDataSets.ToDynamicTestData();
+            return DataSets.NonStressDataSets.ToDynamicTestData();
         }
     }
 }

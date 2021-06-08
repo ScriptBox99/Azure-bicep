@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
 using System.Linq;
@@ -39,7 +39,7 @@ namespace Bicep.Core.TypeSystem.Az
 
         private TypeProperty GetTypeProperty(string name, Azure.Bicep.Types.Concrete.ObjectProperty input)
         {
-            return new TypeProperty(name, GetTypeReference(input.Type), GetTypePropertyFlags(input));
+            return new TypeProperty(name, GetTypeReference(input.Type), GetTypePropertyFlags(input), input.Description);
         }
 
         private static TypePropertyFlags GetTypePropertyFlags(Azure.Bicep.Types.Concrete.ObjectProperty input)
@@ -61,6 +61,11 @@ namespace Bicep.Core.TypeSystem.Az
             if (input.Flags.HasFlag(Azure.Bicep.Types.Concrete.ObjectPropertyFlags.DeployTimeConstant))
             {
                 flags |= TypePropertyFlags.DeployTimeConstant;
+            }
+            if(!input.Flags.HasFlag(Azure.Bicep.Types.Concrete.ObjectPropertyFlags.Required) && !input.Flags.HasFlag(Azure.Bicep.Types.Concrete.ObjectPropertyFlags.ReadOnly))
+            {
+                // for non-required and non-readonly resource properties, we allow null assignment
+                flags |= TypePropertyFlags.AllowImplicitNull;
             }
 
             return flags;
@@ -87,7 +92,7 @@ namespace Bicep.Core.TypeSystem.Az
                     var additionalProperties = objectType.AdditionalProperties != null ? GetTypeReference(objectType.AdditionalProperties) : null;
                     var properties = objectType.Properties.Select(kvp => GetTypeProperty(kvp.Key, kvp.Value));
 
-                    return new NamedObjectType(objectType.Name, GetValidationFlags(isResourceBodyType), properties, additionalProperties, TypePropertyFlags.None);
+                    return new ObjectType(objectType.Name, GetValidationFlags(isResourceBodyType), properties, additionalProperties, TypePropertyFlags.None);
                 }
                 case Azure.Bicep.Types.Concrete.ArrayType arrayType:
                 {
@@ -116,7 +121,7 @@ namespace Bicep.Core.TypeSystem.Az
             }
         }
 
-        private NamedObjectType ToCombinedType(IEnumerable<KeyValuePair<string, Azure.Bicep.Types.Concrete.ObjectProperty>> baseProperties, string name, Azure.Bicep.Types.Concrete.ITypeReference extendedType, bool isResourceBodyType)
+        private ObjectType ToCombinedType(IEnumerable<KeyValuePair<string, Azure.Bicep.Types.Concrete.ObjectProperty>> baseProperties, string name, Azure.Bicep.Types.Concrete.ITypeReference extendedType, bool isResourceBodyType)
         {
             if (!(extendedType.Type is Azure.Bicep.Types.Concrete.ObjectType objectType))
             {
@@ -131,7 +136,7 @@ namespace Bicep.Core.TypeSystem.Az
                 extendedProperties[property.Key] = property.Value;
             }
 
-            return new NamedObjectType(name, GetValidationFlags(isResourceBodyType), extendedProperties.Select(kvp => GetTypeProperty(kvp.Key, kvp.Value)), additionalProperties, TypePropertyFlags.None);
+            return new ObjectType(name, GetValidationFlags(isResourceBodyType), extendedProperties.Select(kvp => GetTypeProperty(kvp.Key, kvp.Value)), additionalProperties, TypePropertyFlags.None);
         }
 
         private static TypeSymbolValidationFlags GetValidationFlags(bool isResourceBodyType)

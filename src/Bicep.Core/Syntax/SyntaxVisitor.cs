@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Bicep.Core.Parsing;
 
 namespace Bicep.Core.Syntax
@@ -14,6 +15,8 @@ namespace Bicep.Core.Syntax
             {
                 return;
             }
+
+            RuntimeHelpers.EnsureSufficientExecutionStack();
 
             VisitInternal(node);
         }
@@ -72,6 +75,11 @@ namespace Bicep.Core.Syntax
             this.Visit(syntax.Name);
             this.Visit(syntax.Assignment);
             this.Visit(syntax.Value);
+        }
+
+        public virtual void VisitLocalVariableSyntax(LocalVariableSyntax syntax)
+        {
+            this.Visit(syntax.Name);
         }
 
         public virtual void VisitTargetScopeSyntax(TargetScopeSyntax syntax)
@@ -195,6 +203,27 @@ namespace Bicep.Core.Syntax
             this.Visit(syntax.Body);
         }
 
+        public virtual void VisitForSyntax(ForSyntax syntax)
+        {
+            this.Visit(syntax.OpenSquare);
+            this.Visit(syntax.ForKeyword);
+            this.Visit(syntax.VariableSection);
+            this.Visit(syntax.InKeyword);
+            this.Visit(syntax.Expression);
+            this.Visit(syntax.Colon);
+            this.Visit(syntax.Body);
+            this.Visit(syntax.CloseSquare);
+        }
+
+        public virtual void VisitForVariableBlockSyntax(ForVariableBlockSyntax syntax)
+        {
+            this.Visit(syntax.OpenParen);
+            this.Visit(syntax.ItemVariable);
+            this.Visit(syntax.Comma);
+            this.Visit(syntax.IndexVariable);
+            this.Visit(syntax.CloseParen);
+        }
+
         public virtual void VisitTernaryOperationSyntax(TernaryOperationSyntax syntax)
         {
             this.Visit(syntax.ConditionExpression);
@@ -230,6 +259,13 @@ namespace Bicep.Core.Syntax
             this.Visit(syntax.BaseExpression);
             this.Visit(syntax.Dot);
             this.Visit(syntax.PropertyName);
+        }
+
+        public virtual void VisitResourceAccessSyntax(ResourceAccessSyntax syntax)
+        {
+            this.Visit(syntax.BaseExpression);
+            this.Visit(syntax.DoubleColon);
+            this.Visit(syntax.ResourceName);
         }
 
         public virtual void VisitParenthesizedExpressionSyntax(ParenthesizedExpressionSyntax syntax)

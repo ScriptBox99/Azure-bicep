@@ -7,12 +7,11 @@ using Bicep.Core;
 using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
 using Bicep.LanguageServer.Extensions;
-using OmniSharp.Extensions.LanguageServer.Protocol.Document.Proposals;
-using OmniSharp.Extensions.LanguageServer.Protocol.Models.Proposals;
+using OmniSharp.Extensions.LanguageServer.Protocol.Document;
+using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 
 namespace Bicep.LanguageServer
 {
-    [Obsolete] // proposed LSP feature must be marked 'obsolete' to access
     public class SemanticTokenVisitor : SyntaxVisitor
     {
         private readonly List<(IPositionable positionable, SemanticTokenType tokenType)> tokens;
@@ -47,19 +46,19 @@ namespace Bicep.LanguageServer
             }
         }
 
-        public override void VisitArrayAccessSyntax(ArrayAccessSyntax syntax)
+        /// <summary>
+        /// Adds the specified positionable element if it represents the specified keyword.
+        /// This function only needs to be used if the parser does not prevent SkippedTriviaSyntax in place of the keyword.
+        /// </summary>
+        /// <param name="positionable">the positionable element</param>
+        /// <param name="keyword">the expected keyword text</param>
+        private void AddContextualKeyword(IPositionable positionable, string keyword)
         {
-            base.VisitArrayAccessSyntax(syntax);
-        }
-
-        public override void VisitArrayItemSyntax(ArrayItemSyntax syntax)
-        {
-            base.VisitArrayItemSyntax(syntax);
-        }
-
-        public override void VisitArraySyntax(ArraySyntax syntax)
-        {
-            base.VisitArraySyntax(syntax);
+            // contextual keywords should only be highlighted as keywords if they are valid
+            if (positionable is Token {Type: TokenType.Identifier} token && string.Equals(token.Text, keyword, StringComparison.Ordinal))
+            {
+                AddTokenType(positionable, SemanticTokenType.Keyword);
+            }
         }
 
         public override void VisitBinaryOperationSyntax(BinaryOperationSyntax syntax)
@@ -74,26 +73,24 @@ namespace Bicep.LanguageServer
             base.VisitBooleanLiteralSyntax(syntax);
         }
 
-        public override void VisitFunctionArgumentSyntax(FunctionArgumentSyntax syntax)
-        {
-            base.VisitFunctionArgumentSyntax(syntax);
-        }
-
         public override void VisitFunctionCallSyntax(FunctionCallSyntax syntax)
         {
+            // We need to set token types for OpenParen and CloseParen in case the function call
+            // is inside a string interpolation. Our current textmate grammar will tag them as
+            // string if they are not overrode by the semantic tokens.
             AddTokenType(syntax.Name, SemanticTokenType.Function);
+            AddTokenType(syntax.OpenParen, SemanticTokenType.Operator);
+            AddTokenType(syntax.CloseParen, SemanticTokenType.Operator);
             base.VisitFunctionCallSyntax(syntax);
         }
 
         public override void VisitInstanceFunctionCallSyntax(InstanceFunctionCallSyntax syntax)
         {
+            AddTokenType(syntax.Dot, SemanticTokenType.Operator);
             AddTokenType(syntax.Name, SemanticTokenType.Function);
+            AddTokenType(syntax.OpenParen, SemanticTokenType.Operator);
+            AddTokenType(syntax.CloseParen, SemanticTokenType.Operator);
             base.VisitInstanceFunctionCallSyntax(syntax);
-        }
-
-        public override void VisitIdentifierSyntax(IdentifierSyntax syntax)
-        {
-            base.VisitIdentifierSyntax(syntax);
         }
 
         public override void VisitNullLiteralSyntax(NullLiteralSyntax syntax)
@@ -116,14 +113,10 @@ namespace Bicep.LanguageServer
             }
             else
             {
-                AddTokenType(syntax.Key, SemanticTokenType.Member);
+                AddTokenType(syntax.Key, SemanticTokenType.Method);
             }
-            base.VisitObjectPropertySyntax(syntax);
-        }
-
-        public override void VisitObjectSyntax(ObjectSyntax syntax)
-        {
-            base.VisitObjectSyntax(syntax);
+            Visit(syntax.Colon);
+            Visit(syntax.Value);
         }
 
         public override void VisitOutputDeclarationSyntax(OutputDeclarationSyntax syntax)
@@ -140,25 +133,24 @@ namespace Bicep.LanguageServer
             base.VisitParameterDeclarationSyntax(syntax);
         }
 
-        public override void VisitParameterDefaultValueSyntax(ParameterDefaultValueSyntax syntax)
-        {
-            base.VisitParameterDefaultValueSyntax(syntax);
-        }
-
-        public override void VisitParenthesizedExpressionSyntax(ParenthesizedExpressionSyntax syntax)
-        {
-            base.VisitParenthesizedExpressionSyntax(syntax);
-        }
-
-        public override void VisitProgramSyntax(ProgramSyntax syntax)
-        {
-            base.VisitProgramSyntax(syntax);
-        }
-
         public override void VisitPropertyAccessSyntax(PropertyAccessSyntax syntax)
         {
+            AddTokenType(syntax.Dot, SemanticTokenType.Operator);
             AddTokenType(syntax.PropertyName, SemanticTokenType.Property);
             base.VisitPropertyAccessSyntax(syntax);
+        }
+
+        public override void VisitArrayAccessSyntax(ArrayAccessSyntax syntax)
+        {
+            AddTokenType(syntax.OpenSquare, SemanticTokenType.Operator);
+            AddTokenType(syntax.CloseSquare, SemanticTokenType.Operator);
+            base.VisitArrayAccessSyntax(syntax);
+        }
+
+        public override void VisitResourceAccessSyntax(ResourceAccessSyntax syntax)
+        {
+            AddTokenType(syntax.ResourceName, SemanticTokenType.Property);
+            base.VisitResourceAccessSyntax(syntax);
         }
 
         public override void VisitResourceDeclarationSyntax(ResourceDeclarationSyntax syntax)
@@ -182,9 +174,17 @@ namespace Bicep.LanguageServer
             base.VisitIfConditionSyntax(syntax);
         }
 
-        public override void VisitSkippedTriviaSyntax(SkippedTriviaSyntax syntax)
+        public override void VisitForSyntax(ForSyntax syntax)
         {
-            base.VisitSkippedTriviaSyntax(syntax);
+            AddTokenType(syntax.ForKeyword, SemanticTokenType.Keyword);
+            AddContextualKeyword(syntax.InKeyword, LanguageConstants.InKeyword);
+            base.VisitForSyntax(syntax);
+        }
+
+        public override void VisitLocalVariableSyntax(LocalVariableSyntax syntax)
+        {
+            AddTokenType(syntax.Name, SemanticTokenType.Variable);
+            base.VisitLocalVariableSyntax(syntax);
         }
 
         private void AddStringToken(Token token)
@@ -192,13 +192,13 @@ namespace Bicep.LanguageServer
             var endInterp = token.Type switch {
                 TokenType.StringLeftPiece => LanguageConstants.StringHoleOpen,
                 TokenType.StringMiddlePiece => LanguageConstants.StringHoleOpen,
-                _ => "",
+                _ => ""
             };
 
             var startInterp = token.Type switch {
                 TokenType.StringMiddlePiece => LanguageConstants.StringHoleClose,
                 TokenType.StringRightPiece => LanguageConstants.StringHoleClose,
-                _ => "",
+                _ => ""
             };
 
             // need to be extremely cautious here. it may be that lexing has failed to find a string terminating character,
@@ -222,11 +222,6 @@ namespace Bicep.LanguageServer
             }
         }
 
-        public override void VisitStringSyntax(StringSyntax syntax)
-        {
-            base.VisitStringSyntax(syntax);
-        }
-
         public override void VisitTernaryOperationSyntax(TernaryOperationSyntax syntax)
         {
             AddTokenType(syntax.Colon, SemanticTokenType.Operator);
@@ -242,6 +237,7 @@ namespace Bicep.LanguageServer
                 case TokenType.StringLeftPiece:
                 case TokenType.StringMiddlePiece:
                 case TokenType.StringRightPiece:
+                case TokenType.MultilineString:
                     AddStringToken(token);
                     break;
                 default:

@@ -5,20 +5,17 @@
     "detail": "dependsOn",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `resource | module[]`  \nWrite-only property  \n"
+      "value": "Type: `(module[] | (resource | module) | resource[])[]`  \nWrite-only property  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_dependsOn",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "dependsOn"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "dependsOn:"
+    }
   },
   {
     "label": "identity",
@@ -26,20 +23,17 @@
     "detail": "identity",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `ManagedServiceIdentity`  \n"
+      "value": "Type: `ManagedServiceIdentity`  \nManaged identity generic object.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_identity",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "identity"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "identity:"
+    }
   },
   {
     "label": "location",
@@ -47,20 +41,17 @@
     "detail": "location (Required)",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nThe location of the ACI and the storage account for the deployment script.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_location",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "location"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "location:"
+    }
   },
   {
     "label": "name",
@@ -68,20 +59,67 @@
     "detail": "name (Required)",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nThe resource name  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_name",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "name"
+      "newText": "name:"
+    }
+  },
+  {
+    "label": "resource",
+    "kind": "keyword",
+    "detail": "Resource keyword",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_resource",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "resource"
+    }
+  },
+  {
+    "label": "resource",
+    "kind": "snippet",
+    "detail": "Nested resource with defaults",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nresource Identifier 'Type' = {\n  name: \n  properties: {\n    \n  }\n}\n```"
     },
-    "commitCharacters": [
-      ":"
-    ]
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_resource",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "resource ${1:Identifier} '${2:Type}' = {\n  name: $3\n  properties: {\n    $0\n  }\n}"
+    }
+  },
+  {
+    "label": "resource",
+    "kind": "snippet",
+    "detail": "Nested resource without defaults",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nresource Identifier 'Type' = {\n  name: \n  \n}\n\n```"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_resource",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "resource ${1:Identifier} '${2:Type}' = {\n  name: $3\n  $0\n}\n"
+    }
   },
   {
     "label": "tags",
@@ -89,19 +127,16 @@
     "detail": "tags",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `Dictionary<string,String>`  \n"
+      "value": "Type: `Dictionary<string,String>`  \nResource tags.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_tags",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "tags"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "tags:"
+    }
   }
 ]

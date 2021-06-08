@@ -1,12 +1,12 @@
 # to get the SHA256 checksum, replace the below command with the appropriate version:
-# curl -Lf https://github.com/Azure/bicep/releases/download/v0.2.328/bicep-osx-x64 | shasum -a 256
+# curl -Lf https://github.com/Azure/bicep/releases/download/v0.4.63/bicep-osx-x64 | shasum -a 256
 
 class Bicep < Formula
   desc "Bicep: next generation template language for Azure Resource Manager (ARM)"
   homepage "https://github.com/Azure/bicep"
-  version "0.2.328"
-  url "https://github.com/Azure/bicep/releases/download/v0.2.328/bicep-osx-x64"
-  sha256 "939bd7dfe3be66c8d800de482ed0aba0dc0bf16a9abad564346e597ac0d81c05"
+  version "0.4.63"
+  url "https://github.com/Azure/bicep/releases/download/v0.4.63/bicep-osx-x64"
+  sha256 "ae3f091275c8f59e2ca4624e24a131d1b71d0790d29f1af8fde3b430e0803987"
 
   license "MIT"
 

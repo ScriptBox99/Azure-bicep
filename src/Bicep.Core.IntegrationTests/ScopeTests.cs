@@ -7,8 +7,9 @@ using FluentAssertions;
 using Bicep.Core.UnitTests.Utils;
 using Newtonsoft.Json.Linq;
 using FluentAssertions.Execution;
-using Azure.Bicep.Types.Concrete;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.TypeSystem;
+using Bicep.Core.Resources;
 
 namespace Bicep.Core.IntegrationTests
 {
@@ -33,7 +34,7 @@ namespace Bicep.Core.IntegrationTests
         [DataRow("subscription", "tenant()", "tenant", ExpectedSubSchema, "[reference(tenantResourceId('Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[tenantResourceId('Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("resourceGroup", "subscription()", "subscription", ExpectedRgSchema, "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[subscriptionResourceId('Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("resourceGroup", "subscription('abc')", "subscription", ExpectedRgSchema, "[reference(subscriptionResourceId('abc', 'Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[subscriptionResourceId('abc', 'Microsoft.Resources/deployments', 'myMod')]")]
-        [DataRow("resourceGroup", "resourceGroup()", "resourceGroup", ExpectedRgSchema, "[reference(extensionResourceId(resourceGroup().id, 'Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[extensionResourceId(resourceGroup().id, 'Microsoft.Resources/deployments', 'myMod')]")]
+        [DataRow("resourceGroup", "resourceGroup()", "resourceGroup", ExpectedRgSchema, "[reference(resourceId('Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[resourceId('Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("resourceGroup", "resourceGroup('abc')", "resourceGroup", ExpectedRgSchema, "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, 'abc'), 'Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, 'abc'), 'Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("resourceGroup", "resourceGroup('abc', 'def')", "resourceGroup", ExpectedRgSchema, "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', 'abc', 'def'), 'Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', 'abc', 'def'), 'Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("resourceGroup", "tenant()", "tenant", ExpectedRgSchema, "[reference(tenantResourceId('Microsoft.Resources/deployments', 'myMod'), '2019-10-01').outputs.hello.value]", "[tenantResourceId('Microsoft.Resources/deployments', 'myMod')]")]
@@ -64,20 +65,18 @@ targetScope = '$moduleTargetScope'
 output hello string = 'hello!'
 ".Replace("$moduleTargetScope", moduleTargetScope)));
 
-            template!.Should().NotBeNull();
-
             using (new AssertionScope())
             {
-                template!.SelectToken("$.['$schema']")!.Should().DeepEqual(expectedSchema);
-                template.SelectToken("$.outputs.hello.value")!.Should().DeepEqual(expectedOutput);
-                template.SelectToken("$.resources[?(@.name == 'resourceB')].dependsOn[0]")!.Should().DeepEqual(expectedResourceDependsOn);
+                template.Should().HaveValueAtPath("$.['$schema']", expectedSchema);
+                template.Should().HaveValueAtPath("$.outputs.hello.value", expectedOutput);
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].dependsOn[0]", expectedResourceDependsOn);
             }
         }
 
         [DataRow("tenant", "[tenantResourceId('My.Rp/myResource', 'resourceA')]", "[tenantResourceId('Microsoft.Resources/deployments', 'myMod')]")]
         [DataRow("managementGroup", "[format('My.Rp/myResource/{0}', 'resourceA')]", "[format('Microsoft.Resources/deployments/{0}', 'myMod')]")]
         [DataRow("subscription", "[subscriptionResourceId('My.Rp/myResource', 'resourceA')]", "[subscriptionResourceId('Microsoft.Resources/deployments', 'myMod')]")]
-        [DataRow("resourceGroup", "[resourceId('My.Rp/myResource', 'resourceA')]", "[extensionResourceId(resourceGroup().id, 'Microsoft.Resources/deployments', 'myMod')]")]
+        [DataRow("resourceGroup", "[resourceId('My.Rp/myResource', 'resourceA')]", "[resourceId('Microsoft.Resources/deployments', 'myMod')]")]
         [DataTestMethod]
         public void Emitter_should_generate_correct_dependsOn_resourceIds(string targetScope, string expectedModuleDependsOn, string expectedResourceDependsOn)
         {
@@ -110,19 +109,17 @@ param dependency string
 ".Replace("$targetScope", targetScope))
             );
 
-            template!.Should().NotBeNull();
-
             using (new AssertionScope())
             {
-                template!.SelectToken("$.resources[?(@.name == 'resourceB')].dependsOn[0]")!.Should().DeepEqual(expectedResourceDependsOn);
-                template.SelectToken("$.resources[?(@.name == 'myMod')].dependsOn[0]")!.Should().DeepEqual(expectedModuleDependsOn);
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].dependsOn[0]", expectedResourceDependsOn);
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'myMod')].dependsOn[0]", expectedModuleDependsOn);
             }
         }
 
         [TestMethod]
         public void Emitter_should_generate_correct_extension_scope_property_and_correct_dependsOn()
         {
-            var (template, diags, _) = CompilationHelper.Compile(@"
+            var (template, _, _) = CompilationHelper.Compile(@"
 resource resourceA 'My.Rp/myResource@2020-01-01' = {
   name: 'resourceA'
 }
@@ -137,15 +134,13 @@ resource resourceC 'My.Rp/myResource@2020-01-01' = {
   name: 'resourceC'
 }");
 
-            template!.Should().NotBeNull();
-
             using (new AssertionScope())
             {
-                template!.SelectToken("$.resources[?(@.name == 'resourceB')].scope")!.Should().DeepEqual("[format('My.Rp/myResource/{0}', 'resourceA')]");
-                template.SelectToken("$.resources[?(@.name == 'resourceB')].dependsOn[0]")!.Should().DeepEqual("[resourceId('My.Rp/myResource', 'resourceA')]");
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].scope", "[format('My.Rp/myResource/{0}', 'resourceA')]");
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].dependsOn[0]", "[resourceId('My.Rp/myResource', 'resourceA')]");
 
-                template.SelectToken("$.resources[?(@.name == 'resourceC')].scope")!.Should().DeepEqual("[extensionResourceId(resourceId('My.Rp/myResource', 'resourceA'), 'My.Rp/myResource', 'resourceB')]");
-                template.SelectToken("$.resources[?(@.name == 'resourceC')].dependsOn[0]")!.Should().DeepEqual("[extensionResourceId(resourceId('My.Rp/myResource', 'resourceA'), 'My.Rp/myResource', 'resourceB')]");
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceC')].scope", "[extensionResourceId(format('My.Rp/myResource/{0}', 'resourceA'), 'My.Rp/myResource', 'resourceB')]");
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceC')].dependsOn[0]", "[extensionResourceId(resourceId('My.Rp/myResource', 'resourceA'), 'My.Rp/myResource', 'resourceB')]");
             }
         }
 
@@ -171,28 +166,24 @@ resource resourceB 'My.Rp/myResource@2020-01-01' = {
 output resourceARef string = resourceA.properties.myProp
 ".Replace("$targetScope", targetScope));
 
-            template!.Should().NotBeNull();
-
             using (new AssertionScope())
             {
-                template!.SelectToken("$.resources[?(@.name == 'resourceB')].scope")!.Should().DeepEqual(expectedScopeExpression);
-                (template.SelectToken("$.resources[?(@.name == 'resourceB')].dependsOn") as IEnumerable<JToken>)!.Should().BeEmpty();
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].scope", expectedScopeExpression);
+                template.Should().NotHaveValueAtPath("$.resources[?(@.name == 'resourceB')].dependsOn");
 
-                template.SelectToken("$.outputs['resourceARef'].value")!.Should().DeepEqual(expectedReferenceExpression);
+                template.Should().HaveValueAtPath("$.outputs['resourceARef'].value", expectedReferenceExpression);
             }
         }
 
         [TestMethod]
         public void Existing_resources_can_be_referenced_at_other_scopes()
         {
-            var typeName = "My.Rp/myResource@2020-01-01";
-            var typeProvider = ResourceTypeProviderHelper.CreateAzResourceTypeProvider(factory => {
-                var stringType = factory.Create(() => new Azure.Bicep.Types.Concrete.BuiltInType(BuiltInTypeKind.String));
-                var objectType = factory.Create(() => new Azure.Bicep.Types.Concrete.ObjectType(typeName, new Dictionary<string, ObjectProperty> {
-                    ["name"] = new ObjectProperty(factory.GetReference(stringType), ObjectPropertyFlags.DeployTimeConstant),
-                    ["kind"] = new ObjectProperty(factory.GetReference(stringType), ObjectPropertyFlags.ReadOnly),
-                }, null));
-                var resourceType = factory.Create(() => new Azure.Bicep.Types.Concrete.ResourceType(typeName, ScopeType.ResourceGroup, factory.GetReference(objectType)));
+            var typeReference = ResourceTypeReference.Parse("My.Rp/myResource@2020-01-01");
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(new [] {
+                new ResourceType(typeReference, ResourceScope.ResourceGroup, new ObjectType(typeReference.FormatName(), TypeSymbolValidationFlags.Default, new [] {
+                    new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.DeployTimeConstant, "name property"),
+                    new TypeProperty("kind", LanguageConstants.String, TypePropertyFlags.ReadOnly, "kind property"),
+                }, null))
             });
 
             // explicitly pass a valid scope
@@ -205,10 +196,9 @@ resource resourceA 'My.Rp/myResource@2020-01-01' existing = {
 output resourceARef string = resourceA.kind
 "));
 
-            template!.Should().NotBeNull();
             using (new AssertionScope())
             {
-                template!.SelectToken("$.outputs['resourceARef'].value")!.Should().DeepEqual("[reference(extensionResourceId(resourceGroup().id, 'My.Rp/myResource', 'resourceA'), '2020-01-01', 'full').kind]");
+                template.Should().HaveValueAtPath("$.outputs['resourceARef'].value", "[reference(resourceId('My.Rp/myResource', 'resourceA'), '2020-01-01', 'full').kind]");
             }
 
             // use a valid targetScope without setting the scope property
@@ -222,23 +212,20 @@ resource resourceA 'My.Rp/myResource@2020-01-01' existing = {
 output resourceARef string = resourceA.kind
 "));
 
-            template!.Should().NotBeNull();
             using (new AssertionScope())
             {
-                template!.SelectToken("$.outputs['resourceARef'].value")!.Should().DeepEqual("[reference(resourceId('My.Rp/myResource', 'resourceA'), '2020-01-01', 'full').kind]");
+                template.Should().HaveValueAtPath("$.outputs['resourceARef'].value", "[reference(resourceId('My.Rp/myResource', 'resourceA'), '2020-01-01', 'full').kind]");
             }
         }
 
         [TestMethod]
         public void Errors_are_raised_for_existing_resources_at_invalid_scopes()
         {
-            var typeName = "My.Rp/myResource@2020-01-01";
-            var typeProvider = ResourceTypeProviderHelper.CreateAzResourceTypeProvider(factory => {
-                var stringType = factory.Create(() => new Azure.Bicep.Types.Concrete.BuiltInType(BuiltInTypeKind.String));
-                var objectType = factory.Create(() => new Azure.Bicep.Types.Concrete.ObjectType(typeName, new Dictionary<string, ObjectProperty> {
-                    ["name"] = new ObjectProperty(factory.GetReference(stringType), ObjectPropertyFlags.DeployTimeConstant),
-                }, null));
-                var resourceType = factory.Create(() => new Azure.Bicep.Types.Concrete.ResourceType(typeName, ScopeType.ResourceGroup, factory.GetReference(objectType)));
+            var typeReference = ResourceTypeReference.Parse("My.Rp/myResource@2020-01-01");
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(new [] {
+                new ResourceType(typeReference, ResourceScope.ResourceGroup, new ObjectType(typeReference.FormatName(), TypeSymbolValidationFlags.Default, new [] {
+                    new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.DeployTimeConstant, "name property"),
+                }, null))
             });
 
             // explicitly pass an invalid scope
@@ -265,6 +252,104 @@ resource resourceA 'My.Rp/myResource@2020-01-01' existing = {
             diags.Should().HaveDiagnostics(new[] {
                 ("BCP135", DiagnosticLevel.Error, "Scope \"subscription\" is not valid for this resource type. Permitted scopes: \"resourceGroup\"."),
             });
+        }
+
+        [TestMethod]
+        public void Errors_are_raised_for_extensions_of_existing_resources_at_invalid_scopes()
+        {
+            var typeReference = ResourceTypeReference.Parse("My.Rp/myResource@2020-01-01");
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(new [] {
+                new ResourceType(typeReference, ResourceScope.ResourceGroup | ResourceScope.Resource, new ObjectType(typeReference.FormatName(), TypeSymbolValidationFlags.Default, new [] {
+                    new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.DeployTimeConstant, "name property"),
+                }, null))
+            });
+
+            // extension resource of an existing resource at an invalid scope
+            var (_, diags, _) = CompilationHelper.Compile(typeProvider, ("main.bicep", @"
+resource resourceA 'My.Rp/myResource@2020-01-01' existing = {
+  name: 'resourceA'
+  scope: resourceGroup('different')
+}
+
+resource resourceB 'My.Rp/myResource@2020-01-01' = {
+  name: 'resourceB'
+  scope: resourceA
+}
+"));
+
+            diags.Should().HaveDiagnostics(new[] {
+                ("BCP139", DiagnosticLevel.Error, "The root resource scope must match that of the Bicep file. To deploy a resource to a different root scope, use a module."),
+            });
+        }
+
+        [TestMethod]
+        public void Extensions_of_existing_resources_are_permitted()
+        {
+            var typeReference = ResourceTypeReference.Parse("My.Rp/myResource@2020-01-01");
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(new [] {
+                new ResourceType(typeReference, ResourceScope.ResourceGroup | ResourceScope.Resource, new ObjectType(typeReference.FormatName(), TypeSymbolValidationFlags.Default, new [] {
+                    new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.DeployTimeConstant, "name property"),
+                }, null))
+            });
+
+            // extension resource of an existing resource at an invalid scope
+            var (template, diags, _) = CompilationHelper.Compile(typeProvider, ("main.bicep", @"
+resource resourceA 'My.Rp/myResource@2020-01-01' existing = {
+  name: 'resourceA'
+}
+
+resource resourceB 'My.Rp/myResource@2020-01-01' = {
+  name: 'resourceB'
+  scope: resourceA
+}
+"));
+
+            using (new AssertionScope())
+            {
+                diags.Should().BeEmpty();
+
+                template.Should().HaveValueAtPath("$.resources[?(@.name == 'resourceB')].scope", "[format('My.Rp/myResource/{0}', 'resourceA')]");
+            }
+        }
+
+        [DataRow("resourceGroup", true)]
+        [DataRow("subscription", true)]
+        [DataRow("managementGroup", true)]
+        [DataRow("tenant", false)]
+        [DataTestMethod]
+        public void Tenant_scope_resources_can_be_deployed_from_anywhere(string targetScope, bool tenantScopeExpected)
+        {
+            var typeReference = ResourceTypeReference.Parse("My.Rp/myResource@2020-01-01");
+            var typeProvider = TestTypeHelper.CreateProviderWithTypes(new[] {
+                new ResourceType(typeReference, ResourceScope.Tenant, new ObjectType(typeReference.FormatName(), TypeSymbolValidationFlags.Default, new [] {
+                    new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.DeployTimeConstant, "name property"),
+                }, null))
+            });
+
+            var (template, diags, _) = CompilationHelper.Compile(typeProvider, ("main.bicep", @"
+targetScope = 'TARGET_SCOPE'
+resource resourceA 'My.Rp/myResource@2020-01-01' = {
+  name: 'resourceA'
+  scope: tenant()
+}
+".Replace("TARGET_SCOPE", targetScope)));
+
+            using (new AssertionScope())
+            {
+                diags.Should().BeEmpty();
+                template.Should().NotBeNull();
+
+                const string path = "$.resources[?(@.name == 'resourceA')].scope";
+                if (tenantScopeExpected)
+                {
+                    
+                    template.Should().HaveValueAtPath(path, "/");
+                }
+                else
+                {
+                    template.Should().NotHaveValueAtPath(path);
+                }
+            }
         }
     }
 }

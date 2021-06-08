@@ -19,14 +19,7 @@ namespace Bicep.Core.UnitTests.Utils
 
         public static ArrayItemSyntax CreateArrayItem(SyntaxBase value) => new ArrayItemSyntax(value);
 
-        // TODO: Escape string correctly
-        public static StringSyntax CreateString(string value)
-        {
-            var token = CreateToken(TokenType.StringComplete, StringUtils.EscapeBicepString(value));
-            var segment = Lexer.TryGetStringValue(token) ?? throw new ArgumentException($"Unable to parse {value}");
-
-            return new StringSyntax(new [] { token }, Enumerable.Empty<SyntaxBase>(), new [] { segment });
-        }
+        public static StringSyntax CreateString(string value) => SyntaxFactory.CreateStringLiteral(value);
 
         public static IntegerLiteralSyntax CreateInt(long value) => new (CreateToken(TokenType.Integer), value);
 
@@ -39,6 +32,8 @@ namespace Bicep.Core.UnitTests.Utils
         public static ObjectPropertySyntax CreateProperty(string name, SyntaxBase value) => CreateProperty(CreateIdentifier(name), value);
 
         public static ObjectPropertySyntax CreateProperty(IdentifierSyntax name, SyntaxBase value) => new ObjectPropertySyntax(name, CreateToken(TokenType.Colon), value);
+
+        public static UnaryOperationSyntax CreateUnaryMinus(SyntaxBase operand) => new(CreateToken(TokenType.Minus), operand);
 
         public static Token CreateToken(TokenType type, string text = "") => new Token(type, new TextSpan(0, 0), text, ImmutableArray.Create<SyntaxTrivia>(), ImmutableArray.Create<SyntaxTrivia>());
 

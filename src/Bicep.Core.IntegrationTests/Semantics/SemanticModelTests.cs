@@ -1,13 +1,5 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Linq;
-using System.Text;
-using Bicep.Core.Diagnostics;
-using Bicep.Core.FileSystem;
 using Bicep.Core.Navigation;
 using Bicep.Core.Samples;
 using Bicep.Core.Semantics;
@@ -18,6 +10,11 @@ using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Linq;
 
 namespace Bicep.Core.IntegrationTests.Semantics
 {
@@ -27,14 +24,22 @@ namespace Bicep.Core.IntegrationTests.Semantics
         [NotNull]
         public TestContext? TestContext { get; set; }
 
+        // TODO:  handle varying linter diagnostic expectations for data driven test
         [DataTestMethod]
         [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
+        [TestCategory(BaselineHelper.BaselineTestCategory)]
         public void ProgramsShouldProduceExpectedDiagnostics(DataSet dataSet)
         {
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out var outputDirectory);
             var model = compilation.GetEntrypointSemanticModel();
             
-            var sourceTextWithDiags = DataSet.AddDiagsToSourceText(dataSet, model.GetAllDiagnostics(), diag => OutputHelper.GetDiagLoggingString(dataSet.Bicep, outputDirectory, diag));
+            // use a deterministic order
+            var diagnostics = model.GetAllDiagnostics()
+                .OrderBy(x => x.Span.Position)
+                .ThenBy(x => x.Span.Length)
+                .ThenBy(x => x.Message, StringComparer.Ordinal);
+
+            var sourceTextWithDiags = DataSet.AddDiagsToSourceText(dataSet, diagnostics, diag => OutputHelper.GetDiagLoggingString(dataSet.Bicep, outputDirectory, diag));
             var resultsFile = Path.Combine(outputDirectory, DataSet.TestFileMainDiagnostics);
             File.WriteAllText(resultsFile, sourceTextWithDiags);
 
@@ -48,12 +53,13 @@ namespace Bicep.Core.IntegrationTests.Semantics
         [TestMethod]
         public void EndOfFileFollowingSpaceAfterParameterKeyWordShouldNotThrow()
         {
-            var compilation = new Compilation(TestResourceTypeProvider.Create(), SyntaxTreeGroupingFactory.CreateFromText("parameter "));
+            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SyntaxTreeGroupingFactory.CreateFromText("parameter "));
             compilation.GetEntrypointSemanticModel().GetParseDiagnostics();
         }
 
         [DataTestMethod]
         [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
+        [TestCategory(BaselineHelper.BaselineTestCategory)]
         public void ProgramsShouldProduceExpectedUserDeclaredSymbols(DataSet dataSet)
         {
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out var outputDirectory);
@@ -109,7 +115,8 @@ namespace Bicep.Core.IntegrationTests.Semantics
                         s is ModuleSymbol ||
                         s is OutputSymbol ||
                         s is FunctionSymbol ||
-                        s is NamespaceSymbol);
+                        s is NamespaceSymbol ||
+                        s is LocalVariableSymbol);
                 }
                 else
                 {
@@ -122,7 +129,8 @@ namespace Bicep.Core.IntegrationTests.Semantics
                         s is ModuleSymbol ||
                         s is OutputSymbol ||
                         s is FunctionSymbol ||
-                        s is NamespaceSymbol);
+                        s is NamespaceSymbol ||
+                        s is LocalVariableSymbol);
                 }
 
                 var foundRefs = model.FindReferences(symbol!);
@@ -156,7 +164,7 @@ namespace Bicep.Core.IntegrationTests.Semantics
                 .SelectMany(s => semanticModel.FindReferences(s!))
                 .Where(refSyntax => !(refSyntax is INamedDeclarationSyntax));
 
-            foundReferences.Should().BeEquivalentTo(symbolReferences);
+            symbolReferences.Should().BeSubsetOf(foundReferences);
         }
 
         private static List<SyntaxBase> GetAllBoundSymbolReferences(ProgramSyntax program, SemanticModel semanticModel)
@@ -166,7 +174,7 @@ namespace Bicep.Core.IntegrationTests.Semantics
                 new List<SyntaxBase>(),
                 (accumulated, current) =>
                 {
-                    if (current is ISymbolReference symbolReference && TestSyntaxHelper.NodeShouldBeBound(symbolReference, semanticModel))
+                    if (current is ISymbolReference symbolReference && TestSyntaxHelper.NodeShouldBeBound(symbolReference))
                     {
                         accumulated.Add(current);
                     }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 using System.Collections.Generic;
@@ -14,10 +14,13 @@ using Bicep.LangServer.IntegrationTests.Extensions;
 using Bicep.LanguageServer.Extensions;
 using Bicep.LanguageServer.Utils;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using OmniSharp.Extensions.LanguageServer.Client;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using Bicep.Core.UnitTests.Assertions;
 
 namespace Bicep.LangServer.IntegrationTests
 {
@@ -34,14 +37,16 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var uri = DocumentUri.From($"/{dataSet.Name}");
 
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(dataSet.Bicep, uri);
+            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
 
-            // filter out symbols that don't have locations
+            // filter out symbols that don't have locations as well as locals with invalid identifiers
+            // (locals are special because their full span is the same as the identifier span,
+            // which makes it impossible to go to definition on a local with invalid identifiers)
             var declaredSymbolBindings = symbolTable
-                .Where(pair => pair.Value is DeclaredSymbol)
+                .Where(pair => pair.Value is DeclaredSymbol && (pair.Value is not LocalVariableSymbol local || local.NameSyntax.IsValid))
                 .Select(pair => new KeyValuePair<SyntaxBase, DeclaredSymbol>(pair.Key, (DeclaredSymbol) pair.Value));
 
             foreach (var (syntax, symbol) in declaredSymbolBindings)
@@ -74,24 +79,27 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var uri = DocumentUri.From($"/{dataSet.Name}");
 
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(dataSet.Bicep, uri);
+            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
 
-            var undeclaredSymbolBindings = symbolTable.Where(pair => !(pair.Value is DeclaredSymbol));
+            var undeclaredSymbolBindings = symbolTable.Where(pair => pair.Value is not DeclaredSymbol and not PropertySymbol);
 
             foreach (var (syntax, _) in undeclaredSymbolBindings)
             {
                 var response = await client.RequestDefinition(new DefinitionParams
                 {
                     TextDocument = new TextDocumentIdentifier(uri),
-                    Position = PositionHelper.GetPosition(lineStarts, syntax.Span.Position)
+                    Position = IntegrationTestHelper.GetPosition(lineStarts, syntax)
                 });
 
-                // go to definition on a symbol that isn't declared by the user (like error or function symbol)
-                // should produce an empty response
-                response.Should().BeEmpty();
+                using (new AssertionScope().WithVisualCursor(compilation.SyntaxTreeGrouping.EntryPoint, syntax.Span))
+                {
+                    // go to definition on a symbol that isn't declared by the user (like error or function symbol)
+                    // should produce an empty response
+                    response.Should().BeEmpty();
+                }
             }
         }
 
@@ -104,7 +112,7 @@ namespace Bicep.LangServer.IntegrationTests
 
             var uri = DocumentUri.From($"/{dataSet.Name}");
 
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(dataSet.Bicep, uri);
+            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
             var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
@@ -131,7 +139,7 @@ namespace Bicep.LangServer.IntegrationTests
                 var response = await client.RequestDefinition(new DefinitionParams
                 {
                     TextDocument = new TextDocumentIdentifier(uri),
-                    Position = PositionHelper.GetPosition(lineStarts, syntax.Span.Position)
+                    Position = IntegrationTestHelper.GetPosition(lineStarts, syntax)
                 });
 
                 // go to definition on a syntax node that isn't bound to a symbol should produce an empty response
@@ -156,7 +164,7 @@ namespace Bicep.LangServer.IntegrationTests
 
         private static IEnumerable<object[]> GetData()
         {
-            return DataSets.AllDataSets.ToDynamicTestData();
+            return DataSets.NonStressDataSets.ToDynamicTestData();
         }
     }
 }

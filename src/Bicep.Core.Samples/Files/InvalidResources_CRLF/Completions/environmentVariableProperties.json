@@ -5,20 +5,17 @@
     "detail": "name (Required)",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nThe name of the environment variable.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_name",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "name"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "name:"
+    }
   },
   {
     "label": "secureValue",
@@ -26,20 +23,17 @@
     "detail": "secureValue",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nThe value of the secure environment variable.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_secureValue",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "secureValue"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "secureValue:"
+    }
   },
   {
     "label": "value",
@@ -47,19 +41,16 @@
     "detail": "value",
     "documentation": {
       "kind": "markdown",
-      "value": "Type: `string`  \n"
+      "value": "Type: `string`  \nThe value of the environment variable.  \n"
     },
     "deprecated": false,
     "preselect": false,
     "sortText": "2_value",
     "insertTextFormat": "plainText",
-    "insertTextMode": "asIs",
+    "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "value"
-    },
-    "commitCharacters": [
-      ":"
-    ]
+      "newText": "value:"
+    }
   }
 ]

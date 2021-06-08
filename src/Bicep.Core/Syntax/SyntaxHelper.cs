@@ -13,32 +13,11 @@ namespace Bicep.Core.Syntax
         private static SyntaxBase? TryGetObjectProperty(ObjectSyntax objectSyntax, string propertyName)
             => objectSyntax.Properties.SingleOrDefault(p => p.TryGetKeyText() == propertyName)?.Value;
 
-        public static ArraySyntax? TryGetAllowedSyntax(ParameterDeclarationSyntax parameterDeclarationSyntax)
-        {
-            if (!(parameterDeclarationSyntax.Modifier is ObjectSyntax modifierObject))
-            {
-                return null;
-            }
-
-            var allowedValuesSyntax = TryGetObjectProperty(modifierObject, LanguageConstants.ParameterAllowedPropertyName);
-            if (!(allowedValuesSyntax is ArraySyntax allowedArraySyntax))
-            {
-                return null;
-            }
-
-            return allowedArraySyntax;
-        }
-
         public static SyntaxBase? TryGetDefaultValue(ParameterDeclarationSyntax parameterDeclarationSyntax)
         {
             if (parameterDeclarationSyntax.Modifier is ParameterDefaultValueSyntax defaultValueSyntax)
             {
                 return defaultValueSyntax.DefaultValue;
-            }
-
-            if (parameterDeclarationSyntax.Modifier is ObjectSyntax modifierObject)
-            {
-                return TryGetObjectProperty(modifierObject, LanguageConstants.ParameterDefaultPropertyName);
             }
 
             return null;
@@ -57,9 +36,9 @@ namespace Bicep.Core.Syntax
             if (pathValue == null)
             {
                 failureBuilder = x => x.ModulePathInterpolationUnsupported();
-                return null;                
+                return null;
             }
-            
+
             failureBuilder = null;
             return pathValue;
         }
@@ -85,7 +64,8 @@ namespace Bicep.Core.Syntax
                 return ResourceScope.None;
             }
 
-            return literalValue switch {
+            return literalValue switch
+            {
                 LanguageConstants.TargetScopeTypeTenant => ResourceScope.Tenant,
                 LanguageConstants.TargetScopeTypeManagementGroup => ResourceScope.ManagementGroup,
                 LanguageConstants.TargetScopeTypeSubscription => ResourceScope.Subscription,
