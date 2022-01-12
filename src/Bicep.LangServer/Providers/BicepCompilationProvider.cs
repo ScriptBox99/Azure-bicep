@@ -1,9 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+using System.Collections.Immutable;
+using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.Configuration;
 using Bicep.Core.FileSystem;
+using Bicep.Core.Registry;
 using Bicep.Core.Semantics;
-using Bicep.Core.Syntax;
-using Bicep.Core.TypeSystem;
+using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Workspaces;
 using Bicep.LanguageServer.CompilationManager;
 using OmniSharp.Extensions.LanguageServer.Protocol;
@@ -14,22 +17,34 @@ namespace Bicep.LanguageServer.Providers
     /// Creates compilation contexts.
     /// </summary>
     /// <remarks>This class exists only so we can mock fatal exceptions in tests.</remarks>
-    public class BicepCompilationProvider: ICompilationProvider
+    public class BicepCompilationProvider : ICompilationProvider
     {
-        private readonly IResourceTypeProvider resourceTypeProvider;
+        private readonly INamespaceProvider namespaceProvider;
         private readonly IFileResolver fileResolver;
+        private readonly IModuleDispatcher moduleDispatcher;
 
-        public BicepCompilationProvider(IResourceTypeProvider resourceTypeProvider, IFileResolver fileResolver)
+        public BicepCompilationProvider(INamespaceProvider namespaceProvider, IFileResolver fileResolver, IModuleDispatcher moduleDispatcher)
         {
-            this.resourceTypeProvider = resourceTypeProvider;
+            this.namespaceProvider = namespaceProvider;
             this.fileResolver = fileResolver;
+            this.moduleDispatcher = moduleDispatcher;
         }
 
-        public CompilationContext Create(IReadOnlyWorkspace workspace, DocumentUri documentUri)
+        public CompilationContext Create(IReadOnlyWorkspace workspace, DocumentUri documentUri, ImmutableDictionary<ISourceFile, ISemanticModel> modelLookup, RootConfiguration configuration, LinterAnalyzer linterAnalyzer)
         {
-            var syntaxTreeGrouping = SyntaxTreeGroupingBuilder.Build(fileResolver, workspace, documentUri.ToUri());
-            var compilation = new Compilation(resourceTypeProvider, syntaxTreeGrouping);
+            var syntaxTreeGrouping = SourceFileGroupingBuilder.Build(fileResolver, moduleDispatcher, workspace, documentUri.ToUri(), configuration);
+            return this.CreateContext(syntaxTreeGrouping, modelLookup, configuration, linterAnalyzer);
+        }
 
+        public CompilationContext Update(IReadOnlyWorkspace workspace, CompilationContext current, ImmutableDictionary<ISourceFile, ISemanticModel> modelLookup, RootConfiguration configuration, LinterAnalyzer linterAnalyzer)
+        {
+            var syntaxTreeGrouping = SourceFileGroupingBuilder.Rebuild(moduleDispatcher, workspace, current.Compilation.SourceFileGrouping, configuration);
+            return this.CreateContext(syntaxTreeGrouping, modelLookup, configuration, linterAnalyzer);
+        }
+
+        private CompilationContext CreateContext(SourceFileGrouping syntaxTreeGrouping, ImmutableDictionary<ISourceFile, ISemanticModel> modelLookup, RootConfiguration configuration, LinterAnalyzer linterAnalyzer)
+        {
+            var compilation = new Compilation(namespaceProvider, syntaxTreeGrouping, configuration, linterAnalyzer, modelLookup);
             return new CompilationContext(compilation);
         }
     }

@@ -1,8 +1,10 @@
 
-// an int variable
+// int
+@sys.description('an int variable')
 var myInt = 42
 
-// a string variable
+// string
+@sys.description('a string variable')
 var myStr = 'str'
 var curliesWithNoInterp = '}{1}{'
 var interp1 = 'abc${123}def'
@@ -27,6 +29,7 @@ var nestedInterpolatedBrackets = '[${emptyJsonArray}]'
 var bracketStringInExpression = concat('[', '\'test\'',']')
 
 // booleans
+@sys.description('a bool variable')
 var myTruth = true
 var myFalsehood = false
 
@@ -34,6 +37,7 @@ var myEmptyObj = { }
 var myEmptyArray = [ ]
 
 // object
+@sys.description('a object variable')
 var myObj = {
   a: 'a'
   b: -12
@@ -55,6 +59,7 @@ var myObj = {
   }
 }
 
+@sys.description('a object with interp')
 var objWithInterp = {
   '${myStr}': 1
   'abc${myStr}def': 2
@@ -227,9 +232,14 @@ var someText = isTrue ? sys.concat('a', sys.concat('b', 'c')) : 'someText'
 
 // Bicep functions that cannot be converted into ARM functions
 var scopesWithoutArmRepresentation = {
-  tenant: tenant()
   subscription: subscription('10b57a01-6350-4ce2-972a-6a13642f00bf')
   resourceGroup: az.resourceGroup('10b57a01-6350-4ce2-972a-6a13642f00bf', 'myRgName')
+}
+
+var scopesWithArmRepresentation = {
+  tenant: tenant()
+  subscription: subscription()
+  resourceGroup: az.resourceGroup()
 }
 
 // Issue #1332

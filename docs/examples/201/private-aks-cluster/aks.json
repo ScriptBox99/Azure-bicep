@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "5600213408066942719"
+      "templateHash": "8669984809251085106"
     }
   },
   "parameters": {
@@ -314,7 +314,6 @@
       }
     }
   },
-  "functions": [],
   "variables": {
     "aadProfileConfiguration": {
       "managed": "[parameters('aadProfileManaged')]",
@@ -389,7 +388,7 @@
           "dockerBridgeCidr": "[parameters('aksClusterDockerBridgeCidr')]",
           "loadBalancerSku": "[parameters('aksClusterLoadBalancerSku')]"
         },
-        "aadProfile": "[if(parameters('aadEnabled'), variables('aadProfileConfiguration'), json('null'))]",
+        "aadProfile": "[if(parameters('aadEnabled'), variables('aadProfileConfiguration'), null())]",
         "apiServerAccessProfile": {
           "enablePrivateCluster": "[parameters('aksClusterEnablePrivateCluster')]"
         }

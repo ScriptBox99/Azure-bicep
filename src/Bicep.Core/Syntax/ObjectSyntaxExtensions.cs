@@ -1,15 +1,19 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Bicep.Core.Extensions;
+using Bicep.Core.Parsing;
 
 namespace Bicep.Core.Syntax
 {
     public static class ObjectSyntaxExtensions
     {
+        private const string DefaultIndent = "  ";
+
         /// <summary>
         /// Converts a syntactically valid object syntax node to a dictionary mapping property name strings to property syntax nodes. Returns the first property in the case of duplicate names.
         /// </summary>
@@ -42,7 +46,7 @@ namespace Bicep.Core.Syntax
         /// </summary>
         /// <param name="syntax">The object syntax node</param>
         /// <param name="propertyName">The property name</param>
-        public static ObjectPropertySyntax? SafeGetPropertyByName(this ObjectSyntax syntax, string propertyName)
+        public static ObjectPropertySyntax? TryGetPropertyByName(this ObjectSyntax syntax, string propertyName)
         {
             ObjectPropertySyntax? result = null;
 
@@ -66,6 +70,43 @@ namespace Bicep.Core.Syntax
             }
 
             return result;
+        }
+
+        public static ObjectPropertySyntax? TryGetPropertyByNameRecursive(this ObjectSyntax syntax, IList<IdentifierSyntax> propertyAccesses)
+        {
+            return syntax.TryGetPropertyByNameRecursive(propertyAccesses.Select(pa => pa.IdentifierName).ToArray());
+        }
+
+        public static ObjectPropertySyntax? TryGetPropertyByNameRecursive(this ObjectSyntax syntax, params string[] propertyAccesses)
+        {
+            var currentSyntax = syntax;
+            for (int i = 0; i < propertyAccesses.Length; i++)
+            {
+                if (currentSyntax.TryGetPropertyByName(propertyAccesses[i]) is ObjectPropertySyntax propertySyntax)
+                {
+                    // we have found our last property access
+                    if (i == propertyAccesses.Length - 1)
+                    {
+                        return propertySyntax;
+                    }
+                    // we have successfully gone one level deeper into the object
+                    else if (propertySyntax.Value is ObjectSyntax propertyObjectSyntax)
+                    {
+                        currentSyntax = propertyObjectSyntax;
+                    }
+                    // our path isn't fully traversed yet and we hit a terminal value (not an object)
+                    else
+                    {
+                        break;
+                    }
+                }
+                // we couldn't even find this property on the object
+                else
+                {
+                    break;
+                }
+            }
+            return null;
         }
 
         public static ObjectSyntax MergeProperty(this ObjectSyntax? syntax, string propertyName, string propertyValue) =>
@@ -121,5 +162,98 @@ namespace Bicep.Core.Syntax
                     : mergedObject);
         }
 
+        public static ObjectSyntax AddChildrenWithFormatting(this ObjectSyntax objectSyntax, IEnumerable<SyntaxBase> newChildren)
+        {
+            bool IsEmptyLine(Token token)
+            {
+                if (token.Type != TokenType.NewLine)
+                {
+                    return false;
+                }
+
+                foreach (var trivia in token.LeadingTrivia)
+                {
+                    if (trivia.Type != SyntaxTriviaType.Whitespace)
+                    {
+                        return false;
+                    }
+                }
+
+                foreach (var trivia in token.TrailingTrivia)
+                {
+                    if (trivia.Type != SyntaxTriviaType.Whitespace)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            var children = new List<SyntaxBase>(objectSyntax.Children);
+
+            // Remove trailing empty lines
+            Token? lastNode = null;
+            while (children.Count > 0 && children[^1] is Token token && IsEmptyLine(token))
+            {
+                lastNode ??= token;
+                children.Remove(token);
+            }
+
+            var indent = objectSyntax.GetBodyIndentation();
+
+            foreach (var newChild in newChildren)
+            {
+                children.Add(SyntaxFactory.CreateNewLineWithIndent(indent));
+                children.Add(newChild);
+            }
+
+            children.Add(new Token(
+                TokenType.NewLine,
+                SyntaxFactory.EmptySpan,
+                Environment.NewLine,
+                lastNode?.LeadingTrivia ?? ImmutableArray<SyntaxTrivia>.Empty,
+                lastNode?.TrailingTrivia ?? ImmutableArray<SyntaxTrivia>.Empty));
+
+            return new ObjectSyntax(objectSyntax.OpenBrace, children, objectSyntax.CloseBrace);
+        }
+
+        public static string GetBodyIndentation(this ObjectSyntax sourceObject)
+        {
+            string? GetIndent(SyntaxBase syntax)
+            {
+                if (syntax is Token { Type: TokenType.NewLine, TrailingTrivia: { Length: 1 } leadingTrivia } &&
+                    leadingTrivia[0].Type == SyntaxTriviaType.Whitespace)
+                {
+                    return leadingTrivia[0].Text;
+                }
+
+                return null;
+            }
+
+            var children = sourceObject.Children;
+
+            // Try to find an existing indented child
+            if (children.Length > 0)
+            {
+                for (var index = 0; index < children.Length - 1; index++)
+                {
+                    var child = children[index];
+                    if (GetIndent(child) is string indent)
+                    {
+                        return indent;
+                    }
+                }
+            }
+
+            // Try to guess from the last newline
+            if (children.Length > 0 &&
+                GetIndent(children[^1]) is string lastIndent)
+            {
+                return lastIndent + DefaultIndent;
+            }
+
+            return DefaultIndent;
+        }
     }
 }

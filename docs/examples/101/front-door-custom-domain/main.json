@@ -5,21 +5,29 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "16658574891850681585"
+      "templateHash": "6192717057772764829"
     }
   },
   "parameters": {
     "frontDoorName": {
-      "type": "string"
-    },
-    "backendAddress": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "The name of the frontdoor resource."
+      }
     },
     "customDomainName": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "The hostname of the frontendEndpoints. Must be a domain name."
+      }
+    },
+    "backendAddress": {
+      "type": "string",
+      "metadata": {
+        "description": "The hostname of the backend. Must be an IP address or FQDN."
+      }
     }
   },
-  "functions": [],
   "variables": {
     "frontEndEndpointDefaultName": "frontEndEndpointDefault",
     "frontEndEndpointCustomName": "frontEndEndpointCustom",
@@ -40,7 +48,7 @@
           {
             "name": "[variables('frontEndEndpointDefaultName')]",
             "properties": {
-              "hostName": "[concat(parameters('frontDoorName'), '.azurefd.net')]",
+              "hostName": "[format('{0}.azurefd.net', parameters('frontDoorName'))]",
               "sessionAffinityEnabledState": "Disabled"
             }
           },

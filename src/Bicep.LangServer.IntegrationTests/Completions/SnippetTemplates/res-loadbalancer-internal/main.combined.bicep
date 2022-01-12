@@ -1,21 +1,26 @@
 // $1 = loadBalancerInternal
 // $2 = 'name'
-// $3 = 'name'
-// $4 = '0.0.0.0'
-// $5 = 'virtualNetwork'
-// $6 = 'subnet'
+// $3 = location
+// $4 = 'name'
+// $5 = '0.0.0.0'
+// $6 = 'subnet.id'
 // $7 = 'name'
 // $8 = 'name'
-// $9 = Tcp
-// $10 = 80
-// $11 = 80
-// $12 = 'name'
-// $13 = Tcp
-// $14 = 80
+// $9 = 'frontendIPConfiguration.id'
+// $10 = 'backendAddressPool.id'
+// $11 = Tcp
+// $12 = 80
+// $13 = 80
+// $14 = 'probe.id'
+// $15 = 'name'
+// $16 = Tcp
+// $17 = 80
+
+param location string
 
 resource loadBalancerInternal 'Microsoft.Network/loadBalancers@2020-11-01' = {
   name: 'name'
-  location: resourceGroup().location
+  location: location
   properties: {
     frontendIPConfigurations: [
       {
@@ -24,7 +29,7 @@ resource loadBalancerInternal 'Microsoft.Network/loadBalancers@2020-11-01' = {
           privateIPAddress: '0.0.0.0'
           privateIPAllocationMethod: 'Static'
           subnet: {
-            id: resourceId('Microsoft.Network/virtualNetworks/subnets', 'virtualNetwork', 'subnet')
+            id: 'subnet.id'
           }
         }
       }
@@ -39,10 +44,10 @@ resource loadBalancerInternal 'Microsoft.Network/loadBalancers@2020-11-01' = {
         name: 'name'
         properties: {
           frontendIPConfiguration: {
-            id: resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', 'name', 'name')
+            id: 'frontendIPConfiguration.id'
           }
           backendAddressPool: {
-            id: resourceId('Microsoft.Network/loadBalancers/backendAddressPools', 'name', 'name')
+            id: 'backendAddressPool.id'
           }
           protocol: 'Tcp'
           frontendPort: 80
@@ -50,7 +55,7 @@ resource loadBalancerInternal 'Microsoft.Network/loadBalancers@2020-11-01' = {
           enableFloatingIP: false
           idleTimeoutInMinutes: 5
           probe: {
-            id: resourceId('Microsoft.Network/loadBalancers/probes', 'name', 'name')
+            id: 'probe.id'
           }
         }
       }

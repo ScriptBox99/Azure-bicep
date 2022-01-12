@@ -74,9 +74,9 @@ namespace Bicep.Cli {
         /// <summary>
         ///   Looks up a localized string similar to {0}: Decompilation failed with fatal error &quot;{1}&quot;.
         /// </summary>
-        internal static string DecompiliationFailedFormat {
+        internal static string DecompilationFailedFormat {
             get {
-                return ResourceManager.GetString("DecompiliationFailedFormat", resourceCulture);
+                return ResourceManager.GetString("DecompilationFailedFormat", resourceCulture);
             }
         }
         
@@ -86,6 +86,15 @@ namespace Bicep.Cli {
         internal static string DirectoryDoesNotExistFormat {
             get {
                 return ResourceManager.GetString("DirectoryDoesNotExistFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to WARNING: Symbolic name support in ARM is experimental, and should be enabled for testing purposes only. Do not enable this setting for any production usage, or you may be unexpectedly broken at any time!
+        /// </summary>
+        internal static string SymbolicNamesDisclaimerMessage {
+            get {
+                return ResourceManager.GetString("SymbolicNamesDisclaimerMessage", resourceCulture);
             }
         }
         

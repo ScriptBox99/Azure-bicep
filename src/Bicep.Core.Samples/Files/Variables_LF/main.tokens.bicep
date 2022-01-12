@@ -1,7 +1,16 @@
 
 //@[0:1) NewLine |\n|
-// an int variable
-//@[18:19) NewLine |\n|
+// int
+//@[6:7) NewLine |\n|
+@sys.description('an int variable')
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:16) Identifier |description|
+//@[16:17) LeftParen |(|
+//@[17:34) StringComplete |'an int variable'|
+//@[34:35) RightParen |)|
+//@[35:36) NewLine |\n|
 var myInt = 42
 //@[0:3) Identifier |var|
 //@[4:9) Identifier |myInt|
@@ -9,8 +18,17 @@ var myInt = 42
 //@[12:14) Integer |42|
 //@[14:16) NewLine |\n\n|
 
-// a string variable
-//@[20:21) NewLine |\n|
+// string
+//@[9:10) NewLine |\n|
+@sys.description('a string variable')
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:16) Identifier |description|
+//@[16:17) LeftParen |(|
+//@[17:36) StringComplete |'a string variable'|
+//@[36:37) RightParen |)|
+//@[37:38) NewLine |\n|
 var myStr = 'str'
 //@[0:3) Identifier |var|
 //@[4:9) Identifier |myStr|
@@ -157,6 +175,15 @@ var bracketStringInExpression = concat('[', '\'test\'',']')
 
 // booleans
 //@[11:12) NewLine |\n|
+@sys.description('a bool variable')
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:16) Identifier |description|
+//@[16:17) LeftParen |(|
+//@[17:34) StringComplete |'a bool variable'|
+//@[34:35) RightParen |)|
+//@[35:36) NewLine |\n|
 var myTruth = true
 //@[0:3) Identifier |var|
 //@[4:11) Identifier |myTruth|
@@ -187,6 +214,15 @@ var myEmptyArray = [ ]
 
 // object
 //@[9:10) NewLine |\n|
+@sys.description('a object variable')
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:16) Identifier |description|
+//@[16:17) LeftParen |(|
+//@[17:36) StringComplete |'a object variable'|
+//@[36:37) RightParen |)|
+//@[37:38) NewLine |\n|
 var myObj = {
 //@[0:3) Identifier |var|
 //@[4:9) Identifier |myObj|
@@ -281,6 +317,15 @@ var myObj = {
 //@[0:1) RightBrace |}|
 //@[1:3) NewLine |\n\n|
 
+@sys.description('a object with interp')
+//@[0:1) At |@|
+//@[1:4) Identifier |sys|
+//@[4:5) Dot |.|
+//@[5:16) Identifier |description|
+//@[16:17) LeftParen |(|
+//@[17:39) StringComplete |'a object with interp'|
+//@[39:40) RightParen |)|
+//@[40:41) NewLine |\n|
 var objWithInterp = {
 //@[0:3) Identifier |var|
 //@[4:17) Identifier |objWithInterp|
@@ -1280,13 +1325,6 @@ var scopesWithoutArmRepresentation = {
 //@[35:36) Assignment |=|
 //@[37:38) LeftBrace |{|
 //@[38:39) NewLine |\n|
-  tenant: tenant()
-//@[2:8) Identifier |tenant|
-//@[8:9) Colon |:|
-//@[10:16) Identifier |tenant|
-//@[16:17) LeftParen |(|
-//@[17:18) RightParen |)|
-//@[18:19) NewLine |\n|
   subscription: subscription('10b57a01-6350-4ce2-972a-6a13642f00bf')
 //@[2:14) Identifier |subscription|
 //@[14:15) Colon |:|
@@ -1307,6 +1345,39 @@ var scopesWithoutArmRepresentation = {
 //@[74:84) StringComplete |'myRgName'|
 //@[84:85) RightParen |)|
 //@[85:86) NewLine |\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\n\n|
+
+var scopesWithArmRepresentation = {
+//@[0:3) Identifier |var|
+//@[4:31) Identifier |scopesWithArmRepresentation|
+//@[32:33) Assignment |=|
+//@[34:35) LeftBrace |{|
+//@[35:36) NewLine |\n|
+  tenant: tenant()
+//@[2:8) Identifier |tenant|
+//@[8:9) Colon |:|
+//@[10:16) Identifier |tenant|
+//@[16:17) LeftParen |(|
+//@[17:18) RightParen |)|
+//@[18:19) NewLine |\n|
+  subscription: subscription()
+//@[2:14) Identifier |subscription|
+//@[14:15) Colon |:|
+//@[16:28) Identifier |subscription|
+//@[28:29) LeftParen |(|
+//@[29:30) RightParen |)|
+//@[30:31) NewLine |\n|
+  resourceGroup: az.resourceGroup()
+//@[2:15) Identifier |resourceGroup|
+//@[15:16) Colon |:|
+//@[17:19) Identifier |az|
+//@[19:20) Dot |.|
+//@[20:33) Identifier |resourceGroup|
+//@[33:34) LeftParen |(|
+//@[34:35) RightParen |)|
+//@[35:36) NewLine |\n|
 }
 //@[0:1) RightBrace |}|
 //@[1:3) NewLine |\n\n|

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "6547356812159531257"
+      "templateHash": "3876154308177328967"
     }
   },
   "parameters": {
@@ -21,7 +21,6 @@
       "defaultValue": "[resourceGroup().location]"
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -29,8 +28,7 @@
       "name": "[parameters('storageAccountName')]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Standard_LRS",
-        "tier": "Standard"
+        "name": "Standard_LRS"
       },
       "kind": "StorageV2",
       "properties": {

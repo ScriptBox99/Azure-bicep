@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "15272240443923026791"
+      "templateHash": "12592264116281642941"
     }
   },
   "parameters": {
@@ -17,7 +17,6 @@
       "defaultValue": "[resourceGroup().location]"
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.OperationalInsights/workspaces",
@@ -25,7 +24,7 @@
       "name": "[parameters('workspaceName')]",
       "location": "[parameters('location')]",
       "properties": {
-        "retentionInDays": 30,
+        "retentionInDays": 7,
         "sku": {
           "name": "Free"
         }

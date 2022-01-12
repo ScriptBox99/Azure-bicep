@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "12413819060224235299"
+      "templateHash": "15221157786117041750"
     }
   },
   "parameters": {
@@ -25,7 +25,6 @@
       "type": "object"
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.Sql/servers/databases",
@@ -63,7 +62,7 @@
       "condition": "[parameters('sqlDatabase').longTermBackup.enabled]",
       "type": "Microsoft.Sql/servers/databases/backupLongTermRetentionPolicies",
       "apiVersion": "2021-02-01-preview",
-      "name": "[format('{0}/{1}/{2}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1], 'Default')]",
+      "name": "[format('{0}/{1}/{2}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1], 'default')]",
       "properties": {
         "weeklyRetention": "[parameters('sqlDatabase').longTermBackup.weeklyRetention]",
         "monthlyRetention": "[parameters('sqlDatabase').longTermBackup.monthlyRetention]",
@@ -80,7 +79,7 @@
       "condition": "[and(and(parameters('sqlDatabase').azureDefender.enabled, parameters('sqlDatabase').azureDefender.vulnerabilityAssessments.recurringScans), not(empty(parameters('sqlDatabase').azureDefender.vulnerabilityAssessments.storageAccount.name)))]",
       "type": "Microsoft.Sql/servers/databases/vulnerabilityAssessments",
       "apiVersion": "2021-02-01-preview",
-      "name": "[format('{0}/{1}/{2}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1], 'Default')]",
+      "name": "[format('{0}/{1}/{2}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1], 'default')]",
       "properties": {
         "recurringScans": {
           "isEnabled": "[parameters('sqlDatabase').azureDefender.vulnerabilityAssessments.recurringScans]",
@@ -98,7 +97,7 @@
     },
     {
       "condition": "[parameters('sqlDatabase').diagnosticLogsAndMetrics.auditLogs]",
-      "type": "microsoft.insights/diagnosticSettings",
+      "type": "Microsoft.Insights/diagnosticSettings",
       "apiVersion": "2017-05-01-preview",
       "scope": "[format('Microsoft.Sql/servers/{0}/databases/{1}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1])]",
       "name": "SQLSecurityAuditEvents_3d229c42-c7e7-4c97-9a99-ec0d0d8b86c1",
@@ -119,7 +118,7 @@
     },
     {
       "condition": "[not(empty(parameters('sqlDatabase').diagnosticLogsAndMetrics.name))]",
-      "type": "microsoft.insights/diagnosticSettings",
+      "type": "Microsoft.Insights/diagnosticSettings",
       "apiVersion": "2017-05-01-preview",
       "scope": "[format('Microsoft.Sql/servers/{0}/databases/{1}', split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[0], split(format('{0}/{1}', parameters('sqlServerName'), parameters('sqlDatabase').name), '/')[1])]",
       "name": "sendLogsAndMetrics",
@@ -152,7 +151,7 @@
     {
       "condition": "[not(equals(parameters('sqlDatabase').shortTermBackupRetention, 0))]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-10-01",
+      "apiVersion": "2020-10-01",
       "name": "[format('shortTermBackup-{0}', uniqueString(parameters('sqlServerName'), parameters('sqlDatabase').name))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -174,7 +173,7 @@
             "_generator": {
               "name": "bicep",
               "version": "dev",
-              "templateHash": "1280408386363466909"
+              "templateHash": "2953203708405635961"
             }
           },
           "parameters": {
@@ -185,7 +184,6 @@
               "type": "string"
             }
           },
-          "functions": [],
           "resources": [
             {
               "type": "Microsoft.Sql/servers/databases/backupShortTermRetentionPolicies",
@@ -205,7 +203,7 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-10-01",
+      "apiVersion": "2020-10-01",
       "name": "[format('azureDefender-{0}', uniqueString(parameters('sqlServerName'), parameters('sqlDatabase').name))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -227,7 +225,7 @@
             "_generator": {
               "name": "bicep",
               "version": "dev",
-              "templateHash": "15009839048358250877"
+              "templateHash": "12798430629813662906"
             }
           },
           "parameters": {
@@ -238,7 +236,6 @@
               "type": "string"
             }
           },
-          "functions": [],
           "resources": [
             {
               "type": "Microsoft.Sql/servers/databases/securityAlertPolicies",
@@ -261,7 +258,7 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-10-01",
+      "apiVersion": "2020-10-01",
       "name": "[format('auditSettings-{0}', uniqueString(parameters('sqlServerName'), parameters('sqlDatabase').name))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -283,7 +280,7 @@
             "_generator": {
               "name": "bicep",
               "version": "dev",
-              "templateHash": "4499755266351443773"
+              "templateHash": "336987510423517988"
             }
           },
           "parameters": {
@@ -294,7 +291,6 @@
               "type": "string"
             }
           },
-          "functions": [],
           "variables": {
             "defaultAuditActionsAndGroups": [
               "SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP",

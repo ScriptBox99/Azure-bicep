@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using Bicep.Core.Extensions;
+using Bicep.Core.Navigation;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
@@ -103,7 +104,7 @@ namespace Bicep.Core.IntegrationTests
             string getLoggingString(SyntaxCollectorVisitor.SyntaxItem data)
             {
                 var depthPrefix = new string(' ', data.Depth);
-                
+
                 if (data.Syntax is Token token)
                 {
                     return $"{depthPrefix}{token.Type} |{OutputHelper.EscapeWhitespace(token.Text)}|";
@@ -118,7 +119,7 @@ namespace Bicep.Core.IntegrationTests
             var resultsFile = FileHelper.SaveResultFile(this.TestContext, Path.Combine(dataSet.Name, DataSet.TestFileMainSyntax), sourceTextWithDiags);
 
             sourceTextWithDiags.Should().EqualWithLineByLineDiffOutput(
-                TestContext, 
+                TestContext,
                 dataSet.Syntax,
                 expectedLocation: DataSet.GetBaselineUpdatePath(dataSet, DataSet.TestFileMainSyntax),
                 actualLocation: resultsFile);
@@ -134,12 +135,7 @@ namespace Bicep.Core.IntegrationTests
             var program = ParserHelper.Parse(contents);
             program.Should().BeOfType<ProgramSyntax>();
 
-            var buffer = new StringBuilder();
-            var visitor = new PrintVisitor(buffer);
-
-            visitor.Visit(program);
-
-            buffer.ToString().Should().Be(contents);
+            program.ToTextPreserveFormatting().Should().Be(contents);
         }
 
         private static void RunSpanConsistencyTest(string text)

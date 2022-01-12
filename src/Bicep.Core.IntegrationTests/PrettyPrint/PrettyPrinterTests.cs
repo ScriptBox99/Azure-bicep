@@ -1,10 +1,12 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
+using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
 using Bicep.Core.PrettyPrint.Options;
@@ -37,7 +39,7 @@ namespace Bicep.Core.IntegrationTests.PrettyPrint
             var resultsFile = FileHelper.SaveResultFile(this.TestContext, Path.Combine(dataSet.Name, DataSet.TestFileMainFormatted), formattedOutput!);
 
             formattedOutput.Should().EqualWithLineByLineDiffOutput(
-                TestContext, 
+                TestContext,
                 dataSet.Formatted,
                 expectedLocation: DataSet.GetBaselineUpdatePath(dataSet, DataSet.TestFileMainFormatted),
                 actualLocation: resultsFile);
@@ -62,18 +64,10 @@ namespace Bicep.Core.IntegrationTests.PrettyPrint
             newDiagnostics.Should().HaveSameCount(diagnostics);
             newDiagnosticMessages.Should().BeEquivalentTo(diagnosticMessages);
 
-            var buffer = new StringBuilder();
-            var printVisitor = new PrintVisitor(buffer,x =>
-                // Remove newlines and whitespaces.
-                (x is Token token && token.Type == TokenType.NewLine) ||
-                (x is SyntaxTrivia trivia && trivia.Type == SyntaxTriviaType.Whitespace));
-
-            printVisitor.Visit(program);
-            string programText = buffer.ToString();
-
-            buffer.Clear();
-            printVisitor.Visit(program);
-            string formattedProgramText = buffer.ToString();
+            // Normalize formatting
+            var regex = new Regex("[\\r\\n\\s]+");
+            string programText = regex.Replace(program.ToTextPreserveFormatting(), "");
+            string formattedProgramText = regex.Replace(formattedProgram.ToTextPreserveFormatting(), "");
 
             formattedProgramText.Should().Be(programText);
         }

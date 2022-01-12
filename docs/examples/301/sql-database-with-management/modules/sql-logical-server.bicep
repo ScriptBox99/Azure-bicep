@@ -80,7 +80,7 @@ resource sqlLogicalServerRes 'Microsoft.Sql/servers@2021-02-01-preview' = {
 
 // Azure Active Directory integration
 resource azureAdIntegration 'Microsoft.Sql/servers/administrators@2021-02-01-preview' = if (!empty(sqlLogicalServer.azureActiveDirectoryAdministrator.objectId)) {
-  name: 'activeDirectory'
+  name: 'ActiveDirectory'
   parent: sqlLogicalServerRes
   properties: {
     administratorType: 'ActiveDirectory'
@@ -114,7 +114,7 @@ resource vulnerabilityAssessments 'Microsoft.Sql/servers/vulnerabilityAssessment
   dependsOn: [
     azureDefender
   ]
-  name: 'Default'
+  name: 'default'
   parent: sqlLogicalServerRes
   properties: {
     recurringScans: {
@@ -123,13 +123,13 @@ resource vulnerabilityAssessments 'Microsoft.Sql/servers/vulnerabilityAssessment
       emails: sqlLogicalServer.azureDefender.vulnerabilityAssessments.emails
     }
     storageContainerPath: !empty(sqlLogicalServer.azureDefender.vulnerabilityAssessments.storageAccount.name) ? '${storageAccountVulnerabilityAssessments.properties.primaryEndpoints.blob}${sqlLogicalServer.azureDefender.vulnerabilityAssessments.storageAccount.containerName}' : ''
-    storageAccountAccessKey: !empty(sqlLogicalServer.azureDefender.vulnerabilityAssessments.storageAccount.name) ? listKeys(storageAccountVulnerabilityAssessments.id, storageAccountVulnerabilityAssessments.apiVersion).keys[0].value : ''
+    storageAccountAccessKey: !empty(sqlLogicalServer.azureDefender.vulnerabilityAssessments.storageAccount.name) ? storageAccountVulnerabilityAssessments.listKeys().keys[0].value : ''
   }
 }
 
 // Audit settings need for enabling auditing to Log Analytics workspace
 resource auditSettings 'Microsoft.Sql/servers/auditingSettings@2021-02-01-preview' = {
-  name: 'Default'
+  name: 'default'
   parent: sqlLogicalServerRes
   properties: {
     state: sqlLogicalServer.diagnosticLogsAndMetrics.auditLogs ? 'Enabled' : 'Disabled'

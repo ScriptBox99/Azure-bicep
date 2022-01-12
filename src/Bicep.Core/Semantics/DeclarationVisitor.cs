@@ -4,12 +4,18 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using Bicep.Core.Diagnostics;
+using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Syntax;
+using Bicep.Core.TypeSystem;
+using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Semantics
 {
-    public sealed class DeclarationVisitor: SyntaxVisitor
+    public sealed class DeclarationVisitor : SyntaxVisitor
     {
+        private readonly INamespaceProvider namespaceProvider;
+        private readonly ResourceScope targetScope;
         private readonly ISymbolContext context;
 
         private readonly IList<DeclaredSymbol> declarations;
@@ -18,21 +24,23 @@ namespace Bicep.Core.Semantics
 
         private readonly Stack<ScopeInfo> activeScopes = new();
 
-        private DeclarationVisitor(ISymbolContext context, IList<DeclaredSymbol> declarations, IList<ScopeInfo> childScopes)
+        private DeclarationVisitor(INamespaceProvider namespaceProvider, ResourceScope targetScope, ISymbolContext context, IList<DeclaredSymbol> declarations, IList<ScopeInfo> childScopes)
         {
+            this.namespaceProvider = namespaceProvider;
+            this.targetScope = targetScope;
             this.context = context;
             this.declarations = declarations;
             this.childScopes = childScopes;
         }
 
         // Returns the list of top level declarations as well as top level scopes.
-        public static (ImmutableArray<DeclaredSymbol>, ImmutableArray<LocalScope>) GetDeclarations(SyntaxTree syntaxTree, ISymbolContext symbolContext)
+        public static (ImmutableArray<DeclaredSymbol>, ImmutableArray<LocalScope>) GetDeclarations(INamespaceProvider namespaceProvider, ResourceScope targetScope, BicepFile bicepFile, ISymbolContext symbolContext)
         {
             // collect declarations
             var declarations = new List<DeclaredSymbol>();
             var childScopes = new List<ScopeInfo>();
-            var declarationVisitor = new DeclarationVisitor(symbolContext, declarations, childScopes);
-            declarationVisitor.Visit(syntaxTree.ProgramSyntax);
+            var declarationVisitor = new DeclarationVisitor(namespaceProvider, targetScope, symbolContext, declarations, childScopes);
+            declarationVisitor.Visit(bicepFile.ProgramSyntax);
 
             return (declarations.ToImmutableArray(), childScopes.Select(MakeImmutable).ToImmutableArray());
         }
@@ -91,6 +99,34 @@ namespace Bicep.Core.Semantics
             DeclareSymbol(symbol);
         }
 
+        public override void VisitImportDeclarationSyntax(ImportDeclarationSyntax syntax)
+        {
+            base.VisitImportDeclarationSyntax(syntax);
+
+            var alias = syntax.Name.IdentifierName;
+            TypeSymbol declaredType;
+            if (!namespaceProvider.AllowImportStatements)
+            {
+                declaredType = ErrorType.Create(DiagnosticBuilder.ForPosition(syntax).ImportsAreDisabled());
+            }
+            else if (!syntax.ProviderName.IsValid)
+            {
+                // There should be a parse error if the import statement is incomplete
+                declaredType = ErrorType.Empty();
+            }
+            else if (namespaceProvider.TryGetNamespace(syntax.ProviderName.IdentifierName, alias, targetScope) is not { } namespaceType)
+            {
+                declaredType = ErrorType.Create(DiagnosticBuilder.ForPosition(syntax).UnrecognizedImportProvider(syntax.ProviderName.IdentifierName));
+            }
+            else
+            {
+                declaredType = namespaceType;
+            }
+
+            var symbol = new ImportedNamespaceSymbol(this.context, syntax.Name.IdentifierName, declaredType, syntax);
+            DeclareSymbol(symbol);
+        }
+
         public override void VisitForSyntax(ForSyntax syntax)
         {
             // create new scope without any descendants
@@ -109,7 +145,7 @@ namespace Bicep.Core.Semantics
             }
 
             var indexVariable = syntax.IndexVariable;
-            if(indexVariable is not null)
+            if (indexVariable is not null)
             {
                 var indexVariableSymbol = new LocalVariableSymbol(this.context, indexVariable.Name.IdentifierName, indexVariable, LocalKind.ForExpressionIndexVariable);
                 DeclareSymbol(indexVariableSymbol);
@@ -152,7 +188,7 @@ namespace Bicep.Core.Semantics
                 // add this to the root list
                 this.childScopes.Add(item);
             }
-            
+
             this.activeScopes.Push(item);
         }
 

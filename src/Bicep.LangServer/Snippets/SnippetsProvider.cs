@@ -9,25 +9,39 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
+using Bicep.Core;
+using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit;
+using Bicep.Core.FileSystem;
 using Bicep.Core.Parsing;
+using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
+using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
-using Bicep.Core.TypeSystem.Az;
+using Bicep.Core.Workspaces;
 using Bicep.LanguageServer.Completions;
 
 namespace Bicep.LanguageServer.Snippets
 {
     public class SnippetsProvider : ISnippetsProvider
     {
-        // Used to cache resource declarations. Maps resource type to body text and description
-        private readonly ConcurrentDictionary<string, (string text, string description)> resourceTypeToBodyMap = new();
-        // Used to cache resource dependencies. Maps resource type to it's dependencies
-        private readonly ConcurrentDictionary<string, string> resourceTypeToDependentsMap = new();
+        private const string RequiredPropertiesDescription = "Required properties";
+        private const string RequiredPropertiesLabel = "required-properties";
+        private static readonly Regex ParentPropertyPattern = new Regex(@"^.*parent:.*$[\r\n]*", RegexOptions.Compiled | RegexOptions.Multiline);
+        private static readonly Regex SnippetPlaceholderCommentPattern = new Regex(@"\/\*(?<snippetPlaceholder>(.*?))\*\/('(.*?)'|\w+|-\d+|.*?)", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+
+        // Used to cache resource declaration information. Maps resource type reference to prefix, identifier, body text and description
+        private readonly ConcurrentDictionary<ResourceTypeReference, (string prefix, string identifier, string bodyText, string description)> resourceTypeReferenceInfoMap = new(ResourceTypeReferenceComparer.Instance);
+        // Used to cache resource dependencies. Maps resource type reference to it's dependencies
+        private readonly ConcurrentDictionary<ResourceTypeReference, string> resourceTypeReferenceToDependentsMap = new(ResourceTypeReferenceComparer.Instance);
+        // Used to cache information about child type symbols in nested resource scenario. Maps resource type reference to nested type symbols
+        private readonly ConcurrentDictionary<ResourceTypeReference, ImmutableArray<ResourceTypeReference>> resourceTypeReferenceToChildTypeSymbolsMap = new(ResourceTypeReferenceComparer.Instance);
         // Used to cache resource body snippets
-        private readonly ConcurrentDictionary<(string typeName, bool isExistingResource), IEnumerable<Snippet>> resourceBodySnippetsCache = new();
+        private readonly ConcurrentDictionary<(ResourceTypeReference resourceTypeReference, bool isExistingResource), IEnumerable<Snippet>> resourceBodySnippetsCache = new();
         // Used to cache top level declarations
         private readonly HashSet<Snippet> topLevelNamedDeclarationSnippets = new();
         // The common properties should be authored consistently to provide for understandability and consumption of the code.
@@ -53,9 +67,21 @@ namespace Bicep.LanguageServer.Snippets
             "tags",
             "properties"
         };
+        private readonly INamespaceProvider namespaceProvider;
+        private readonly IFileResolver fileResolver;
+        private readonly RootConfiguration configuration;
+        private readonly LinterAnalyzer linterAnalyzer;
 
-        public SnippetsProvider()
+        public SnippetsProvider(INamespaceProvider namespaceProvider, IFileResolver fileResolver, IConfigurationManager configurationManager)
         {
+            this.namespaceProvider = namespaceProvider;
+            this.fileResolver = fileResolver;
+
+            // We'll use default bicepconfig.json settings during SnippetsProvider creation to avoid errors during language service initialization.
+            // We don't do any validation in SnippetsProvider. So using default settings shouldn't be a problem.
+            configuration = configurationManager.GetBuiltInConfiguration(disableAnalyzers: true);
+            linterAnalyzer = new LinterAnalyzer(configuration);
+
             Initialize();
         }
 
@@ -68,7 +94,7 @@ namespace Bicep.LanguageServer.Snippets
             foreach (var manifestResourceName in manifestResourceNames)
             {
                 Stream? stream = assembly.GetManifestResourceStream(manifestResourceName);
-                StreamReader streamReader = new StreamReader(stream ?? throw new ArgumentNullException("Stream is null"), Encoding.Default);
+                var streamReader = new StreamReader(stream ?? throw new ArgumentNullException("Stream is null"), Encoding.Default);
 
                 (string description, string snippetText) = GetDescriptionAndText(streamReader.ReadToEnd(), manifestResourceName);
                 string prefix = Path.GetFileNameWithoutExtension(manifestResourceName);
@@ -79,7 +105,7 @@ namespace Bicep.LanguageServer.Snippets
                     completionPriority = CompletionPriority.High;
                 }
 
-                Snippet snippet = new Snippet(snippetText, completionPriority, prefix, description);
+                var snippet = new Snippet(snippetText, completionPriority, prefix, description);
 
                 topLevelNamedDeclarationSnippets.Add(snippet);
             }
@@ -92,6 +118,9 @@ namespace Bicep.LanguageServer.Snippets
 
             if (!string.IsNullOrWhiteSpace(template))
             {
+                // Remove snippet placeholder comments
+                template = RemoveSnippetPlaceholderComments(template);
+
                 Parser parser = new Parser(template);
                 ProgramSyntax programSyntax = parser.Program();
                 IEnumerable<SyntaxBase> declarations = programSyntax.Declarations;
@@ -130,39 +159,52 @@ namespace Bicep.LanguageServer.Snippets
 
                 if (declaredSymbol.DeclaringSyntax is ResourceDeclarationSyntax resourceDeclarationSyntax)
                 {
-                   if (declaredSymbol.Type is TypeSymbol typeSymbol && typeSymbol.TypeKind != TypeKind.Error)
+                    if (declaredSymbol.Type is ResourceType resourceType && resourceType.TypeKind != TypeKind.Error)
                     {
-                        string type = typeSymbol.Name;
-                        CacheResourceDeclaration(resourceDeclarationSyntax, type, template, description);
-                        CacheResourceDependencies(kvp.Value, template, type);
+                        ResourceTypeReference resourceTypeReference = resourceType.TypeReference;
+                        CacheResourceDeclaration(resourceDeclarationSyntax, resourceTypeReference, template, description, manifestResourceName);
+                        CacheResourceDependencies(resourceTypeReference, kvp.Value, template);
                     }
                 }
             }
         }
 
-        private void CacheResourceDeclaration(ResourceDeclarationSyntax resourceDeclarationSyntax, string type, string template, string description)
+        private void CacheResourceDeclaration(ResourceDeclarationSyntax resourceDeclarationSyntax, ResourceTypeReference resourceTypeReference, string template, string description, string manifestResourceName)
         {
-            if (!resourceTypeToBodyMap.ContainsKey(type))
+            if (!resourceTypeReferenceInfoMap.ContainsKey(resourceTypeReference))
             {
                 TextSpan bodySpan = resourceDeclarationSyntax.Value.Span;
                 string bodyText = template.Substring(bodySpan.Position, bodySpan.Length);
+                string prefix = Path.GetFileNameWithoutExtension(manifestResourceName);
+                TextSpan resourceDeclarationSyntaxNameSpan = resourceDeclarationSyntax.Name.Span;
+                string identifier = template.Substring(resourceDeclarationSyntaxNameSpan.Position, resourceDeclarationSyntaxNameSpan.Length);
 
-                resourceTypeToBodyMap.TryAdd(type, (bodyText, description));
+                resourceTypeReferenceInfoMap.TryAdd(resourceTypeReference, (prefix, identifier, bodyText, description));
             }
         }
 
-        private void CacheResourceDependencies(ImmutableHashSet<ResourceDependency> resourceDependencies, string template, string resourceType)
+        private void CacheResourceDependencies(ResourceTypeReference childResourceTypeReference, ImmutableHashSet<ResourceDependency> resourceDependencies, string template)
         {
             if (resourceDependencies.Any())
             {
                 StringBuilder sb = new StringBuilder();
+
                 foreach (ResourceDependency resourceDependency in resourceDependencies)
                 {
+                    if (resourceDependency.Resource is ResourceSymbol resourceSymbol &&
+                        resourceSymbol.TryGetResourceTypeReference() is ResourceTypeReference resourceTypeReference)
+                    {
+                        resourceTypeReferenceToChildTypeSymbolsMap.AddOrUpdate(
+                            resourceTypeReference,
+                            _ => ImmutableArray.Create(childResourceTypeReference),
+                            (_, children) => children.Add(childResourceTypeReference));
+                    }
+
                     TextSpan span = resourceDependency.Resource.DeclaringSyntax.Span;
                     sb.AppendLine(template.Substring(span.Position, span.Length));
                 }
 
-                resourceTypeToDependentsMap.TryAdd(resourceType, sb.ToString());
+                resourceTypeReferenceToDependentsMap.TryAdd(childResourceTypeReference, sb.ToString());
             }
         }
 
@@ -174,23 +216,29 @@ namespace Bicep.LanguageServer.Snippets
                 return ImmutableDictionary.Create<DeclaredSymbol, ImmutableHashSet<ResourceDependency>>();
             }
 
-            string path = Path.GetFullPath(manifestResourceName);
-            SyntaxTree syntaxTree = SyntaxTree.Create(new Uri(path), template);
-            SyntaxTreeGrouping syntaxTreeGrouping = new SyntaxTreeGrouping(
-                syntaxTree,
-                ImmutableHashSet.Create(syntaxTree),
-                ImmutableDictionary.Create<ModuleDeclarationSyntax, SyntaxTree>(),
-                ImmutableDictionary.Create<ModuleDeclarationSyntax, DiagnosticBuilder.ErrorBuilderDelegate>());
+            // We need to provide uri for syntax tree creation, but it's not used anywhere. In order to avoid 
+            // cross platform issues, we'll provide a placeholder uri.
+            BicepFile bicepFile = SourceFileFactory.CreateBicepFile(new Uri($"inmemory://{manifestResourceName}.bicep"), template);
+            SourceFileGrouping sourceFileGrouping = new SourceFileGrouping(
+                fileResolver,
+                bicepFile,
+                ImmutableHashSet.Create<ISourceFile>(bicepFile),
+                ImmutableDictionary.Create<ModuleDeclarationSyntax, ISourceFile>(),
+                ImmutableDictionary.Create<ISourceFile, ImmutableHashSet<ISourceFile>>(),
+                ImmutableDictionary.Create<ModuleDeclarationSyntax, DiagnosticBuilder.ErrorBuilderDelegate>(),
+                ImmutableHashSet<ModuleDeclarationSyntax>.Empty);
 
-            Compilation compilation = new Compilation(AzResourceTypeProvider.CreateWithAzTypes(), syntaxTreeGrouping);
+            Compilation compilation = new Compilation(namespaceProvider, sourceFileGrouping, configuration, linterAnalyzer);
+
             SemanticModel semanticModel = compilation.GetEntrypointSemanticModel();
 
             return ResourceDependencyVisitor.GetResourceDependencies(semanticModel);
         }
 
-        public IEnumerable<Snippet> GetResourceBodyCompletionSnippets(TypeSymbol typeSymbol, bool isExistingResource)
+        public IEnumerable<Snippet> GetResourceBodyCompletionSnippets(ResourceType resourceType, bool isExistingResource, bool isResourceNested)
         {
-            if (resourceBodySnippetsCache.TryGetValue((typeSymbol.Name, isExistingResource), out IEnumerable<Snippet>? cachedSnippets) && cachedSnippets.Any())
+            ResourceTypeReference resourceTypeReference = resourceType.TypeReference;
+            if (resourceBodySnippetsCache.TryGetValue((resourceTypeReference, isExistingResource), out IEnumerable<Snippet>? cachedSnippets) && cachedSnippets.Any())
             {
                 return cachedSnippets;
             }
@@ -202,14 +250,30 @@ namespace Bicep.LanguageServer.Snippets
             // We will not show custom snippets for resources with 'existing' keyword as they are not applicable in that scenario.
             if (!isExistingResource)
             {
-                Snippet? snippetFromExistingTemplate = GetResourceBodyCompletionSnippetFromTemplate(typeSymbol);
-                if (snippetFromExistingTemplate is not null)
+                // If the resource is nested, we will only return it's body text from cache. Otherwise, we will return information
+                // from the template, which could include parent resource 
+                if (isResourceNested)
                 {
-                    snippets.Add(snippetFromExistingTemplate);
+                    if (resourceTypeReferenceInfoMap.TryGetValue(resourceTypeReference, out (string prefix, string identifier, string bodyText, string description) resourceTypeInfo))
+                    {
+                        // The property "parent" is not allowed in nested resource. We'll remove the property before creating the snippet 
+                        string text = ParentPropertyPattern.Replace(resourceTypeInfo.bodyText, string.Empty);
+                        Snippet snippet = new Snippet(text, prefix: "snippet", detail: resourceTypeInfo.description);
+                        snippets.Add(snippet);
+                    }
+                }
+                else
+                {
+                    Snippet? snippetFromExistingTemplate = GetResourceBodyCompletionSnippetFromTemplate(resourceTypeReference);
+                    if (snippetFromExistingTemplate is not null)
+                    {
+                        snippets.Add(snippetFromExistingTemplate);
+                    }
                 }
             }
 
-            IEnumerable<Snippet> snippetsFromAzTypes = GetResourceBodyCompletionSnippetFromAzTypes(typeSymbol);
+            IEnumerable<Snippet> snippetsFromAzTypes = GetRequiredPropertiesForObjectType(resourceType.Body.Type);
+
             if (snippetsFromAzTypes.Any())
             {
                 snippets.AddRange(snippetsFromAzTypes);
@@ -217,26 +281,24 @@ namespace Bicep.LanguageServer.Snippets
 
             // Add to cache
             // Note: Properties information obtained from TypeSystem may vary for resources with/without 'existing' keyword.
-            // TypeName obtained from TypeSymbol might be same in both the cases. In order to differentiate, we'll always
-            // cache combination of typeSymbol.Name + isExistingResource.
-            resourceBodySnippetsCache.TryAdd((typeSymbol.Name, isExistingResource), snippets);
+            // ResourceTypeReference obtained from ResourceType might be same in both the cases. In order to differentiate, we'll always
+            // cache combination of resourceTypeReference + isExistingResource.
+            resourceBodySnippetsCache.TryAdd((resourceTypeReference, isExistingResource), snippets);
 
             return snippets;
         }
 
-        private Snippet? GetResourceBodyCompletionSnippetFromTemplate(TypeSymbol typeSymbol)
+        private Snippet? GetResourceBodyCompletionSnippetFromTemplate(ResourceTypeReference resourceTypeReference)
         {
             string label = "snippet";
-            string type = typeSymbol.Name;
-
             StringBuilder sb = new StringBuilder();
 
             // Get resource body completion snippet from checked in static template file, if available
-            if (resourceTypeToBodyMap.TryGetValue(type, out (string text, string description) resourceBodyWithDescription))
+            if (resourceTypeReferenceInfoMap.TryGetValue(resourceTypeReference, out (string prefix, string identifier, string text, string description) resourceBodyWithDescription))
             {
                 sb.AppendLine(resourceBodyWithDescription.text);
 
-                if (resourceTypeToDependentsMap.TryGetValue(type, out string? resourceDependencies))
+                if (resourceTypeReferenceToDependentsMap.TryGetValue(resourceTypeReference, out string? resourceDependencies))
                 {
                     sb.Append(resourceDependencies);
                 }
@@ -247,40 +309,22 @@ namespace Bicep.LanguageServer.Snippets
             return null;
         }
 
-        private IEnumerable<Snippet> GetResourceBodyCompletionSnippetFromAzTypes(TypeSymbol typeSymbol)
+        private IEnumerable<Snippet> GetRequiredPropertiesSnippetsForDisciminatedObjectType(DiscriminatedObjectType discriminatedObjectType)
         {
-            string description = "Required properties";
-
-            if (typeSymbol is ResourceType resourceType)
+            foreach (KeyValuePair<string, ObjectType> kvp in discriminatedObjectType.UnionMembersByKey.OrderBy(x => x.Key))
             {
-                if (resourceType.Body is ObjectType objectType)
-                {
-                    string label = "required-properties";
-                    Snippet? snippet = GetRequiredPropertiesSnippet(objectType, label, description);
+                string disciminatedObjectKey = kvp.Key;
+                string label = "required-properties-" + disciminatedObjectKey.Trim(new char[] { '\'' });
+                Snippet? snippet = GetRequiredPropertiesSnippet(kvp.Value, label, disciminatedObjectKey);
 
-                    if (snippet is not null)
-                    {
-                        yield return snippet;
-                    }
-                }
-                else if (resourceType.Body is DiscriminatedObjectType discriminatedObjectType)
+                if (snippet is not null)
                 {
-                    foreach (KeyValuePair<string, ObjectType> kvp in discriminatedObjectType.UnionMembersByKey.OrderBy(x => x.Key))
-                    {
-                        string disciminatedObjectKey = kvp.Key;
-                        string label = "required-properties-" + disciminatedObjectKey.Trim(new char[] { '\'' });
-                        Snippet? snippet = GetRequiredPropertiesSnippet(kvp.Value, label, description, disciminatedObjectKey);
-
-                        if (snippet is not null)
-                        {
-                            yield return snippet;
-                        }
-                    }
+                    yield return snippet;
                 }
             }
         }
 
-        private Snippet? GetRequiredPropertiesSnippet(ObjectType objectType, string label, string description, string? discriminatedObjectKey = null)
+        private Snippet? GetRequiredPropertiesSnippet(ObjectType objectType, string label, string? discriminatedObjectKey = null)
         {
             int index = 1;
             StringBuilder sb = new StringBuilder();
@@ -304,10 +348,10 @@ namespace Bicep.LanguageServer.Snippets
                 // Insert open curly at the beginning
                 sb.Insert(0, "{\n");
 
-                // Append final tab stop
-                sb.Append("\t$0\n}");
+                // Insert final tab stop outside the top level object
+                sb.Append("}$0");
 
-                return new Snippet(sb.ToString(), CompletionPriority.Medium, label, description);
+                return new Snippet(sb.ToString(), CompletionPriority.Medium, label, RequiredPropertiesDescription);
             }
 
             return null;
@@ -382,15 +426,97 @@ namespace Bicep.LanguageServer.Snippets
 
             if (typeSymbol is ModuleType moduleType && moduleType.Body is ObjectType objectType)
             {
-                string label = "required-properties";
-                string description = "Required properties";
-                Snippet? snippet = GetRequiredPropertiesSnippet(objectType, label, description);
+                Snippet? snippet = GetRequiredPropertiesSnippet(objectType, RequiredPropertiesLabel, RequiredPropertiesDescription);
 
                 if (snippet is not null)
                 {
                     yield return snippet;
                 }
             }
+        }
+
+        public IEnumerable<Snippet> GetObjectBodyCompletionSnippets(TypeSymbol typeSymbol)
+        {
+            yield return GetEmptySnippet();
+
+            foreach (Snippet snippet in GetRequiredPropertiesForObjectType(typeSymbol))
+            {
+                yield return snippet;
+            }
+        }
+
+        private IEnumerable<Snippet> GetRequiredPropertiesForObjectType(TypeSymbol typeSymbol)
+        {
+            if (typeSymbol is ObjectType objectType)
+            {
+                Snippet? snippet = GetRequiredPropertiesSnippet(objectType, RequiredPropertiesLabel, RequiredPropertiesDescription);
+
+                if (snippet is not null)
+                {
+                    yield return snippet;
+                }
+            }
+            else if (typeSymbol is DiscriminatedObjectType discriminatedObjectType)
+            {
+                foreach (Snippet snippet in GetRequiredPropertiesSnippetsForDisciminatedObjectType(discriminatedObjectType))
+                {
+                    yield return snippet;
+                }
+            }
+        }
+
+        public IEnumerable<Snippet> GetNestedResourceDeclarationSnippets(ResourceTypeReference resourceTypeReference)
+        {
+            // Leaving out the API version on this, because we expect its more common to inherit from the containing resource.
+            yield return new Snippet(@"resource ${1:Identifier} '${2:Type}' = {
+  name: $3
+  properties: {
+    $0
+  }
+}", prefix: "resource-with-defaults", detail: "Nested resource with defaults");
+
+            yield return new Snippet(@"resource ${1:Identifier} '${2:Type}' = {
+  name: $3
+  $0
+}", prefix: "resource-without-defaults", detail: "Nested resource without defaults");
+
+            if (resourceTypeReferenceToChildTypeSymbolsMap.TryGetValue(resourceTypeReference, out var nestedResourceTypeReferences))
+            {
+                foreach (var nestedResourceTypeReference in nestedResourceTypeReferences)
+                {
+                    var nestedTypeReference = new ResourceTypeReference(ImmutableArray.Create<string>(nestedResourceTypeReference.TypeSegments.Last()), nestedResourceTypeReference.ApiVersion);
+
+                    resourceTypeReferenceInfoMap.TryGetValue(nestedResourceTypeReference, out (string prefix, string identifier, string bodyText, string description) resourceInfo);
+                    // The property "parent" is not allowed in nested resource. We'll remove the property before creating the snippet 
+                    var bodyText = ParentPropertyPattern.Replace(resourceInfo.bodyText, string.Empty);
+                    var text = LanguageConstants.ResourceKeyword + " " + resourceInfo.identifier + " '" + nestedTypeReference.FormatName() + "' = " + bodyText;
+
+                    yield return new Snippet(text, prefix: resourceInfo.prefix, detail: resourceInfo.description);
+                }
+            }
+        }
+
+        public string RemoveSnippetPlaceholderComments(string text)
+        {
+            if (!string.IsNullOrEmpty(text))
+            {
+                MatchCollection matches = SnippetPlaceholderCommentPattern.Matches(text);
+
+                // We will be performing multiple string replacements, better to do it in-place
+                StringBuilder buffer = new StringBuilder(text);
+
+                // To avoid recomputing spans, we will perform the replacements in reverse order
+                foreach (Match match in matches.OrderByDescending(x => x.Index))
+                {
+                    buffer.Replace(oldValue: match.Value,
+                                   newValue: match.Groups["snippetPlaceholder"].Value,
+                                   startIndex: match.Index,
+                                   count: match.Length);
+                }
+                return buffer.ToString();
+            }
+
+            return text;
         }
     }
 }

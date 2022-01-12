@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 using System.Collections.Generic;
@@ -14,10 +14,10 @@ namespace Bicep.LangServer.IntegrationTests.Extensions
         {
             var model = compilation.GetEntrypointSemanticModel();
 
-            return SyntaxAggregator.Aggregate(compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax, new Dictionary<SyntaxBase, Symbol>(), (accumulated, node) =>
+            return SyntaxAggregator.Aggregate(compilation.SourceFileGrouping.EntryPoint.ProgramSyntax, new Dictionary<SyntaxBase, Symbol>(), (accumulated, node) =>
             {
                 if (model.GetSymbolInfo(node) is Symbol symbol)
-                {   
+                {
                     accumulated[node] = symbol;
                 }
 

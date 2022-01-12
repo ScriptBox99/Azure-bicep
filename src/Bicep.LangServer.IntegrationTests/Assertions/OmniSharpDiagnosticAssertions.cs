@@ -7,19 +7,19 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 
 namespace Bicep.LangServer.IntegrationTests.Assertions
 {
-    public static class OmniSharpDiagnosticExtensions 
+    public static class OmniSharpDiagnosticExtensions
     {
         public static OmniSharpDiagnosticAssertions Should(this Diagnostic instance)
         {
-            return new OmniSharpDiagnosticAssertions(instance); 
+            return new OmniSharpDiagnosticAssertions(instance);
         }
     }
 
     public class OmniSharpDiagnosticAssertions : ReferenceTypeAssertions<Diagnostic, OmniSharpDiagnosticAssertions>
     {
         public OmniSharpDiagnosticAssertions(Diagnostic instance)
+            : base(instance)
         {
-            Subject = instance;
         }
 
         protected override string Identifier => "diagnostic";

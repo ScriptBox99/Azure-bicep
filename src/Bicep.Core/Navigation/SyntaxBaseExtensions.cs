@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
+using System.Collections.Generic;
 using System.Text;
+using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
 using Bicep.Core.Syntax;
 
@@ -9,10 +11,10 @@ namespace Bicep.Core.Navigation
 {
     public static class SyntaxBaseExtensions
     {
-        public static SyntaxBase? TryFindMostSpecificNodeInclusive(this SyntaxBase root, int offset, Func<SyntaxBase, bool> predicate) => 
+        public static SyntaxBase? TryFindMostSpecificNodeInclusive(this SyntaxBase root, int offset, Func<SyntaxBase, bool> predicate) =>
             TryFindMostSpecificNodeInternal(root, offset, predicate, inclusive: true);
 
-        public static SyntaxBase? TryFindMostSpecificNodeExclusive(this SyntaxBase root, int offset, Func<SyntaxBase, bool> predicate) => 
+        public static SyntaxBase? TryFindMostSpecificNodeExclusive(this SyntaxBase root, int offset, Func<SyntaxBase, bool> predicate) =>
             TryFindMostSpecificNodeInternal(root, offset, predicate, inclusive: false);
 
         private static SyntaxBase? TryFindMostSpecificNodeInternal(SyntaxBase root, int offset, Func<SyntaxBase, bool> predicate, bool inclusive)
@@ -70,13 +72,49 @@ namespace Bicep.Core.Navigation
         /// <param name="syntax"></param>
         /// <param name="indent"></param>
         /// <returns></returns>
-        public static string ToText(this SyntaxBase syntax, string indent="")
+        public static string ToText(this SyntaxBase syntax, string indent = "")
         {
             var sb = new StringBuilder();
             var documentBuildVisitor = new DocumentBuildVisitor();
             var document = documentBuildVisitor.BuildDocument(syntax);
             document.Layout(sb, indent, System.Environment.NewLine);
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Generate a string that represents this Syntax element.
+        /// </summary>
+        public static string ToTextPreserveFormatting(this SyntaxBase syntax)
+        {
+            var sb = new StringBuilder();
+            var printVisitor = new PrintVisitor(sb);
+            printVisitor.Visit(syntax);
+            return sb.ToString();
+        }
+
+        private class PrintVisitor : SyntaxVisitor
+        {
+            private readonly StringBuilder buffer;
+
+            public PrintVisitor(StringBuilder buffer)
+            {
+                this.buffer = buffer;
+            }
+
+            public override void VisitToken(Token token)
+            {
+                WriteTrivia(token.LeadingTrivia);
+                buffer.Append(token.Text);
+                WriteTrivia(token.TrailingTrivia);
+            }
+
+            private void WriteTrivia(IEnumerable<SyntaxTrivia> triviaList)
+            {
+                foreach (var trivia in triviaList)
+                {
+                    buffer.Append(trivia.Text);
+                }
+            }
         }
     }
 }

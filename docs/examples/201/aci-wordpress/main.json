@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "6917784875306259155"
+      "templateHash": "5618173839261506858"
     }
   },
   "parameters": {
@@ -34,7 +34,6 @@
       "defaultValue": "[resourceGroup().location]"
     }
   },
-  "functions": [],
   "variables": {
     "cpuCores": "0.5",
     "memoryInGb": "0.7",
@@ -89,7 +88,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[variables('uamiId')]": {}
+          "[format('{0}', variables('uamiId'))]": {}
         }
       },
       "properties": {
@@ -117,7 +116,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[variables('uamiId')]": {}
+          "[format('{0}', variables('uamiId'))]": {}
         }
       },
       "properties": {
@@ -212,7 +211,7 @@
           {
             "azureFile": {
               "shareName": "[variables('wpShareName')]",
-              "storageAccountKey": "[listKeys(parameters('storageAccountName'), '2019-06-01').keys[0].value]",
+              "storageAccountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2019-06-01').keys[0].value]",
               "storageAccountName": "[parameters('storageAccountName')]"
             },
             "name": "wordpressfile"
@@ -220,7 +219,7 @@
           {
             "azureFile": {
               "shareName": "[variables('sqlShareName')]",
-              "storageAccountKey": "[listKeys(parameters('storageAccountName'), '2019-06-01').keys[0].value]",
+              "storageAccountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2019-06-01').keys[0].value]",
               "storageAccountName": "[parameters('storageAccountName')]"
             },
             "name": "mysqlfile"

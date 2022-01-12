@@ -2,15 +2,19 @@
 // Licensed under the MIT License.
 import vscode from "vscode";
 import {
-  AzureUserInput,
   createAzExtOutputChannel,
   registerUIExtensionVariables,
 } from "vscode-azureextensionui";
 
-import { launchLanguageServiceWithProgressReport } from "./language";
+import {
+  launchLanguageServiceWithProgressReport,
+  BicepCacheContentProvider,
+} from "./language";
 import { BicepVisualizerViewManager } from "./visualizer";
 import {
+  BuildCommand,
   CommandManager,
+  InsertResourceCommand,
   ShowSourceCommand,
   ShowVisualizerCommand,
   ShowVisualizerToSideCommand,
@@ -39,16 +43,11 @@ export async function activate(
   context: vscode.ExtensionContext
 ): Promise<void> {
   const extension = BicepExtension.create(context);
-
   const outputChannel = createAzExtOutputChannel("Bicep", "bicep");
+
   extension.register(outputChannel);
   extension.register(createLogger(context, outputChannel));
-
-  registerUIExtensionVariables({
-    context,
-    outputChannel,
-    ui: new AzureUserInput(context.globalState),
-  });
+  registerUIExtensionVariables({ context, outputChannel });
 
   await activateWithTelemetryAndErrorHandling(async () => {
     const languageClient = await launchLanguageServiceWithProgressReport(
@@ -56,17 +55,30 @@ export async function activate(
       outputChannel
     );
 
-    // Register commands.
-    const commandManager = extension.register(new CommandManager());
+    // go2def links that point to the bicep cache will have the bicep-cache scheme in their document URIs
+    // this content provider will allow VS code to understand that scheme
+    // and surface the content as a read-only file
+    extension.register(
+      vscode.workspace.registerTextDocumentContentProvider(
+        "bicep-cache",
+        new BicepCacheContentProvider(languageClient)
+      )
+    );
+
     const viewManager = extension.register(
       new BicepVisualizerViewManager(extension.extensionUri, languageClient)
     );
 
-    commandManager.registerCommands(
-      new ShowVisualizerCommand(viewManager),
-      new ShowVisualizerToSideCommand(viewManager),
-      new ShowSourceCommand(viewManager)
-    );
+    // Register commands.
+    await extension
+      .register(new CommandManager(context))
+      .registerCommands(
+        new BuildCommand(languageClient),
+        new InsertResourceCommand(languageClient),
+        new ShowVisualizerCommand(viewManager),
+        new ShowVisualizerToSideCommand(viewManager),
+        new ShowSourceCommand(viewManager)
+      );
   });
 }
 

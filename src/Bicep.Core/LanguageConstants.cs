@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Resources;
 using Bicep.Core.TypeSystem;
@@ -15,8 +17,19 @@ namespace Bicep.Core
         public const string LanguageId = "bicep";
         public const string LanguageFileExtension = ".bicep";
 
+        public const string JsonLanguageId = "json";
+        public const string JsoncLanguageId = "jsonc";
+        public const string ArmTemplateLanguageId = "arm-template"; // Provided by the ARM Tools VSCode extension.
+
+        public const string JsonFileExtension = ".json";
+        public const string JsoncFileExtension = ".jsonc";
+        public const string ArmTemplateFileExtension = ".arm";
+
+        public const string Build = "build";
+
         public const int MaxParameterCount = 256;
         public const int MaxIdentifierLength = 255;
+        public const int MaxLiteralCharacterLimit = 131072;
 
         public const string ErrorName = "<error>";
         public const string MissingName = "<missing>";
@@ -28,6 +41,8 @@ namespace Bicep.Core
         public const string ResourceKeyword = "resource";
         public const string ModuleKeyword = "module";
         public const string ExistingKeyword = "existing";
+        public const string ImportKeyword = "import";
+        public const string AsKeyword = "as";
 
         public const string IfKeyword = "if";
         public const string ForKeyword = "for";
@@ -38,9 +53,15 @@ namespace Bicep.Core
         public const string TargetScopeTypeSubscription = "subscription";
         public const string TargetScopeTypeResourceGroup = "resourceGroup";
 
-        public static ImmutableSortedSet<string> DeclarationKeywords = new[] { ParameterKeyword, VariableKeyword, ResourceKeyword, OutputKeyword, ModuleKeyword }.ToImmutableSortedSet(StringComparer.Ordinal);
+        public const string BicepConfigurationFileName = "bicepconfig.json";
 
-        public static ImmutableSortedSet<string> ContextualKeywords = DeclarationKeywords
+        public const string DisableNextLineDiagnosticsKeyword = "disable-next-line";
+
+        public static readonly Regex ArmTemplateSchemaRegex = new(@"https?:\/\/schema\.management\.azure\.com\/schemas\/([^""\/]+\/[a-zA-Z]*[dD]eploymentTemplate\.json)#?");
+
+        public static readonly ImmutableSortedSet<string> DeclarationKeywords = new[] { ParameterKeyword, VariableKeyword, ResourceKeyword, OutputKeyword, ModuleKeyword }.ToImmutableSortedSet(StringComparer.Ordinal);
+
+        public static readonly ImmutableSortedSet<string> ContextualKeywords = DeclarationKeywords
             .Add(TargetScopeKeyword)
             .Add(IfKeyword)
             .Add(ForKeyword)
@@ -57,71 +78,50 @@ namespace Bicep.Core
             [NullKeyword] = TokenType.NullKeyword
         }.ToImmutableDictionary();
 
+        // Decorators
         public const string ParameterAllowedPropertyName = "allowed";
-        public const string ParameterDefaultPropertyName = "default";
         public const string ParameterSecurePropertyName = "secure";
+        public const string ParameterMinValuePropertyName = "minValue";
+        public const string ParameterMaxValuePropertyName = "maxValue";
+        public const string ParameterMinLengthPropertyName = "minLength";
+        public const string ParameterMaxLengthPropertyName = "maxLength";
+        public const string ParameterMetadataPropertyName = "metadata";
+        public const string MetadataDescriptionPropertyName = "description";
+        public const string BatchSizePropertyName = "batchSize";
 
+        // module properties
         public const string ModuleParamsPropertyName = "params";
         public const string ModuleOutputsPropertyName = "outputs";
+        public const string ModuleNamePropertyName = "name";
 
-        public const string ResourceIdPropertyName = "id";
-        public const string ResourceLocationPropertyName = "location";
-        public const string ResourceNamePropertyName = "name";
-        public const string ResourceTypePropertyName = "type";
-        public const string ResourceApiVersionPropertyName = "apiVersion";
+        // resource properties
         public const string ResourceScopePropertyName = "scope";
         public const string ResourceParentPropertyName = "parent";
         public const string ResourceDependsOnPropertyName = "dependsOn";
+        public const string ResourcePropertiesPropertyName = "properties";
+
+        // types
         public const string TypeNameString = "string";
-
-        /*
-         * The following top-level properties must be set deploy-time constant values,
-         * and it is safe to read them at deploy-time because their values cannot be changed.
-         */
-        public static readonly string[] ReadWriteDeployTimeConstantPropertyNames = new[]
-        {
-            ResourceIdPropertyName,
-            ResourceNamePropertyName,
-            ResourceTypePropertyName,
-            ResourceApiVersionPropertyName,
-        };
-
-        /*
-         * The following top-level properties must be set deploy-time constant values
-         * when declared in resource bodies. However, it is not safe to read their values
-         * at deploy-time due to the fact that:
-         *   - They can be changed by Policy Modify effect (e.g. tags, sku)
-         *   - Their values may be normalized by RPs
-         *   - Some RPs are doing Put-as-Patch
-         */
-        public static readonly string[] WriteOnlyDeployTimeConstantPropertyNames = new[]
-        {
-            "location",
-            "kind",
-            "subscriptionId",
-            "resourceGroup",
-            "managedBy",
-            "extendedLocation",
-            "zones",
-            "plan",
-            "sku",
-            "identity",
-            "managedByExtended",
-            "tags",
-        };
+        public const string TypeNameModule = "module";
 
         public static readonly StringComparer IdentifierComparer = StringComparer.Ordinal;
         public static readonly StringComparison IdentifierComparison = StringComparison.Ordinal;
+
+        public static readonly StringComparer ResourceTypeComparer = StringComparer.OrdinalIgnoreCase;
+        public static readonly StringComparison ResourceTypeComparison = StringComparison.OrdinalIgnoreCase;
 
         public const string StringDelimiter = "'";
         public const string StringHoleOpen = "${";
         public const string StringHoleClose = "}";
 
+        public const string AnyFunction = "any";
         public static readonly TypeSymbol Any = new AnyType();
+        public static readonly TypeSymbol Never = new UnionType("never", ImmutableArray<ITypeReference>.Empty);
+
         public static readonly TypeSymbol ResourceRef = CreateResourceScopeReference(ResourceScope.Module | ResourceScope.Resource);
 
         // type used for the item type in the dependsOn array type
-        public static readonly TypeSymbol ResourceOrResourceCollectionRefItem = UnionType.Create(
+        public static readonly TypeSymbol ResourceOrResourceCollectionRefItem = TypeHelper.CreateTypeUnion(
             ResourceRef,
             new TypedArrayType(CreateResourceScopeReference(ResourceScope.Module), TypeSymbolValidationFlags.Default),
             new TypedArrayType(CreateResourceScopeReference(ResourceScope.Resource), TypeSymbolValidationFlags.Default));
@@ -140,11 +140,20 @@ namespace Bicep.Core
         public static readonly TypeSymbol Bool = new PrimitiveType("bool", TypeSymbolValidationFlags.Default);
         public static readonly TypeSymbol Null = new PrimitiveType(NullKeyword, TypeSymbolValidationFlags.Default);
         public static readonly TypeSymbol Array = new ArrayType("array");
+        //Type for available loadTextContent encoding
+
+        public static readonly ImmutableArray<(string name, Encoding encoding)> SupportedEncodings = new[]{
+            ("us-ascii", Encoding.ASCII),
+            ("iso-8859-1", Encoding.GetEncoding("iso-8859-1")),
+            ("utf-8", Encoding.UTF8),
+            ("utf-16BE", Encoding.BigEndianUnicode),
+            ("utf-16", Encoding.Unicode)
+        }.ToImmutableArray();
+
+        public static readonly TypeSymbol LoadTextContentEncodings = TypeHelper.CreateTypeUnion(SupportedEncodings.Select(s => new StringLiteralType(s.name)));
 
         // declares the description property but also allows any other property of any type
         public static readonly TypeSymbol ParameterModifierMetadata = new ObjectType(nameof(ParameterModifierMetadata), TypeSymbolValidationFlags.Default, CreateParameterModifierMetadataProperties(), Any, TypePropertyFlags.Constant);
-
-        public static readonly TypeSymbol Tags = new ObjectType(nameof(Tags), TypeSymbolValidationFlags.Default, Enumerable.Empty<TypeProperty>(), String, TypePropertyFlags.None);
 
         // types allowed to use in output and parameter declarations
         public static readonly ImmutableSortedDictionary<string, TypeSymbol> DeclarationTypes = new[] { String, Object, Int, Bool, Array }.ToImmutableSortedDictionary(type => type.Name, type => type, StringComparer.Ordinal);
@@ -162,14 +171,6 @@ namespace Bicep.Core
         private static IEnumerable<TypeProperty> CreateParameterModifierMetadataProperties()
         {
             yield return new TypeProperty("description", String, TypePropertyFlags.Constant);
-        }
-
-        public static IEnumerable<TypeProperty> GetCommonResourceProperties(ResourceTypeReference reference)
-        {
-            yield return new TypeProperty(ResourceIdPropertyName, String, TypePropertyFlags.ReadOnly | TypePropertyFlags.DeployTimeConstant);
-            yield return new TypeProperty(ResourceNamePropertyName, String, TypePropertyFlags.Required | TypePropertyFlags.DeployTimeConstant | TypePropertyFlags.LoopVariant);
-            yield return new TypeProperty(ResourceTypePropertyName, new StringLiteralType(reference.FullyQualifiedType), TypePropertyFlags.ReadOnly | TypePropertyFlags.DeployTimeConstant);
-            yield return new TypeProperty(ResourceApiVersionPropertyName, new StringLiteralType(reference.ApiVersion), TypePropertyFlags.ReadOnly | TypePropertyFlags.DeployTimeConstant);
         }
 
         public static IEnumerable<string> GetResourceScopeDescriptions(ResourceScope resourceScope)
@@ -232,7 +233,7 @@ namespace Bicep.Core
                 TypeSymbolValidationFlags.Default,
                 new[]
                 {
-                    new TypeProperty(ResourceNamePropertyName, LanguageConstants.String, TypePropertyFlags.Required | TypePropertyFlags.DeployTimeConstant | TypePropertyFlags.ReadableAtDeployTime | TypePropertyFlags.LoopVariant),
+                    new TypeProperty(ModuleNamePropertyName, LanguageConstants.String, TypePropertyFlags.Required | TypePropertyFlags.DeployTimeConstant | TypePropertyFlags.ReadableAtDeployTime | TypePropertyFlags.LoopVariant),
                     new TypeProperty(ResourceScopePropertyName, CreateResourceScopeReference(moduleScope), scopePropertyFlags),
                     new TypeProperty(ModuleParamsPropertyName, paramsType, paramsRequiredFlag | TypePropertyFlags.WriteOnly),
                     new TypeProperty(ModuleOutputsPropertyName, outputsType, TypePropertyFlags.ReadOnly),
@@ -241,55 +242,6 @@ namespace Bicep.Core
                 null);
 
             return new ModuleType(typeName, moduleScope, moduleBody);
-        }
-
-        public static IEnumerable<TypeProperty> CreateResourceProperties(ResourceTypeReference resourceTypeReference)
-        {
-            /*
-             * The following properties are intentionally excluded from this model:
-             * - SystemData - this is a read-only property that doesn't belong on PUTs
-             * - id - that is not allowed in templates
-             * - type - included in resource type on resource declarations
-             * - apiVersion - included in resource type on resource declarations
-             */
-
-            foreach (var prop in GetCommonResourceProperties(resourceTypeReference))
-            {
-                yield return prop;
-            }
-
-            // TODO: Model type fully
-            yield return new TypeProperty("sku", Object);
-
-            yield return new TypeProperty("kind", String);
-            yield return new TypeProperty("managedBy", String);
-
-            var stringArray = new TypedArrayType(String, TypeSymbolValidationFlags.Default);
-            yield return new TypeProperty("managedByExtended", stringArray);
-
-            yield return new TypeProperty("location", String);
-
-            // TODO: Model type fully
-            yield return new TypeProperty("extendedLocation", Object);
-
-            yield return new TypeProperty("zones", stringArray);
-
-            yield return new TypeProperty("plan", Object);
-
-            yield return new TypeProperty("eTag", String);
-
-            yield return new TypeProperty("tags", Tags);
-
-            // TODO: Model type fully
-            yield return new TypeProperty("scale", Object);
-
-            // TODO: Model type fully
-            yield return new TypeProperty("identity", Object);
-
-            yield return new TypeProperty("properties", Object);
-
-            var resourceRefArray = new TypedArrayType(ResourceRef, TypeSymbolValidationFlags.Default);
-            yield return new TypeProperty(ResourceDependsOnPropertyName, resourceRefArray, TypePropertyFlags.WriteOnly | TypePropertyFlags.DisallowAny);
         }
     }
 }

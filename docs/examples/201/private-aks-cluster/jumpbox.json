@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "1600189310875854248"
+      "templateHash": "12829523487718671926"
     }
   },
   "parameters": {
@@ -150,7 +150,6 @@
       }
     }
   },
-  "functions": [],
   "variables": {
     "vmNicName": "[format('{0}Nic', parameters('vmName'))]",
     "vmNicId": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicName'))]",
@@ -217,7 +216,7 @@
           "computerName": "[parameters('vmName')]",
           "adminUsername": "[parameters('vmAdminUsername')]",
           "adminPassword": "[parameters('vmAdminPasswordOrKey')]",
-          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), json('null'), variables('linuxConfiguration'))]"
+          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]"
         },
         "storageProfile": {
           "copy": [
@@ -274,7 +273,7 @@
     {
       "type": "Microsoft.Compute/virtualMachines/extensions",
       "apiVersion": "2020-12-01",
-      "name": "[format('{0}/{1}', parameters('vmName'), variables('omsAgentForLinuxName'))]",
+      "name": "[format('{0}/{1}', parameters('vmName'), format('{0}', variables('omsAgentForLinuxName')))]",
       "location": "[parameters('location')]",
       "properties": {
         "publisher": "Microsoft.EnterpriseCloud.Monitoring",
@@ -295,7 +294,7 @@
     {
       "type": "Microsoft.Compute/virtualMachines/extensions",
       "apiVersion": "2020-12-01",
-      "name": "[format('{0}/{1}', parameters('vmName'), variables('omsDependencyAgentForLinuxName'))]",
+      "name": "[format('{0}/{1}', parameters('vmName'), format('{0}', variables('omsDependencyAgentForLinuxName')))]",
       "location": "[parameters('location')]",
       "properties": {
         "publisher": "Microsoft.Azure.Monitoring.DependencyAgent",

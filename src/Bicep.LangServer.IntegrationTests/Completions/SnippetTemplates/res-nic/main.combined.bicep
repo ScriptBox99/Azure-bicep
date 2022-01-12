@@ -1,13 +1,15 @@
 // $1 = networkInterface
 // $2 = 'name'
-// $3 = 'name'
-// $4 = Dynamic
-// $5 = 'virtualNetwork'
-// $6 = 'subnet'
+// $3 = location
+// $4 = 'name'
+// $5 = Dynamic
+// $6 = 'subnet.id'
+
+param location string
 
 resource networkInterface 'Microsoft.Network/networkInterfaces@2020-11-01' = {
   name: 'name'
-  location: resourceGroup().location
+  location: location
   properties: {
     ipConfigurations: [
       {
@@ -15,7 +17,7 @@ resource networkInterface 'Microsoft.Network/networkInterfaces@2020-11-01' = {
         properties: {
           privateIPAllocationMethod: 'Dynamic'
           subnet: {
-            id: resourceId('Microsoft.Network/virtualNetworks/subnets', 'virtualNetwork', 'subnet')
+            id: 'subnet.id'
           }
         }
       }

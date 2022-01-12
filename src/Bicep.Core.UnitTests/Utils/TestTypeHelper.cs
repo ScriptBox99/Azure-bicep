@@ -9,19 +9,21 @@ using Azure.Bicep.Types.Az;
 using Azure.Bicep.Types.Az.Index;
 using Azure.Deployments.Core.Extensions;
 using Bicep.Core.Resources;
+using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Az;
+using Bicep.LanguageServer.Providers;
 using Moq;
 
 namespace Bicep.Core.UnitTests.Utils
 {
     public static class TestTypeHelper
     {
-        private class TestResourceTypeLoader : IResourceTypeLoader
+        private class TestResourceTypeLoader : IAzResourceTypeLoader
         {
-            private readonly ImmutableDictionary<ResourceTypeReference, ResourceType> resourceTypes;
+            private readonly ImmutableDictionary<ResourceTypeReference, ResourceTypeComponents> resourceTypes;
 
-            public TestResourceTypeLoader(IEnumerable<ResourceType> resourceTypes)
+            public TestResourceTypeLoader(IEnumerable<ResourceTypeComponents> resourceTypes)
             {
                 this.resourceTypes = resourceTypes.ToImmutableDictionary(
                     x => x.TypeReference,
@@ -29,28 +31,37 @@ namespace Bicep.Core.UnitTests.Utils
                     ResourceTypeReferenceComparer.Instance);
             }
 
-            public ResourceType LoadType(ResourceTypeReference reference)
+            public ResourceTypeComponents LoadType(ResourceTypeReference reference)
                 => resourceTypes[reference];
 
             public IEnumerable<ResourceTypeReference> GetAvailableTypes()
                 => resourceTypes.Keys;
         }
 
-        public static IResourceTypeProvider CreateProviderWithTypes(IEnumerable<ResourceType> resourceTypes)
-            => AzResourceTypeProvider.CreateWithLoader(new TestResourceTypeLoader(resourceTypes), false);
+        public static IAzResourceTypeLoader CreateEmptyAzResourceTypeLoader()
+            => new TestResourceTypeLoader(Enumerable.Empty<ResourceTypeComponents>());
 
-        public static IResourceTypeProvider CreateEmptyProvider()
-            => CreateProviderWithTypes(Enumerable.Empty<ResourceType>());
+        public static IAzResourceTypeLoader CreateAzResourceTypeLoaderWithTypes(IEnumerable<ResourceTypeComponents> resourceTypes)
+            => new TestResourceTypeLoader(resourceTypes);
 
-        public static ResourceType CreateCustomResourceType(string fullyQualifiedType, string apiVersion, TypeSymbolValidationFlags validationFlags, params TypeProperty[] customProperties)
+        public static INamespaceProvider CreateProviderWithTypes(IEnumerable<ResourceTypeComponents> resourceTypes)
+            => new DefaultNamespaceProvider(CreateAzResourceTypeLoaderWithTypes(resourceTypes), BicepTestConstants.Features);
+
+        public static INamespaceProvider CreateEmptyProvider()
+            => CreateProviderWithTypes(Enumerable.Empty<ResourceTypeComponents>());
+
+        public static INamespaceProvider CreateWithAzTypes()
+            => new DefaultNamespaceProvider(new AzResourceTypeLoader(), BicepTestConstants.Features);
+
+        public static ResourceTypeComponents CreateCustomResourceType(string fullyQualifiedType, string apiVersion, TypeSymbolValidationFlags validationFlags, params TypeProperty[] customProperties)
         {
             var reference = ResourceTypeReference.Parse($"{fullyQualifiedType}@{apiVersion}");
 
-            var resourceProperties = LanguageConstants.GetCommonResourceProperties(reference)
+            var resourceProperties = AzResourceTypeProvider.GetCommonResourceProperties(reference)
                 .Concat(new TypeProperty("properties", new ObjectType("properties", validationFlags, customProperties, null), TypePropertyFlags.Required));
 
             var bodyType = new ObjectType(reference.FormatName(), validationFlags, resourceProperties, null);
-            return new ResourceType(reference, ResourceScope.Tenant | ResourceScope.ManagementGroup | ResourceScope.Subscription | ResourceScope.ResourceGroup | ResourceScope.Resource, bodyType);
+            return new ResourceTypeComponents(reference, ResourceScope.Tenant | ResourceScope.ManagementGroup | ResourceScope.Subscription | ResourceScope.ResourceGroup | ResourceScope.Resource, bodyType);
         }
 
         public static ObjectType CreateObjectType(string name, params (string name, ITypeReference type)[] properties)

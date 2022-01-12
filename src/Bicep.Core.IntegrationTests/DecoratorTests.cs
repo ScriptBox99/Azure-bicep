@@ -4,13 +4,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.FileSystem;
 using Bicep.Core.Semantics;
+using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests.Diagnostics;
 using Bicep.Core.UnitTests.Utils;
 using Bicep.Core.Analyzers.Linter.Rules;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 
 namespace Bicep.Core.IntegrationTests
 {
@@ -26,7 +30,7 @@ namespace Bicep.Core.IntegrationTests
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diagnostics.Should().HaveDiagnostics(new[] {
+                diagnostics.ExcludingLinterDiagnostics().Should().HaveDiagnostics(new[] {
                     ("BCP147", DiagnosticLevel.Error, "Expected a parameter declaration after the decorator."),
                 });
             }
@@ -77,15 +81,14 @@ param inputb string
 ",
             };
 
-            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SyntaxTreeGroupingFactory.CreateForFiles(files, mainUri));
-            var diagnosticsByFile = compilation.GetAllDiagnosticsBySyntaxTree().ToDictionary(kvp => kvp.Key.FileUri, kvp => kvp.Value);
+            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SourceFileGroupingFactory.CreateForFiles(files, mainUri, BicepTestConstants.FileResolver, BicepTestConstants.BuiltInConfiguration), BicepTestConstants.BuiltInConfiguration, BicepTestConstants.LinterAnalyzer);
+            var diagnosticsByFile = compilation.GetAllDiagnosticsByBicepFile().ToDictionary(kvp => kvp.Key.FileUri, kvp => kvp.Value);
             var success = diagnosticsByFile.Values.SelectMany(x => x).All(d => d.Level != DiagnosticLevel.Error);
 
             using (new AssertionScope())
             {
-                diagnosticsByFile[mainUri].Should().HaveDiagnostics(new[] {
+                diagnosticsByFile[mainUri].ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                     ("BCP126", DiagnosticLevel.Error, "Function \"maxLength\" cannot be used as a variable decorator."),
-                    (NoUnusedVariablesRule.Code, DiagnosticLevel.Warning, new NoUnusedVariablesRule().GetMessage("foo")),
                     ("BCP127", DiagnosticLevel.Error, "Function \"allowed\" cannot be used as a resource decorator."),
                     ("BCP128", DiagnosticLevel.Error, "Function \"secure\" cannot be used as a module decorator."),
                     ("BCP129", DiagnosticLevel.Error, "Function \"minValue\" cannot be used as an output decorator."),
@@ -104,7 +107,7 @@ param inputb string
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diagnostics.Should().HaveDiagnostics(new[] {
+                diagnostics.ExcludingLinterDiagnostics().Should().HaveDiagnostics(new[] {
                     ("BCP152", DiagnosticLevel.Error, "Function \"concat\" cannot be used as a decorator."),
                     ("BCP132", DiagnosticLevel.Error, "Expected a declaration after the decorator."),
                     ("BCP152", DiagnosticLevel.Error, "Function \"resourceId\" cannot be used as a decorator.")
@@ -158,17 +161,15 @@ param inputb string
 ",
             };
 
-            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SyntaxTreeGroupingFactory.CreateForFiles(files, mainUri));
-            var diagnosticsByFile = compilation.GetAllDiagnosticsBySyntaxTree().ToDictionary(kvp => kvp.Key.FileUri, kvp => kvp.Value);
+            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SourceFileGroupingFactory.CreateForFiles(files, mainUri, BicepTestConstants.FileResolver, BicepTestConstants.BuiltInConfiguration), BicepTestConstants.BuiltInConfiguration, BicepTestConstants.LinterAnalyzer);
+            var diagnosticsByFile = compilation.GetAllDiagnosticsByBicepFile().ToDictionary(kvp => kvp.Key.FileUri, kvp => kvp.Value);
             var success = diagnosticsByFile.Values.SelectMany(x => x).All(d => d.Level != DiagnosticLevel.Error);
 
             using (new AssertionScope())
             {
-                diagnosticsByFile[mainUri].Should().HaveDiagnostics(new[] {
+                diagnosticsByFile[mainUri].ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                     ("BCP152", DiagnosticLevel.Error, "Function \"resourceId\" cannot be used as a decorator."),
-                    (NoUnusedParametersRule.Code, DiagnosticLevel.Warning, new NoUnusedParametersRule().GetMessage("foo")),
                     ("BCP152", DiagnosticLevel.Error, "Function \"concat\" cannot be used as a decorator."),
-                    (NoUnusedVariablesRule.Code, DiagnosticLevel.Warning, new NoUnusedVariablesRule().GetMessage("bar")),
                     ("BCP152", DiagnosticLevel.Error, "Function \"environment\" cannot be used as a decorator."),
                     ("BCP152", DiagnosticLevel.Error, "Function \"union\" cannot be used as a decorator."),
                     ("BCP152", DiagnosticLevel.Error, "Function \"guid\" cannot be used as a decorator."),

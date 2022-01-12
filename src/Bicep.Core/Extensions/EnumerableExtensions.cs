@@ -33,10 +33,18 @@ namespace Bicep.Core.Extensions
             where TSource : class
             => source.WhereNotNull().ToImmutableDictionary(x => keySelector(x), x => x, keyComparer);
 
+        public static ImmutableDictionary<TKey, TValue> ToImmutableDictionaryExcludingNullValues<TSource, TKey, TValue>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TValue?> elementSelector, IEqualityComparer<TKey> keyComparer)
+            where TKey : notnull
+            where TValue : class
+            => source.Select(x => (key: keySelector(x), value: elementSelector(x))).Where(x => x.value != null).ToImmutableDictionary(
+                kvp => kvp.key,
+                kvp => kvp.value!,
+                keyComparer);
+
         public static ImmutableHashSet<TSource> ToImmutableHashSetExcludingNull<TSource>(this IEnumerable<TSource?> source, IEqualityComparer<TSource> comparer)
             where TSource : class
             => source.WhereNotNull().ToImmutableHashSet(comparer);
-            
+
         public static IEnumerable<T> AsEnumerable<T>(this T single)
         {
             yield return single;
@@ -62,18 +70,13 @@ namespace Bicep.Core.Extensions
             }
         }
 
-        public static IEnumerable<TSource> DistinctBy<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector)
-        {
-            HashSet<TKey> keySet = new HashSet<TKey>();
+        public static ILookup<T, T> InvertLookup<T>(this ILookup<T, T> source)
+            => source.SelectMany(group => group.Select(val => (group.Key, val)))
+                .ToLookup(x => x.val, x => x.Key);
 
-            foreach (TSource element in source)
-            {
-                if (keySet.Add(keySelector(element)))
-                {
-                    yield return element;
-                }
-            }
-        }
+        public static ImmutableDictionary<TKey, ImmutableHashSet<TValue>> ToImmutableDictionary<TKey, TValue>(this ILookup<TKey, TValue> source)
+            where TKey : notnull
+            => source.ToImmutableDictionary(x => x.Key, x => x.ToImmutableHashSet());
     }
 }
 

@@ -2,23 +2,80 @@
 // Licensed under the MIT License.
 
 using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.Analyzers.Linter.Rules;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
+using FluentAssertions.Execution;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
 {
     public class LinterRuleTestsBase
     {
-        protected IDiagnostic[] GetDiagnostics(string ruleCode, string text)
+        public enum OnCompileErrors
         {
-            var compilationResult = CompilationHelper.Compile(text);
+            Fail, // Assertion fails if there are compiler errors
+            Ignore,
+        }
 
-            var internalRuleErrors = compilationResult.Diagnostics.Where(d => d.Code == LinterAnalyzer.FailedRuleCode).ToArray();
-            internalRuleErrors.Count().Should().Be(0, "There should never be linter FailedRuleCode errors");
+        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, string[] expectedMessagesForCode, OnCompileErrors onCompileErrors = OnCompileErrors.Fail)
+        {
+            AssertLinterRuleDiagnostics(ruleCode, bicepText, onCompileErrors, diags =>
+            {
+                diags.Select(d => d.Message).Should().BeEquivalentTo(expectedMessagesForCode);
+            });
+        }
 
-            return compilationResult.Diagnostics.OfType<IDiagnostic>().Where(d => d.Code == ruleCode).ToArray();
+        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, int expectedDiagnosticCountForCode, OnCompileErrors onCompileErrors = OnCompileErrors.Fail)
+        {
+            AssertLinterRuleDiagnostics(ruleCode, bicepText, onCompileErrors, diags =>
+            {
+                diags.Should().HaveCount(expectedDiagnosticCountForCode);
+            });
+        }
+
+        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, Action<IEnumerable<IDiagnostic>> assertAction)
+        {
+            AssertLinterRuleDiagnostics(ruleCode, bicepText, OnCompileErrors.Fail, assertAction);
+        }
+
+        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, OnCompileErrors onCompileErrors, Action<IEnumerable<IDiagnostic>> assertAction)
+        {
+            RunWithDiagnosticAnnotations(
+                  bicepText,
+                  diag => diag.Code == ruleCode || (onCompileErrors == OnCompileErrors.Fail && diag.Level == DiagnosticLevel.Error),
+                  onCompileErrors,
+                  assertAction);
+        }
+
+        private void RunWithDiagnosticAnnotations(string bicepText, Func<IDiagnostic, bool> filterFunc, OnCompileErrors onCompileErrors, Action<IEnumerable<IDiagnostic>> assertAction)
+        {
+            using (AssertionScope scope = new AssertionScope())
+            {
+                scope.AddReportable("bicep code", bicepText);
+
+                var result = CompilationHelper.Compile(bicepText);
+                result.Should().NotHaveDiagnosticsWithCodes(new[] { LinterAnalyzer.LinterRuleInternalError }, "There should never be linter LinterRuleInternalError errors");
+
+                if (onCompileErrors == OnCompileErrors.Fail)
+                {
+                    var compileErrors = result.Diagnostics.Where(d => d.Level == DiagnosticLevel.Error);
+                    DiagnosticAssertions.DoWithDiagnosticAnnotations(
+                    result.Compilation.SourceFileGrouping.EntryPoint,
+                    compileErrors,
+                    diags => diags.Should().HaveCount(0));
+                }
+
+                IDiagnostic[] diagnosticsMatchingCode = result.Diagnostics.Where(filterFunc).ToArray();
+                DiagnosticAssertions.DoWithDiagnosticAnnotations(
+                    result.Compilation.SourceFileGrouping.EntryPoint,
+                    result.Diagnostics.Where(filterFunc),
+                    assertAction);
+            }
         }
     }
 }

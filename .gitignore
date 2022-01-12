@@ -130,6 +130,7 @@ $tf/
 _ReSharper*/
 *.[Rr]e[Ss]harper
 *.DotSettings.user
+.idea
 
 # TeamCity is a build add-in
 _TeamCity*
@@ -361,10 +362,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-
-# Language Server bits
-bicepLanguageServer/
-src/vscode-bicep/bicepLanguageServer
 
 # user-specific launch settings for .net apps
 launchSettings.json

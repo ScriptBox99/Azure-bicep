@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "7781070043977821900"
+      "templateHash": "9461343632591088191"
     }
   },
   "parameters": {
@@ -24,14 +24,6 @@
         "Premium_ZRS",
         "Standard_GZRS",
         "Standard_RAGZRS"
-      ]
-    },
-    "tier": {
-      "type": "string",
-      "defaultValue": "Standard",
-      "allowedValues": [
-        "Standard",
-        "Premium"
       ]
     },
     "kind": {
@@ -62,7 +54,6 @@
       "defaultValue": "[resourceGroup().id]"
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -70,8 +61,7 @@
       "name": "[parameters('name')]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "[parameters('sku')]",
-        "tier": "[parameters('tier')]"
+        "name": "[parameters('sku')]"
       },
       "kind": "[parameters('kind')]",
       "properties": {

@@ -5,10 +5,9 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "9611155248110706966"
+      "templateHash": "6387300780410304062"
     }
   },
-  "functions": [],
   "variables": {
     "routeArray": [
       "OnPrem1",

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "17579601539293354052"
+      "templateHash": "15789291631431946618"
     }
   },
   "parameters": {
@@ -43,7 +43,6 @@
       "defaultValue": "[resourceGroup().location]"
     }
   },
-  "functions": [],
   "variables": {
     "namingInfix": "[toLower(substring(format('{0}{1}', parameters('vmssName'), uniqueString(resourceGroup().id)), 0, 9))]",
     "longNamingInfix": "[toLower(parameters('vmssName'))]",
@@ -208,7 +207,7 @@
       ]
     },
     {
-      "type": "microsoft.insights/autoscalesettings",
+      "type": "Microsoft.Insights/autoscalesettings",
       "apiVersion": "2015-04-01",
       "name": "cpuautoscale",
       "location": "[parameters('location')]",

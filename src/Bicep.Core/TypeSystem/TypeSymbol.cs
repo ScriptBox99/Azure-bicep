@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System;
 using Bicep.Core.Semantics;
-using Bicep.Core.Syntax;
 
 namespace Bicep.Core.TypeSystem
 {
@@ -11,7 +9,7 @@ namespace Bicep.Core.TypeSystem
         protected TypeSymbol(string name) : base(name)
         {
         }
-        
+
         public override SymbolKind Kind => SymbolKind.Type;
 
         public abstract TypeKind TypeKind { get; }
@@ -27,7 +25,7 @@ namespace Bicep.Core.TypeSystem
 
         public override string ToString()
         {
-            return this.Name;
+            return Name;
         }
 
         /// <summary>

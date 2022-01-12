@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "11131288573167988504"
+      "templateHash": "4897965198946026578"
     }
   },
   "parameters": {
@@ -30,7 +30,6 @@
       "defaultValue": true
     }
   },
-  "functions": [],
   "variables": {
     "hostingPlanName": "[parameters('applicationName')]",
     "location": "[resourceGroup().location]",
@@ -64,13 +63,19 @@
       "kind": "BlobStorage",
       "sku": {
         "name": "Standard_GRS"
+      },
+      "metadata": {
+        "description": "this is basicStorage"
       }
     },
     {
       "type": "Microsoft.Network/dnszones",
       "apiVersion": "2018-05-01",
       "name": "myZone",
-      "location": "global"
+      "location": "global",
+      "metadata": {
+        "description": "this is dnsZone"
+      }
     },
     {
       "type": "Microsoft.Storage/storageAccounts",
@@ -250,7 +255,7 @@
       "apiVersion": "2020-01-01",
       "name": "interpTest",
       "properties": {
-        "[variables('myInterpKey')]": 1,
+        "[format('{0}', variables('myInterpKey'))]": 1,
         "[format('abc{0}def', variables('myInterpKey'))]": 2,
         "[format('{0}abc{1}', variables('myInterpKey'), variables('myInterpKey'))]": 3
       }
@@ -275,6 +280,9 @@
             "enableAutomaticUpdates": true
           }
         }
+      },
+      "metadata": {
+        "description": "this is vmWithCondition"
       }
     },
     {
@@ -334,7 +342,10 @@
       "sku": {
         "name": "Standard_LRS"
       },
-      "kind": "StorageV2"
+      "kind": "StorageV2",
+      "metadata": {
+        "description": "this is just a storage account loop"
+      }
     },
     {
       "copy": {
@@ -348,7 +359,10 @@
       "sku": {
         "name": "Standard_LRS"
       },
-      "kind": "StorageV2"
+      "kind": "StorageV2",
+      "metadata": {
+        "description": "this is just a storage account loop with index"
+      }
     },
     {
       "copy": {
@@ -368,6 +382,9 @@
             }
           }
         ]
+      },
+      "metadata": {
+        "description": "this is just a basic nested loop"
       }
     },
     {

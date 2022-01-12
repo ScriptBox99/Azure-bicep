@@ -24,13 +24,14 @@ namespace Bicep.Core.TypeSystem
 
         private class TypeValidatorConfig
         {
-            public TypeValidatorConfig(bool skipTypeErrors, bool skipConstantCheck, bool disallowAny, SyntaxBase? originSyntax, TypeMismatchDiagnosticWriter? onTypeMismatch)
+            public TypeValidatorConfig(bool skipTypeErrors, bool skipConstantCheck, bool disallowAny, SyntaxBase? originSyntax, TypeMismatchDiagnosticWriter? onTypeMismatch, bool isResourceDeclaration)
             {
                 this.SkipTypeErrors = skipTypeErrors;
                 this.SkipConstantCheck = skipConstantCheck;
                 this.DisallowAny = disallowAny;
                 this.OriginSyntax = originSyntax;
                 this.OnTypeMismatch = onTypeMismatch;
+                this.IsResourceDeclaration = isResourceDeclaration;
             }
 
             public bool SkipTypeErrors { get; }
@@ -42,6 +43,8 @@ namespace Bicep.Core.TypeSystem
             public SyntaxBase? OriginSyntax { get; }
 
             public TypeMismatchDiagnosticWriter? OnTypeMismatch { get; }
+
+            public bool IsResourceDeclaration { get; }
         }
 
         private TypeValidator(ITypeManager typeManager, IBinder binder, IDiagnosticWriter diagnosticWriter)
@@ -83,72 +86,76 @@ namespace Bicep.Core.TypeSystem
                 return true;
             }
 
-            switch (targetType)
+            switch (sourceType, targetType)
             {
-                case AnyType _:
+                case (_, AnyType):
                     // values of all types can be assigned to the "any" type
                     return true;
 
-                case IScopeReference targetScope:
+                case (IScopeReference, IScopeReference):
                     // checking for valid combinations of scopes happens after type checking. this allows us to provide a richer & more intuitive error message.
-                    return sourceType is IScopeReference;
+                    return true;
 
-                case UnionType union when ReferenceEquals(union, LanguageConstants.ResourceOrResourceCollectionRefItem):
+                case (_, UnionType targetUnion) when ReferenceEquals(targetUnion, LanguageConstants.ResourceOrResourceCollectionRefItem):
                     return sourceType is IScopeReference || sourceType is ArrayType { Item: IScopeReference };
 
-                case TypeSymbol _ when sourceType is ResourceType sourceResourceType:
+                case (ResourceType sourceResourceType, ResourceParentType targetResourceParentType):
+                    // Assigning a resource to a parent property.
+                    return sourceResourceType.TypeReference.IsParentOf(targetResourceParentType.ChildTypeReference);
+
+                case (ResourceType sourceResourceType, _):
                     // When assigning a resource, we're really assigning the value of the resource body.
                     return AreTypesAssignable(sourceResourceType.Body.Type, targetType);
 
-                case TypeSymbol _ when sourceType is ModuleType sourceModuleType:
+                case (ModuleType sourceModuleType, _):
                     // When assigning a module, we're really assigning the value of the module body.
                     return AreTypesAssignable(sourceModuleType.Body.Type, targetType);
 
-                case StringLiteralType _ when sourceType is StringLiteralType:
+                case (StringLiteralType, StringLiteralType):
                     // The name *is* the escaped string value, so we must have an exact match.
                     return targetType.Name == sourceType.Name;
 
-                case StringLiteralType _ when sourceType is PrimitiveType:
+                case (PrimitiveType, StringLiteralType):
                     // We allow string to string literal assignment only in the case where the "AllowLooseStringAssignment" validation flag has been set.
                     // This is to allow parameters without 'allowed' values to be assigned to fields expecting enums.
                     // At some point we may want to consider flowing the enum type backwards to solve this more elegantly.
                     return sourceType.ValidationFlags.HasFlag(TypeSymbolValidationFlags.AllowLooseStringAssignment) && sourceType.Name == LanguageConstants.String.Name;
 
-                case PrimitiveType _ when sourceType is StringLiteralType:
+                case (StringLiteralType, PrimitiveType):
                     // string literals can be assigned to strings
                     return targetType.Name == LanguageConstants.String.Name;
 
-                case PrimitiveType _ when sourceType is PrimitiveType:
+                case (PrimitiveType, PrimitiveType):
                     // both types are primitive
                     // compare by type name
                     return string.Equals(sourceType.Name, targetType.Name, StringComparison.Ordinal);
 
-                case ObjectType _ when sourceType is ObjectType:
+                case (ObjectType, ObjectType):
                     // both types are objects
                     // this function does not implement any schema validation, so this is far as we go
                     return true;
 
-                case ArrayType _ when sourceType is ArrayType:
+                case (ArrayType, ArrayType):
                     // both types are arrays
                     // this function does not validate item types
                     return true;
 
-                case DiscriminatedObjectType _ when sourceType is DiscriminatedObjectType:
+                case (DiscriminatedObjectType, DiscriminatedObjectType):
                     // validation left for later
                     return true;
 
-                case DiscriminatedObjectType _ when sourceType is ObjectType:
+                case (ObjectType, DiscriminatedObjectType):
                     // validation left for later
                     return true;
 
-                case TypeSymbol _ when sourceType is UnionType sourceUnion:
+                case (UnionType sourceUnion, _):
                     // union types are guaranteed to be flat
 
                     // TODO: Replace with some sort of set intersection
                     // are all source type members assignable to the target type?
                     return sourceUnion.Members.All(sourceMember => AreTypesAssignable(sourceMember.Type, targetType) == true);
 
-                case UnionType targetUnion:
+                case (_, UnionType targetUnion):
                     // the source type should be a singleton type
                     Debug.Assert(!(sourceType is UnionType), "!(sourceType is UnionType)");
 
@@ -164,14 +171,15 @@ namespace Bicep.Core.TypeSystem
         public static bool ShouldWarn(TypeSymbol targetType)
             => targetType.ValidationFlags.HasFlag(TypeSymbolValidationFlags.WarnOnTypeMismatch);
 
-        public static TypeSymbol NarrowTypeAndCollectDiagnostics(ITypeManager typeManager, IBinder binder, IDiagnosticWriter diagnosticWriter, SyntaxBase expression, TypeSymbol targetType)
+        public static TypeSymbol NarrowTypeAndCollectDiagnostics(ITypeManager typeManager, IBinder binder, IDiagnosticWriter diagnosticWriter, SyntaxBase expression, TypeSymbol targetType, bool isResourceDeclaration = false)
         {
             var config = new TypeValidatorConfig(
                 skipTypeErrors: false,
                 skipConstantCheck: false,
                 disallowAny: false,
                 originSyntax: null,
-                onTypeMismatch: null);
+                onTypeMismatch: null,
+                isResourceDeclaration: isResourceDeclaration);
 
             var validator = new TypeValidator(typeManager, binder, diagnosticWriter);
 
@@ -206,7 +214,7 @@ namespace Bicep.Core.TypeSystem
                     {
                         var narrowedBody = NarrowType(config, expression, targetResourceType.Body.Type);
 
-                        return new ResourceType(targetResourceType.TypeReference, targetResourceType.ValidParentScopes, narrowedBody);
+                        return new ResourceType(targetResourceType.DeclaringNamespace, targetResourceType.TypeReference, targetResourceType.ValidParentScopes, narrowedBody, targetResourceType.UniqueIdentifierProperties);
                     }
                 case ModuleType targetModuleType:
                     {
@@ -280,7 +288,7 @@ namespace Bicep.Core.TypeSystem
             {
                 // we need to narrow each union member so diagnostics get collected correctly
                 // until we get union type simplification logic, this could generate duplicate diagnostics
-                return UnionType.Create(targetUnionType.Members
+                return TypeHelper.CreateTypeUnion(targetUnionType.Members
                     .Where(x => AreTypesAssignable(expressionType, x.Type))
                     .Select(x => NarrowType(config, expression, x.Type)));
             }
@@ -305,14 +313,15 @@ namespace Bicep.Core.TypeSystem
                     skipTypeErrors: true,
                     disallowAny: config.DisallowAny,
                     originSyntax: config.OriginSyntax,
-                    onTypeMismatch: (expected, actual, position) => diagnosticWriter.Write(position, x => x.ArrayTypeMismatch(ShouldWarn(targetType), expected, actual)));
+                    onTypeMismatch: (expected, actual, position) => diagnosticWriter.Write(position, x => x.ArrayTypeMismatch(ShouldWarn(targetType), expected, actual)),
+                    isResourceDeclaration: config.IsResourceDeclaration);
 
                 var narrowedType = NarrowType(newConfig, arrayItemSyntax.Value, targetType.Item.Type);
 
                 arrayProperties.Add(narrowedType);
             }
 
-            return new TypedArrayType(UnionType.Create(arrayProperties), targetType.ValidationFlags);
+            return new TypedArrayType(TypeHelper.CreateTypeUnion(arrayProperties), targetType.ValidationFlags);
         }
 
         private TypeSymbol NarrowVariableAccessType(TypeValidatorConfig config, VariableAccessSyntax variableAccess, TypeSymbol targetType)
@@ -322,7 +331,8 @@ namespace Bicep.Core.TypeSystem
                 skipTypeErrors: config.SkipTypeErrors,
                 disallowAny: config.DisallowAny,
                 originSyntax: variableAccess,
-                onTypeMismatch: config.OnTypeMismatch);
+                onTypeMismatch: config.OnTypeMismatch,
+                isResourceDeclaration: config.IsResourceDeclaration);
 
             // TODO: Implement for non-variable variable access (resource, module, param)
             switch (binder.GetSymbolInfo(variableAccess))
@@ -371,44 +381,58 @@ namespace Bicep.Core.TypeSystem
             // Let's not do this just yet, and see if a use-case arises.
 
             var discriminatorType = typeManager.GetTypeInfo(discriminatorProperty.Value);
-            if (discriminatorType is not StringLiteralType stringLiteralDiscriminator)
+            switch (discriminatorType)
             {
-                diagnosticWriter.Write(
-                    config.OriginSyntax ?? expression,
-                    x => x.PropertyTypeMismatch(ShouldWarn(targetType), TryGetSourceDeclaration(config), targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, discriminatorType));
-                return LanguageConstants.Any;
+                case AnyType:
+                    return LanguageConstants.Any;
+
+                case StringLiteralType stringLiteralDiscriminator:
+                    if (!targetType.UnionMembersByKey.TryGetValue(stringLiteralDiscriminator.Name, out var selectedObjectReference))
+                    {
+                        // no matches
+                        var discriminatorCandidates = targetType.UnionMembersByKey.Keys.OrderBy(x => x);
+                        bool shouldWarn = ShouldWarn(targetType);
+
+                        diagnosticWriter.Write(
+                            config.OriginSyntax ?? discriminatorProperty.Value,
+                            x =>
+                            {
+                                var sourceDeclaration = TryGetSourceDeclaration(config);
+
+                                if (sourceDeclaration is null && SpellChecker.GetSpellingSuggestion(stringLiteralDiscriminator.Name, discriminatorCandidates) is { } suggestion)
+                                {
+                                    // only look up suggestions if we're not sourcing this type from another declaration.
+                                    return x.PropertyStringLiteralMismatchWithSuggestion(shouldWarn, targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, stringLiteralDiscriminator.Name, suggestion);
+                                }
+
+                                return x.PropertyTypeMismatch(shouldWarn, sourceDeclaration, targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, discriminatorType);
+                            });
+
+                        return LanguageConstants.Any;
+                    }
+
+                    if (selectedObjectReference.Type is not ObjectType selectedObjectType)
+                    {
+                        throw new InvalidOperationException($"Discriminated type {targetType.Name} contains non-object member");
+                    }
+
+                    // we have a match!
+                    return NarrowObjectType(config, expression, selectedObjectType);
+
+                // ReSharper disable once ConvertTypeCheckPatternToNullCheck - using null pattern check causes compiler to think that discriminatorType might be null in the default clause.
+                case TypeSymbol when AreTypesAssignable(discriminatorType, targetType.DiscriminatorKeysUnionType):
+                    //check if discriminatorType is a subset of targetType.DiscriminatorKeysUnionType.
+                    //If match - then warn with message that using property is not recommended and type validation is suspended and return generic object type
+                    diagnosticWriter.Write(discriminatorProperty.Value, x => x.AmbiguousDiscriminatorPropertyValue(targetType.DiscriminatorKey));
+                    //TODO: make a deep merge of the discriminator types to return combined object for type checking. Additionally, we need to cover hints.
+                    return LanguageConstants.Any;
+
+                default:
+                    diagnosticWriter.Write(
+                        config.OriginSyntax ?? discriminatorProperty.Value,
+                        x => x.PropertyTypeMismatch(ShouldWarn(targetType), TryGetSourceDeclaration(config), targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, discriminatorType));
+                    return LanguageConstants.Any;
             }
-
-            if (!targetType.UnionMembersByKey.TryGetValue(stringLiteralDiscriminator.Name, out var selectedObjectReference))
-            {
-                // no matches
-                var discriminatorCandidates = targetType.UnionMembersByKey.Keys.OrderBy(x => x);
-                bool shouldWarn = ShouldWarn(targetType);
-
-                diagnosticWriter.Write(
-                    config.OriginSyntax ?? discriminatorProperty.Value,
-                    x => {
-                        var sourceDeclaration = TryGetSourceDeclaration(config);
-
-                        if (sourceDeclaration is null && SpellChecker.GetSpellingSuggestion(stringLiteralDiscriminator.Name, discriminatorCandidates) is {} suggestion)
-                        {
-                            // only look up suggestions if we're not sourcing this type from another declaration.
-                            return x.PropertyStringLiteralMismatchWithSuggestion(shouldWarn, targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, stringLiteralDiscriminator.Name, suggestion);
-                        }
-
-                        return x.PropertyTypeMismatch(shouldWarn, sourceDeclaration, targetType.DiscriminatorKey, targetType.DiscriminatorKeysUnionType, discriminatorType);
-                    });
-
-                return LanguageConstants.Any;
-            }
-
-            if (selectedObjectReference.Type is not ObjectType selectedObjectType)
-            {
-                throw new InvalidOperationException($"Discriminated type {targetType.Name} contains non-object member");
-            }
-
-            // we have a match!
-            return NarrowObjectType(config, expression, selectedObjectType);
         }
 
         private TypeSymbol NarrowObjectType(TypeValidatorConfig config, ObjectSyntax expression, ObjectType targetType)
@@ -416,14 +440,14 @@ namespace Bicep.Core.TypeSystem
             static (TypeSymbol type, bool typeWasPreserved) AddImplicitNull(TypeSymbol propertyType, TypePropertyFlags propertyFlags)
             {
                 bool preserveType = propertyFlags.HasFlag(TypePropertyFlags.Required) || !propertyFlags.HasFlag(TypePropertyFlags.AllowImplicitNull);
-                return (preserveType ? propertyType : UnionType.Create(propertyType, LanguageConstants.Null), preserveType);
+                return (preserveType ? propertyType : TypeHelper.CreateTypeUnion(propertyType, LanguageConstants.Null), preserveType);
             }
 
             static TypeSymbol RemoveImplicitNull(TypeSymbol type, bool typeWasPreserved)
             {
                 return typeWasPreserved || type is not UnionType unionType
                     ? type
-                    : UnionType.Create(unionType.Members.Where(m => m != LanguageConstants.Null));
+                    : TypeHelper.CreateTypeUnion(unionType.Members.Where(m => m != LanguageConstants.Null));
             }
 
             // TODO: Short-circuit on any object to avoid unnecessary processing?
@@ -447,8 +471,8 @@ namespace Bicep.Core.TypeSystem
                 var (positionable, blockName) = GetMissingPropertyContext(expression);
 
                 diagnosticWriter.Write(
-                    config.OriginSyntax ?? positionable, 
-                    x => x.MissingRequiredProperties(ShouldWarn(targetType), TryGetSourceDeclaration(config), missingRequiredProperties, blockName));
+                    config.OriginSyntax ?? positionable,
+                    x => x.MissingRequiredProperties(ShouldWarn(targetType), TryGetSourceDeclaration(config), expression, missingRequiredProperties, blockName));
             }
 
             var narrowedProperties = new List<TypeProperty>();
@@ -486,12 +510,18 @@ namespace Bicep.Core.TypeSystem
                         continue;
                     }
 
+                    if (declaredProperty.Flags.HasFlag(TypePropertyFlags.FallbackProperty))
+                    {
+                        diagnosticWriter.Write(config.OriginSyntax ?? declaredPropertySyntax.Key, x => x.FallbackPropertyUsed(declaredProperty.Name));
+                    }
+
                     var newConfig = new TypeValidatorConfig(
                         skipConstantCheck: skipConstantCheckForProperty,
                         skipTypeErrors: true,
                         disallowAny: declaredProperty.Flags.HasFlag(TypePropertyFlags.DisallowAny),
                         originSyntax: config.OriginSyntax,
-                        onTypeMismatch: GetPropertyMismatchDiagnosticWriter(config, ShouldWarn(targetType), declaredProperty.Name));
+                        onTypeMismatch: GetPropertyMismatchDiagnosticWriter(config, ShouldWarn(targetType), declaredProperty.Name),
+                        isResourceDeclaration: config.IsResourceDeclaration);
 
                     // append "| null" to the property type for non-required properties
                     var (propertyAssignmentType, typeWasPreserved) = AddImplicitNull(declaredProperty.TypeReference.Type, declaredProperty.Flags);
@@ -509,7 +539,7 @@ namespace Bicep.Core.TypeSystem
 
             // find properties that are specified on in the expression object but not declared in the schema
             var extraProperties = expression.Properties
-                .Where(p => !(p.TryGetKeyText() is string keyName) || !targetType.Properties.ContainsKey(keyName));
+                .Where(p => p.TryGetKeyText() is not string keyName || !targetType.Properties.ContainsKey(keyName));
 
             if (targetType.AdditionalPropertiesType == null)
             {
@@ -517,12 +547,13 @@ namespace Bicep.Core.TypeSystem
 
                 var shouldWarn = ShouldWarn(targetType);
                 var validUnspecifiedProperties = targetType.Properties.Values
-                    .Where(p => !p.Flags.HasFlag(TypePropertyFlags.ReadOnly) && !namedPropertyMap.ContainsKey(p.Name))
+                    .Where(p => !p.Flags.HasFlag(TypePropertyFlags.ReadOnly) && !p.Flags.HasFlag(TypePropertyFlags.FallbackProperty) && !namedPropertyMap.ContainsKey(p.Name))
                     .Select(p => p.Name)
                     .OrderBy(x => x);
-                                
+
                 foreach (var extraProperty in extraProperties)
                 {
+
                     diagnosticWriter.Write(config.OriginSyntax ?? extraProperty.Key, x =>
                     {
                         var sourceDeclaration = TryGetSourceDeclaration(config);
@@ -532,13 +563,13 @@ namespace Bicep.Core.TypeSystem
                             return x.DisallowedInterpolatedKeyProperty(shouldWarn, sourceDeclaration, targetType, validUnspecifiedProperties);
                         }
 
-                        if (sourceDeclaration is null && SpellChecker.GetSpellingSuggestion(keyName, validUnspecifiedProperties) is {} suggestedKeyName)
+                        if (sourceDeclaration is null && SpellChecker.GetSpellingSuggestion(keyName, validUnspecifiedProperties) is { } suggestedKeyName)
                         {
                             // only look up suggestions if we're not sourcing this type from another declaration.
                             return x.DisallowedPropertyWithSuggestion(shouldWarn, keyName, targetType, suggestedKeyName);
                         }
 
-                        return x.DisallowedProperty(shouldWarn, sourceDeclaration, keyName, targetType, validUnspecifiedProperties);
+                        return x.DisallowedProperty(shouldWarn, sourceDeclaration, keyName, targetType, validUnspecifiedProperties, config.IsResourceDeclaration);
                     });
                 }
             }
@@ -570,7 +601,8 @@ namespace Bicep.Core.TypeSystem
                         skipTypeErrors: true,
                         disallowAny: targetType.AdditionalPropertiesFlags.HasFlag(TypePropertyFlags.DisallowAny),
                         originSyntax: config.OriginSyntax,
-                        onTypeMismatch: onTypeMismatch);
+                        onTypeMismatch: onTypeMismatch,
+                        isResourceDeclaration: config.IsResourceDeclaration);
 
                     // append "| null" to the type on non-required properties
                     var (additionalPropertiesAssignmentType, _) = AddImplicitNull(targetType.AdditionalPropertiesType.Type, targetType.AdditionalPropertiesFlags);
@@ -582,7 +614,7 @@ namespace Bicep.Core.TypeSystem
                 }
             }
 
-            return new ObjectType(targetType.Name, targetType.ValidationFlags, narrowedProperties, targetType.AdditionalPropertiesType, targetType.AdditionalPropertiesFlags, targetType.MethodResolver);
+            return new ObjectType(targetType.Name, targetType.ValidationFlags, narrowedProperties, targetType.AdditionalPropertiesType, targetType.AdditionalPropertiesFlags, targetType.MethodResolver.CopyToObject);
         }
 
         private (IPositionable positionable, string blockName) GetMissingPropertyContext(SyntaxBase expression)
@@ -594,6 +626,9 @@ namespace Bicep.Core.TypeSystem
             {
                 // for properties, put it on the property name in the parent object
                 ObjectPropertySyntax objectPropertyParent => (objectPropertyParent.Key, "object"),
+
+                // for import declarations, mark the entire configuration object
+                ImportDeclarationSyntax importParent => (expression, "object"),
 
                 // for declaration bodies, put it on the declaration identifier
                 ITopLevelNamedDeclarationSyntax declarationParent => (declarationParent.Name, declarationParent.Keyword.Text),
@@ -627,7 +662,8 @@ namespace Bicep.Core.TypeSystem
             {
                 diagnosticWriter.Write(
                     config.OriginSyntax ?? errorExpression,
-                    x => {
+                    x =>
+                    {
                         var sourceDeclaration = TryGetSourceDeclaration(config);
 
                         if (sourceDeclaration is not null)
@@ -636,7 +672,7 @@ namespace Bicep.Core.TypeSystem
                             return x.PropertyTypeMismatch(shouldWarn, sourceDeclaration, propertyName, expectedType, actualType);
                         }
 
-                        if (actualType is StringLiteralType actualStringLiteral && TryGetStringLiteralSuggestion(actualStringLiteral, expectedType) is {} suggestion)
+                        if (actualType is StringLiteralType actualStringLiteral && TryGetStringLiteralSuggestion(actualStringLiteral, expectedType) is { } suggestion)
                         {
                             return x.PropertyStringLiteralMismatchWithSuggestion(shouldWarn, propertyName, expectedType, actualType.Name, suggestion);
                         }
@@ -656,7 +692,7 @@ namespace Bicep.Core.TypeSystem
             if (expectedType is UnionType unionType && unionType.Members.All(typeReference => typeReference.Type is StringLiteralType))
             {
                 var stringLiteralCandidates = unionType.Members.Select(typeReference => typeReference.Type.Name).OrderBy(s => s);
-                
+
                 return SpellChecker.GetSpellingSuggestion(actualType.Name, stringLiteralCandidates);
             }
 

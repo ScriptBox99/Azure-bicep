@@ -5,10 +5,12 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.FileSystem;
 using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
+using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
@@ -53,7 +55,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
             TypeValidator.AreTypesAssignable(LanguageConstants.Any, LanguageConstants.Array).Should().BeTrue();
             TypeValidator.AreTypesAssignable(LanguageConstants.Any, LanguageConstants.Object).Should().BeTrue();
             TypeValidator.AreTypesAssignable(LanguageConstants.Any, LanguageConstants.Null).Should().BeTrue();
-            TypeValidator.AreTypesAssignable(LanguageConstants.Any, LanguageConstants.Tags).Should().BeTrue();
+            TypeValidator.AreTypesAssignable(LanguageConstants.Any, AzResourceTypeProvider.Tags).Should().BeTrue();
             TypeValidator.AreTypesAssignable(LanguageConstants.Any, LanguageConstants.ParameterModifierMetadata).Should().BeTrue();
         }
 
@@ -87,61 +89,61 @@ namespace Bicep.Core.UnitTests.TypeSystem
         [TestMethod]
         public void NothingShouldBeAssignableToNeverType()
         {
-            var never = UnionType.Create(Enumerable.Empty<ITypeReference>());
+            var never = TypeHelper.CreateTypeUnion(Enumerable.Empty<ITypeReference>());
             TypeValidator.AreTypesAssignable(LanguageConstants.Bool, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.Int, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.String, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.Array, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.Object, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.Null, never).Should().BeFalse();
-            TypeValidator.AreTypesAssignable(LanguageConstants.Tags, never).Should().BeFalse();
+            TypeValidator.AreTypesAssignable(AzResourceTypeProvider.Tags, never).Should().BeFalse();
             TypeValidator.AreTypesAssignable(LanguageConstants.ParameterModifierMetadata, never).Should().BeFalse();
         }
 
         [TestMethod]
         public void OnlyMemberOfUnionShouldBeAssignableToUnion()
         {
-            var union = UnionType.Create(LanguageConstants.Bool, LanguageConstants.Int);
+            var union = TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.Int);
 
             TypeValidator.AreTypesAssignable(LanguageConstants.Int, union).Should().BeTrue();
             TypeValidator.AreTypesAssignable(LanguageConstants.Bool, union).Should().BeTrue();
-            
+
             TypeValidator.AreTypesAssignable(LanguageConstants.String, union).Should().BeFalse();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.String, LanguageConstants.Null), union).Should().BeFalse();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.String, LanguageConstants.Null), union).Should().BeFalse();
         }
 
         [TestMethod]
         public void UnionSubsetShouldBeAssignableToUnion()
         {
-            var union = UnionType.Create(LanguageConstants.Int, LanguageConstants.Bool, LanguageConstants.String);
+            var union = TypeHelper.CreateTypeUnion(LanguageConstants.Int, LanguageConstants.Bool, LanguageConstants.String);
 
             TypeValidator.AreTypesAssignable(LanguageConstants.Bool, union).Should().BeTrue();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.Bool, LanguageConstants.String), union).Should().BeTrue();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.Bool, LanguageConstants.Int), union).Should().BeTrue();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.Bool, LanguageConstants.String, LanguageConstants.Int), union).Should().BeTrue();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.String), union).Should().BeTrue();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.Int), union).Should().BeTrue();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.String, LanguageConstants.Int), union).Should().BeTrue();
         }
 
         [TestMethod]
         public void UnionSupersetShouldNotBeAssignableToUnion()
         {
-            var union = UnionType.Create(LanguageConstants.Bool, LanguageConstants.String);
+            var union = TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.String);
 
             TypeValidator.AreTypesAssignable(LanguageConstants.Int, union).Should().BeFalse();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.Bool, LanguageConstants.Int), union).Should().BeFalse();
-            TypeValidator.AreTypesAssignable(UnionType.Create(LanguageConstants.Bool, LanguageConstants.Int, LanguageConstants.String), union).Should().BeFalse();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.Int), union).Should().BeFalse();
+            TypeValidator.AreTypesAssignable(TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.Int, LanguageConstants.String), union).Should().BeFalse();
         }
 
         [TestMethod]
         public void UnionShouldBeAssignableToTypeIfAllMembersAre()
         {
-            var boolIntUnion = UnionType.Create(LanguageConstants.Bool, LanguageConstants.Int);
-            var stringUnion = UnionType.Create(LanguageConstants.String);
+            var boolIntUnion = TypeHelper.CreateTypeUnion(LanguageConstants.Bool, LanguageConstants.Int);
+            var stringUnion = TypeHelper.CreateTypeUnion(LanguageConstants.String);
             TypeValidator.AreTypesAssignable(stringUnion, LanguageConstants.String).Should().BeTrue();
             TypeValidator.AreTypesAssignable(stringUnion, LanguageConstants.Bool).Should().BeFalse();
             TypeValidator.AreTypesAssignable(stringUnion, boolIntUnion).Should().BeFalse();
 
-            var logLevelsUnion = UnionType.Create(new StringLiteralType("Error"), new StringLiteralType("Warning"), new StringLiteralType("Info"));
-            var failureLogLevelsUnion = UnionType.Create(new StringLiteralType("Error"), new StringLiteralType("Warning"));
+            var logLevelsUnion = TypeHelper.CreateTypeUnion(new StringLiteralType("Error"), new StringLiteralType("Warning"), new StringLiteralType("Info"));
+            var failureLogLevelsUnion = TypeHelper.CreateTypeUnion(new StringLiteralType("Error"), new StringLiteralType("Warning"));
             TypeValidator.AreTypesAssignable(logLevelsUnion, LanguageConstants.String).Should().BeTrue();
             TypeValidator.AreTypesAssignable(logLevelsUnion, stringUnion).Should().BeTrue();
             TypeValidator.AreTypesAssignable(logLevelsUnion, boolIntUnion).Should().BeFalse();
@@ -177,7 +179,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
         {
             var literalVal1 = new StringLiteralType("evie");
             var literalVal2 = new StringLiteralType("casper");
-            var literalUnion = UnionType.Create(literalVal1, literalVal2);
+            var literalUnion = TypeHelper.CreateTypeUnion(literalVal1, literalVal2);
 
             var genericString = LanguageConstants.String;
             var looseString = LanguageConstants.LooseString;
@@ -283,7 +285,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, CreateDummyResourceType());
 
-            diagnostics.OrderBy(x => x.Message).Should().HaveDiagnostics(new [] {
+            diagnostics.OrderBy(x => x.Message).Should().HaveDiagnostics(new[] {
                 ("BCP034", DiagnosticLevel.Error, "The enclosing array expected an item of type \"string\", but the provided item was of type \"bool\"."),
                 ("BCP034", DiagnosticLevel.Error, "The enclosing array expected an item of type \"string\", but the provided item was of type \"int\"."),
                 ("BCP036", DiagnosticLevel.Error, "The property \"managedByExtended\" expected a value of type \"string[]\" but the provided value is of type \"'not an array'\"."),
@@ -307,7 +309,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
         [TestMethod]
         public void RequiredPropertyWithParseErrorsShouldProduceNoErrors()
         {
-            var obj = TestSyntaxFactory.CreateObject(new []
+            var obj = TestSyntaxFactory.CreateObject(new[]
             {
                 TestSyntaxFactory.CreateProperty("dupe", TestSyntaxFactory.CreateString("a")),
                 TestSyntaxFactory.CreateProperty("dupe", TestSyntaxFactory.CreateString("a"))
@@ -339,7 +341,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, CreateDummyResourceType());
 
-            diagnostics.OrderBy(x => x.Message).Should().HaveDiagnostics(new [] {
+            diagnostics.OrderBy(x => x.Message).Should().HaveDiagnostics(new[] {
                 ("BCP036", DiagnosticLevel.Error, "The property \"wrongTagType\" expected a value of type \"string\" but the provided value is of type \"bool\"."),
                 ("BCP036", DiagnosticLevel.Error, "The property \"wrongTagType2\" expected a value of type \"string\" but the provided value is of type \"int\"."),
             });
@@ -362,7 +364,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
             hierarchy.AddRoot(obj);
 
             var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, CreateDummyResourceType());
-            
+
             diagnostics.Should().BeEmpty();
         }
 
@@ -373,15 +375,15 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 "discObj",
                 TypeSymbolValidationFlags.Default,
                 "myDiscriminator",
-                new []
+                new[]
                 {
                     new ObjectType("typeA", TypeSymbolValidationFlags.Default, new []
-                    { 
+                    {
                         new TypeProperty("myDiscriminator", new StringLiteralType("valA")),
                         new TypeProperty("fieldA", LanguageConstants.Any, TypePropertyFlags.Required),
                     }, null),
                     new ObjectType("typeB", TypeSymbolValidationFlags.Default, new []
-                    { 
+                    {
                         new TypeProperty("myDiscriminator", new StringLiteralType("valB")),
                         new TypeProperty("fieldB", LanguageConstants.Any, TypePropertyFlags.Required),
                     }, null),
@@ -389,7 +391,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             {
                 // no discriminator field supplied
-                var obj = TestSyntaxFactory.CreateObject(new []
+                var obj = TestSyntaxFactory.CreateObject(new[]
                 {
                     TestSyntaxFactory.CreateProperty("fieldA", TestSyntaxFactory.CreateString("someVal")),
                 });
@@ -400,7 +402,8 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, discriminatedType);
 
                 diagnostics.Should().SatisfyRespectively(
-                    x => {
+                    x =>
+                    {
                         x.Message.Should().Be("The property \"myDiscriminator\" requires a value of type \"'valA' | 'valB'\", but none was supplied.");
                     });
                 narrowedType.Should().BeOfType<AnyType>();
@@ -408,7 +411,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             {
                 // incorrect type specified for the discriminator field
-                var obj = TestSyntaxFactory.CreateObject(new []
+                var obj = TestSyntaxFactory.CreateObject(new[]
                 {
                     TestSyntaxFactory.CreateProperty("myDiscriminator", TestSyntaxFactory.CreateObject(Enumerable.Empty<ObjectPropertySyntax>())),
                     TestSyntaxFactory.CreateProperty("fieldB", TestSyntaxFactory.CreateString("someVal")),
@@ -420,7 +423,8 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, discriminatedType);
 
                 diagnostics.Should().SatisfyRespectively(
-                    x => {
+                    x =>
+                    {
                         x.Message.Should().Be("The property \"myDiscriminator\" expected a value of type \"'valA' | 'valB'\" but the provided value is of type \"object\".");
                     });
                 narrowedType.Should().BeOfType<AnyType>();
@@ -428,7 +432,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             {
                 // discriminator value that matches neither option supplied
-                var obj = TestSyntaxFactory.CreateObject(new []
+                var obj = TestSyntaxFactory.CreateObject(new[]
                 {
                     TestSyntaxFactory.CreateProperty("myDiscriminator", TestSyntaxFactory.CreateString("valC")),
                 });
@@ -439,7 +443,8 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, discriminatedType);
 
                 diagnostics.Should().SatisfyRespectively(
-                    x => {
+                    x =>
+                    {
                         x.Message.Should().Be("The property \"myDiscriminator\" expected a value of type \"'valA' | 'valB'\" but the provided value is of type \"'valC'\". Did you mean \"'valA'\"?");
                     });
                 narrowedType.Should().BeOfType<AnyType>();
@@ -447,7 +452,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             {
                 // missing required property for the 'valB' branch
-                var obj = TestSyntaxFactory.CreateObject(new []
+                var obj = TestSyntaxFactory.CreateObject(new[]
                 {
                     TestSyntaxFactory.CreateProperty("myDiscriminator", TestSyntaxFactory.CreateString("valB")),
                 });
@@ -458,7 +463,8 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, obj, discriminatedType);
 
                 diagnostics.Should().SatisfyRespectively(
-                    x => {
+                    x =>
+                    {
                         x.Message.Should().Be("The specified \"object\" declaration is missing the following required properties: \"fieldB\".");
                     });
 
@@ -473,7 +479,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
             {
                 // supplied the required property for the 'valB' branch
-                var obj = TestSyntaxFactory.CreateObject(new []
+                var obj = TestSyntaxFactory.CreateObject(new[]
                 {
                     TestSyntaxFactory.CreateProperty("myDiscriminator", TestSyntaxFactory.CreateString("valB")),
                     TestSyntaxFactory.CreateProperty("fieldB", TestSyntaxFactory.CreateString("someVal")),
@@ -500,7 +506,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
         [TestMethod]
         public void UnionType_narrowing_and_diagnostics_provides_expected_results()
         {
-            var unionType = UnionType.Create(
+            var unionType = TypeHelper.CreateTypeUnion(
                 LanguageConstants.String,
                 LanguageConstants.Int,
                 LanguageConstants.Bool);
@@ -511,7 +517,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 // pick a valid path (int) - we should narrow the union type to just int
                 var intSyntax = TestSyntaxFactory.CreateInt(1234);
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, intSyntax, unionType);
-                
+
                 diagnostics.Should().BeEmpty();
                 narrowedType.Should().Be(LanguageConstants.Int);
             }
@@ -521,7 +527,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 var objectSyntax = TestSyntaxFactory.CreateObject(Enumerable.Empty<ObjectPropertySyntax>());
                 hierarchy.AddRoot(objectSyntax);
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, objectSyntax, unionType);
-                
+
                 diagnostics.Should().Contain(x => x.Message == "Expected a value of type \"bool | int | string\" but the provided value is of type \"object\".");
                 narrowedType.Should().Be(unionType);
             }
@@ -530,12 +536,12 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 // try narrowing with a string
                 var stringLiteralSyntax = TestSyntaxFactory.CreateString("abc");
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, stringLiteralSyntax, unionType);
-                
+
                 diagnostics.Should().BeEmpty();
                 narrowedType.Should().Be(LanguageConstants.String);
             }
 
-            var stringLiteralUnionType = UnionType.Create(
+            var stringLiteralUnionType = TypeHelper.CreateTypeUnion(
                 new StringLiteralType("dave"),
                 new StringLiteralType("nora"));
 
@@ -543,7 +549,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 // union of string literals with matching type
                 var stringLiteralSyntax = TestSyntaxFactory.CreateString("nora");
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, stringLiteralSyntax, stringLiteralUnionType);
-                
+
                 diagnostics.Should().BeEmpty();
                 narrowedType.Should().BeOfType<StringLiteralType>();
                 (narrowedType as StringLiteralType)!.Name.Should().Be("'nora'");
@@ -553,7 +559,7 @@ namespace Bicep.Core.UnitTests.TypeSystem
                 // union of string literals with non-matching type
                 var stringLiteralSyntax = TestSyntaxFactory.CreateString("zona");
                 var (narrowedType, diagnostics) = NarrowTypeAndCollectDiagnostics(hierarchy, stringLiteralSyntax, stringLiteralUnionType);
-                
+
                 diagnostics.Should().Contain(x => x.Message == "Expected a value of type \"'dave' | 'nora'\" but the provided value is of type \"'zona'\".");
                 narrowedType.Should().Be(stringLiteralUnionType);
             }
@@ -568,14 +574,14 @@ namespace Bicep.Core.UnitTests.TypeSystem
 
         private static IEnumerable<object[]> GetData()
         {
-            static object[] CreateRow(string name, ObjectSyntax @object) => new object[] {name, @object};
+            static object[] CreateRow(string name, ObjectSyntax @object) => new object[] { name, @object };
 
             // empty object
             yield return CreateRow("Empty", TestSyntaxFactory.CreateObject(new ObjectPropertySyntax[0]));
 
-            yield return CreateRow("StringProperty", TestSyntaxFactory.CreateObject(new[] {TestSyntaxFactory.CreateProperty("test", TestSyntaxFactory.CreateString("value"))}));
+            yield return CreateRow("StringProperty", TestSyntaxFactory.CreateObject(new[] { TestSyntaxFactory.CreateProperty("test", TestSyntaxFactory.CreateString("value")) }));
 
-            yield return CreateRow("IntProperty", TestSyntaxFactory.CreateObject(new[] {TestSyntaxFactory.CreateProperty("test", TestSyntaxFactory.CreateInt(42))}));
+            yield return CreateRow("IntProperty", TestSyntaxFactory.CreateObject(new[] { TestSyntaxFactory.CreateProperty("test", TestSyntaxFactory.CreateInt(42)) }));
 
             yield return CreateRow("MixedProperties", TestSyntaxFactory.CreateObject(new[]
             {
@@ -601,17 +607,24 @@ namespace Bicep.Core.UnitTests.TypeSystem
         {
             var typeProvider = TestTypeHelper.CreateEmptyProvider();
             var typeReference = ResourceTypeReference.Parse("Mock.Rp/mockType@2020-01-01");
+            var azNamespaceType = typeProvider.TryGetNamespace("az", "az", ResourceScope.ResourceGroup)!;
 
-            return typeProvider.GetType(typeReference, ResourceTypeGenerationFlags.None);
+            return azNamespaceType.ResourceTypeProvider.TryGenerateFallbackType(azNamespaceType, typeReference, ResourceTypeGenerationFlags.None)!;
         }
 
         private static (TypeSymbol result, IReadOnlyList<IDiagnostic> diagnostics) NarrowTypeAndCollectDiagnostics(SyntaxHierarchy hierarchy, SyntaxBase expression, TypeSymbol targetType)
         {
-            var binderMock = new Mock<IBinder>();
-            binderMock.Setup(x => x.GetParent(It.IsAny<SyntaxBase>()))
+            var binderMock = new Mock<IBinder>(MockBehavior.Strict);
+            binderMock
+                .Setup(x => x.GetParent(It.IsAny<SyntaxBase>()))
                 .Returns<SyntaxBase>(x => hierarchy.GetParent(x));
+            var fileResolverMock = new Mock<IFileResolver>(MockBehavior.Strict);
 
-            var typeManager = new TypeManager(TestTypeHelper.CreateEmptyProvider(), binderMock.Object);
+            binderMock
+                .Setup(x => x.GetSymbolInfo(It.IsAny<SyntaxBase>()))
+                .Returns<Symbol?>(null);
+
+            var typeManager = new TypeManager(binderMock.Object, fileResolverMock.Object);
 
             var diagnosticWriter = ToListDiagnosticWriter.Create();
             var result = TypeValidator.NarrowTypeAndCollectDiagnostics(typeManager, binderMock.Object, diagnosticWriter, expression, targetType);

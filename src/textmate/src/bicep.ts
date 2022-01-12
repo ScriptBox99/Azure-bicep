@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import * as tm from "@azure-tools/tmlanguage-generator";
+import * as tm from "tmlanguage-generator";
 import path from "path";
 import plist from "plist";
 
@@ -54,6 +54,8 @@ const keywords = [
   'in',
   'if',
   'existing',
+  'import',
+  'from',
 ];
 
 const keywordExpression: MatchRule = {

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "3541524659464899052"
+      "templateHash": "511767396565550885"
     }
   },
   "parameters": {
@@ -28,7 +28,6 @@
       "defaultValue": "[resourceGroup().location]"
     }
   },
-  "functions": [],
   "variables": {
     "scriptName": "createFileShare",
     "identityName": "scratch",
@@ -82,7 +81,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]": {}
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName')))]": {}
         }
       },
       "properties": {
@@ -155,7 +154,7 @@
               "readOnly": false,
               "shareName": "[parameters('fileShareName')]",
               "storageAccountName": "[variables('storageAccountName')]",
-              "storageAccountKey": "[listKeys(variables('storageAccountName'), '2020-08-01-preview').keys[0].value]"
+              "storageAccountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2020-08-01-preview').keys[0].value]"
             }
           }
         ]

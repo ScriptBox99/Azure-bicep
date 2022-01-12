@@ -33,7 +33,7 @@ namespace Bicep.LanguageServer.Completions
         Expression = 1 << 3,
 
         /// <summary>
-        /// The current location needs an object property name. 
+        /// The current location needs an object property name.
         /// </summary>
         ObjectPropertyName = 1 << 4,
 
@@ -76,7 +76,7 @@ namespace Bicep.LanguageServer.Completions
         /// The current location is accessing a nested resource.
         /// </summary>
         ResourceAccess = 1 << 12,
-        
+
         /// <summary>
         /// The current location needs target scope value.
         /// </summary>
@@ -127,6 +127,31 @@ namespace Bicep.LanguageServer.Completions
         /// This is used in conjunction with ObjectPropertyName and indicates that the colon token
         /// is present in the ObjectPropertySyntax and does not need to be included in the completion.
         /// </summary>
-        ObjectPropertyColonExists = 1 << 22
+        ObjectPropertyColonExists = 1 << 22,
+
+        /// <summary>
+        /// We're at this place in an import statement: 'import foo |'
+        /// </summary>
+        ImportProviderFollower = 1 << 23,
+
+        /// <summary>
+        /// We're at this place in an import statement: 'import | as foo'
+        /// </summary>
+        ImportFollower = 1 << 24,
+
+        /// <summary>
+        /// We're inside a function parentheses: 'someFunc(|)'
+        /// </summary>
+        FunctionArgument = 1 << 25,
+
+        /// <summary>
+        /// The current location is after # sign.
+        /// </summary>
+        DisableNextLineDiagnosticsDirectiveStart = 1 << 25,
+
+        /// <summary>
+        /// The current location is after '#disable-next-line |'.
+        /// </summary>
+        DisableNextLineDiagnosticsCodes = 1 << 26
     }
 }

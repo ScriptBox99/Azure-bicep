@@ -22,20 +22,24 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
 
         private void CompileAndTest(string text, params string[] unusedParams)
         {
-            using (new AssertionScope($"linter errors for this code:\n{text}\n"))
+            CompileAndTest(text, OnCompileErrors.Fail, unusedParams);
+        }
+
+        private void CompileAndTest(string text, OnCompileErrors onCompileErrors, params string[] unusedParams)
+        {
+            AssertLinterRuleDiagnostics(NoUnusedParametersRule.Code, text, onCompileErrors, diags =>
             {
-                var errors = GetDiagnostics(NoUnusedParametersRule.Code, text);
                 if (unusedParams.Any())
                 {
                     var rule = new NoUnusedParametersRule();
                     string[] expectedMessages = unusedParams.Select(p => rule.GetMessage(p)).ToArray();
-                    errors.Select(e => e.Message).Should().ContainInOrder(expectedMessages);
+                    diags.Select(e => e.Message).Should().ContainInOrder(expectedMessages);
                 }
                 else
                 {
-                    errors.Should().BeEmpty();
+                    diags.Should().BeEmpty();
                 }
-            }
+            });
         }
 
         [DataRow(@"
@@ -69,7 +73,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             var sum = 1 + 3
             output sub int = sum
             ")]
-                    [DataRow(@"
+        [DataRow(@"
             // Syntax errors
             resource abc 'Microsoft.AAD/domainServices@2021-03-01'
             param
@@ -80,7 +84,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         [DataTestMethod]
         public void TestRule(string text, params string[] unusedParams)
         {
-            CompileAndTest(text, unusedParams);
+            CompileAndTest(text, OnCompileErrors.Ignore, unusedParams);
         }
 
         [DataRow(@"
@@ -120,7 +124,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         [DataTestMethod]
         public void Modules(string text, params string[] unusedParams)
         {
-            CompileAndTest(text, unusedParams);
+            CompileAndTest(text, OnCompileErrors.Ignore, unusedParams);
         }
 
         [DataRow(@"

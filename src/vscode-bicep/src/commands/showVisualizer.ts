@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 import vscode from "vscode";
+import { IActionContext } from "vscode-azureextensionui";
 
 import { BicepVisualizerViewManager } from "../visualizer";
 import { Command } from "./types";
@@ -13,6 +14,17 @@ async function showVisualizer(
   documentUri ??= vscode.window.activeTextEditor?.document.uri;
 
   if (!documentUri) {
+    return;
+  }
+
+  if (documentUri.scheme === "output") {
+    // The output panel in VS Code was implemented as a text editor by accident. Due to breaking change concerns,
+    // it won't be fixed in VS Code, so we need to handle it on our side.
+    // See https://github.com/microsoft/vscode/issues/58869#issuecomment-422322972 for details.
+    vscode.window.showInformationMessage(
+      "We are unable to get the Bicep file to visualize when the output panel is focused. Please focus a text editor first when running the command."
+    );
+
     return;
   }
 
@@ -33,6 +45,7 @@ export class ShowVisualizerCommand implements Command {
   ) {}
 
   public async execute(
+    _context: IActionContext,
     documentUri?: vscode.Uri | undefined
   ): Promise<vscode.ViewColumn | undefined> {
     return await showVisualizer(this.viewManager, documentUri);
@@ -47,6 +60,7 @@ export class ShowVisualizerToSideCommand implements Command {
   ) {}
 
   public async execute(
+    _context: IActionContext,
     documentUri?: vscode.Uri | undefined
   ): Promise<vscode.ViewColumn | undefined> {
     return await showVisualizer(this.viewManager, documentUri, true);

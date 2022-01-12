@@ -1,16 +1,19 @@
 // $1 = containerRegistry
 // $2 = 'name'
-// $3 = 'Classic'
-// $4 = true
+// $3 = location
+// $4 = 'Basic'
+// $5 = false
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2019-05-01' = {
+param location string
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-06-01-preview' = {
   name: 'name'
-  location: resourceGroup().location
+  location: location
   sku: {
-    name: 'Classic'
+    name: 'Basic'
   }
   properties: {
-    adminUserEnabled: true
+    adminUserEnabled: false
   }
 }
 // Insert snippet here

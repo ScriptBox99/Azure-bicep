@@ -518,6 +518,25 @@
     ]
   },
   {
+    "name": "items",
+    "description": "Returns an array of keys and values for an object. Elements are consistently ordered alphabetically by key.",
+    "fixedParameters": [
+      {
+        "name": "object",
+        "description": "The object to return keys and values for",
+        "type": "object",
+        "required": true
+      }
+    ],
+    "minimumArgumentCount": 1,
+    "maximumArgumentCount": 1,
+    "flags": "default",
+    "typeSignature": "(object: object): object[]",
+    "parameterTypeSignatures": [
+      "object: object"
+    ]
+  },
+  {
     "name": "json",
     "description": "Converts a valid JSON string into a JSON data type.",
     "fixedParameters": [
@@ -617,6 +636,51 @@
     "typeSignature": "(arg: array | object | string): int",
     "parameterTypeSignatures": [
       "arg: array | object | string"
+    ]
+  },
+  {
+    "name": "loadFileAsBase64",
+    "description": "Loads the specified file as base64 string. File loading occurs during compilation, not at runtime. The maximum allowed size is 96 Kb.",
+    "fixedParameters": [
+      {
+        "name": "filePath",
+        "description": "The path to the file that will be loaded",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "minimumArgumentCount": 1,
+    "maximumArgumentCount": 1,
+    "flags": "default",
+    "typeSignature": "(filePath: string): string",
+    "parameterTypeSignatures": [
+      "filePath: string"
+    ]
+  },
+  {
+    "name": "loadTextContent",
+    "description": "Loads the content of the specified file into a string. Content loading occurs during compilation, not at runtime. The maximum allowed content size is 131072 characters (including line endings).",
+    "fixedParameters": [
+      {
+        "name": "filePath",
+        "description": "The path to the file that will be loaded",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "encoding",
+        "description": "File encoding. If not provided, UTF-8 will be used.",
+        "type": "'iso-8859-1' | 'us-ascii' | 'utf-16' | 'utf-16BE' | 'utf-8'",
+        "required": false
+      }
+    ],
+    "minimumArgumentCount": 1,
+    "maximumArgumentCount": 2,
+    "flags": "default",
+    "typeSignature": "(filePath: string, [encoding: 'iso-8859-1' | 'us-ascii' | 'utf-16' | 'utf-16BE' | 'utf-8']): string",
+    "parameterTypeSignatures": [
+      "filePath: string",
+      "[encoding: 'iso-8859-1' | 'us-ascii' | 'utf-16' | 'utf-16BE' | 'utf-8']"
     ]
   },
   {

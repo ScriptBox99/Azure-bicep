@@ -1163,16 +1163,16 @@ module moduleWithDuplicateName2 './empty.bicep' = {
 //@[0:1) RightBrace |}|
 //@[1:3) NewLine |\n\n|
 
-// #completionTest(19, 20, 21) -> cwdCompletions
-//@[48:49) NewLine |\n|
+// #completionTest(19, 20, 21) -> cwdFileCompletions
+//@[52:53) NewLine |\n|
 module completionB ''
 //@[0:6) Identifier |module|
 //@[7:18) Identifier |completionB|
 //@[19:21) StringComplete |''|
 //@[21:23) NewLine |\n\n|
 
-// #completionTest(19, 20, 21) -> cwdCompletions
-//@[48:49) NewLine |\n|
+// #completionTest(19, 20, 21) -> cwdFileCompletions
+//@[52:53) NewLine |\n|
 module completionC '' =
 //@[0:6) Identifier |module|
 //@[7:18) Identifier |completionC|
@@ -1180,8 +1180,8 @@ module completionC '' =
 //@[22:23) Assignment |=|
 //@[23:25) NewLine |\n\n|
 
-// #completionTest(19, 20, 21) -> cwdCompletions
-//@[48:49) NewLine |\n|
+// #completionTest(19, 20, 21) -> cwdFileCompletions
+//@[52:53) NewLine |\n|
 module completionD '' = {}
 //@[0:6) Identifier |module|
 //@[7:18) Identifier |completionD|
@@ -1191,8 +1191,8 @@ module completionD '' = {}
 //@[25:26) RightBrace |}|
 //@[26:28) NewLine |\n\n|
 
-// #completionTest(19, 20, 21) -> cwdCompletions
-//@[48:49) NewLine |\n|
+// #completionTest(19, 20, 21) -> cwdFileCompletions
+//@[52:53) NewLine |\n|
 module completionE '' = {
 //@[0:6) Identifier |module|
 //@[7:18) Identifier |completionE|
@@ -1209,56 +1209,56 @@ module completionE '' = {
 //@[0:1) RightBrace |}|
 //@[1:3) NewLine |\n\n|
 
-// #completionTest(26, 27, 28, 29) -> cwdFileCompletions
-//@[56:57) NewLine |\n|
-module cwdFileCompletionA '.'
+// #completionTest(29) -> cwdDotFileCompletions
+//@[47:48) NewLine |\n|
+module cwdFileCompletionA './m'
 //@[0:6) Identifier |module|
 //@[7:25) Identifier |cwdFileCompletionA|
-//@[26:29) StringComplete |'.'|
-//@[29:31) NewLine |\n\n|
+//@[26:31) StringComplete |'./m'|
+//@[31:33) NewLine |\n\n|
 
-// #completionTest(26, 27) -> cwdMCompletions
-//@[45:46) NewLine |\n|
+// #completionTest(26, 27) -> cwdFileCompletions
+//@[48:49) NewLine |\n|
 module cwdFileCompletionB m
 //@[0:6) Identifier |module|
 //@[7:25) Identifier |cwdFileCompletionB|
 //@[26:27) Identifier |m|
 //@[27:29) NewLine |\n\n|
 
-// #completionTest(26, 27, 28, 29) -> cwdMCompletions
-//@[53:54) NewLine |\n|
+// #completionTest(26, 27, 28, 29) -> cwdFileCompletions
+//@[56:57) NewLine |\n|
 module cwdFileCompletionC 'm'
 //@[0:6) Identifier |module|
 //@[7:25) Identifier |cwdFileCompletionC|
 //@[26:29) StringComplete |'m'|
 //@[29:31) NewLine |\n\n|
 
-// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39) -> childCompletions
-//@[102:103) NewLine |\n|
+// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39) -> childFileCompletions
+//@[106:107) NewLine |\n|
 module childCompletionA 'ChildModules/'
 //@[0:6) Identifier |module|
 //@[7:23) Identifier |childCompletionA|
 //@[24:39) StringComplete |'ChildModules/'|
 //@[39:41) NewLine |\n\n|
 
-// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39) -> childDotCompletions
-//@[105:106) NewLine |\n|
+// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39) -> childDotFileCompletions
+//@[109:110) NewLine |\n|
 module childCompletionB './ChildModules/'
 //@[0:6) Identifier |module|
 //@[7:23) Identifier |childCompletionB|
 //@[24:41) StringComplete |'./ChildModules/'|
 //@[41:43) NewLine |\n\n|
 
-// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40) -> childMCompletions
-//@[107:108) NewLine |\n|
+// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40) -> childDotFileCompletions
+//@[113:114) NewLine |\n|
 module childCompletionC './ChildModules/m'
 //@[0:6) Identifier |module|
 //@[7:23) Identifier |childCompletionC|
 //@[24:42) StringComplete |'./ChildModules/m'|
 //@[42:44) NewLine |\n\n|
 
-// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40) -> childECompletions
-//@[107:108) NewLine |\n|
+// #completionTest(24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40) -> childFileCompletions
+//@[110:111) NewLine |\n|
 module childCompletionD 'ChildModules/e'
 //@[0:6) Identifier |module|
 //@[7:23) Identifier |childCompletionD|
@@ -2567,6 +2567,187 @@ module secureModule1 'moduleb.bicep' = {
 //@[37:47) StringComplete |'mySecret'|
 //@[47:48) RightParen |)|
 //@[48:49) NewLine |\n|
+  }
+//@[2:3) RightBrace |}|
+//@[3:4) NewLine |\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\n\n|
+
+module secureModule2 'BAD_MODULE_PATH.bicep' = {
+//@[0:6) Identifier |module|
+//@[7:20) Identifier |secureModule2|
+//@[21:44) StringComplete |'BAD_MODULE_PATH.bicep'|
+//@[45:46) Assignment |=|
+//@[47:48) LeftBrace |{|
+//@[48:49) NewLine |\n|
+  name: 'secureModule2'
+//@[2:6) Identifier |name|
+//@[6:7) Colon |:|
+//@[8:23) StringComplete |'secureModule2'|
+//@[23:24) NewLine |\n|
+  params: {       
+//@[2:8) Identifier |params|
+//@[8:9) Colon |:|
+//@[10:11) LeftBrace |{|
+//@[18:19) NewLine |\n|
+    secret: kv.getSecret('mySecret')
+//@[4:10) Identifier |secret|
+//@[10:11) Colon |:|
+//@[12:14) Identifier |kv|
+//@[14:15) Dot |.|
+//@[15:24) Identifier |getSecret|
+//@[24:25) LeftParen |(|
+//@[25:35) StringComplete |'mySecret'|
+//@[35:36) RightParen |)|
+//@[36:37) NewLine |\n|
+  }
+//@[2:3) RightBrace |}|
+//@[3:4) NewLine |\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\n\n|
+
+module issue3000 'empty.bicep' = {
+//@[0:6) Identifier |module|
+//@[7:16) Identifier |issue3000|
+//@[17:30) StringComplete |'empty.bicep'|
+//@[31:32) Assignment |=|
+//@[33:34) LeftBrace |{|
+//@[34:35) NewLine |\n|
+  name: 'issue3000Module'
+//@[2:6) Identifier |name|
+//@[6:7) Colon |:|
+//@[8:25) StringComplete |'issue3000Module'|
+//@[25:26) NewLine |\n|
+  params: {}
+//@[2:8) Identifier |params|
+//@[8:9) Colon |:|
+//@[10:11) LeftBrace |{|
+//@[11:12) RightBrace |}|
+//@[12:13) NewLine |\n|
+  identity: {
+//@[2:10) Identifier |identity|
+//@[10:11) Colon |:|
+//@[12:13) LeftBrace |{|
+//@[13:14) NewLine |\n|
+    type: 'SystemAssigned'
+//@[4:8) Identifier |type|
+//@[8:9) Colon |:|
+//@[10:26) StringComplete |'SystemAssigned'|
+//@[26:27) NewLine |\n|
+  }
+//@[2:3) RightBrace |}|
+//@[3:4) NewLine |\n|
+  extendedLocation: {}
+//@[2:18) Identifier |extendedLocation|
+//@[18:19) Colon |:|
+//@[20:21) LeftBrace |{|
+//@[21:22) RightBrace |}|
+//@[22:23) NewLine |\n|
+  sku: {}
+//@[2:5) Identifier |sku|
+//@[5:6) Colon |:|
+//@[7:8) LeftBrace |{|
+//@[8:9) RightBrace |}|
+//@[9:10) NewLine |\n|
+  kind: 'V1'
+//@[2:6) Identifier |kind|
+//@[6:7) Colon |:|
+//@[8:12) StringComplete |'V1'|
+//@[12:13) NewLine |\n|
+  managedBy: 'string'
+//@[2:11) Identifier |managedBy|
+//@[11:12) Colon |:|
+//@[13:21) StringComplete |'string'|
+//@[21:22) NewLine |\n|
+  mangedByExtended: [
+//@[2:18) Identifier |mangedByExtended|
+//@[18:19) Colon |:|
+//@[20:21) LeftSquare |[|
+//@[21:22) NewLine |\n|
+   'str1'
+//@[3:9) StringComplete |'str1'|
+//@[9:10) NewLine |\n|
+   'str2'
+//@[3:9) StringComplete |'str2'|
+//@[9:10) NewLine |\n|
+  ]
+//@[2:3) RightSquare |]|
+//@[3:4) NewLine |\n|
+  zones: [
+//@[2:7) Identifier |zones|
+//@[7:8) Colon |:|
+//@[9:10) LeftSquare |[|
+//@[10:11) NewLine |\n|
+   'str1'
+//@[3:9) StringComplete |'str1'|
+//@[9:10) NewLine |\n|
+   'str2'
+//@[3:9) StringComplete |'str2'|
+//@[9:10) NewLine |\n|
+  ]
+//@[2:3) RightSquare |]|
+//@[3:4) NewLine |\n|
+  plan: {}
+//@[2:6) Identifier |plan|
+//@[6:7) Colon |:|
+//@[8:9) LeftBrace |{|
+//@[9:10) RightBrace |}|
+//@[10:11) NewLine |\n|
+  eTag: ''
+//@[2:6) Identifier |eTag|
+//@[6:7) Colon |:|
+//@[8:10) StringComplete |''|
+//@[10:11) NewLine |\n|
+  scale: {}  
+//@[2:7) Identifier |scale|
+//@[7:8) Colon |:|
+//@[9:10) LeftBrace |{|
+//@[10:11) RightBrace |}|
+//@[13:14) NewLine |\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\n\n|
+
+module invalidJsonMod 'modulec.json' = {
+//@[0:6) Identifier |module|
+//@[7:21) Identifier |invalidJsonMod|
+//@[22:36) StringComplete |'modulec.json'|
+//@[37:38) Assignment |=|
+//@[39:40) LeftBrace |{|
+//@[40:41) NewLine |\n|
+}
+//@[0:1) RightBrace |}|
+//@[1:3) NewLine |\n\n|
+
+module jsonModMissingParam 'moduled.json' = {
+//@[0:6) Identifier |module|
+//@[7:26) Identifier |jsonModMissingParam|
+//@[27:41) StringComplete |'moduled.json'|
+//@[42:43) Assignment |=|
+//@[44:45) LeftBrace |{|
+//@[45:46) NewLine |\n|
+  name: 'jsonModMissingParam'
+//@[2:6) Identifier |name|
+//@[6:7) Colon |:|
+//@[8:29) StringComplete |'jsonModMissingParam'|
+//@[29:30) NewLine |\n|
+  params: {
+//@[2:8) Identifier |params|
+//@[8:9) Colon |:|
+//@[10:11) LeftBrace |{|
+//@[11:12) NewLine |\n|
+    foo: 123
+//@[4:7) Identifier |foo|
+//@[7:8) Colon |:|
+//@[9:12) Integer |123|
+//@[12:13) NewLine |\n|
+    baz: 'C'
+//@[4:7) Identifier |baz|
+//@[7:8) Colon |:|
+//@[9:12) StringComplete |'C'|
+//@[12:13) NewLine |\n|
   }
 //@[2:3) RightBrace |}|
 //@[3:4) NewLine |\n|

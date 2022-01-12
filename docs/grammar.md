@@ -4,6 +4,7 @@ The following is the active pseudo-grammar of the bicep language.
 program -> statement* EOF 
 statement -> 
   targetScopeDecl | 
+  importDecl | 
   parameterDecl | 
   variableDecl |
   resourceDecl |
@@ -12,6 +13,8 @@ statement ->
   NL
 
 targetScopeDecl -> "targetScope" "=" expression
+
+importDecl -> decorator* "import" IDENTIFIER(providerName) "as" IDENTIFIER(aliasName) object? NL
 
 parameterDecl -> decorator* "parameter" IDENTIFIER(name) IDENTIFIER(type) parameterDefaultValue? NL
 parameterDefaultValue -> "=" expression
@@ -27,6 +30,8 @@ outputDecl -> decorator* "output" IDENTIFIER(name) IDENTIFIER(type) "=" expressi
 NL -> ("\n" | "\r")+
 
 decorator -> "@" decoratorExpression NL
+
+disableNextLineDiagnosticsDirective-> #disable-next-line diagnosticCode1 diagnosticCode2 diagnosticCode3 NL
 
 expression -> 
   binaryExpression |

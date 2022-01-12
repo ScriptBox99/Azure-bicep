@@ -46,7 +46,7 @@ namespace Bicep.Core.TypeSystem
         private void VisitDeclaration<TDeclarationSyntax>(TDeclarationSyntax syntax, Action<TDeclarationSyntax> visitBaseFunc)
             where TDeclarationSyntax : SyntaxBase, ITopLevelNamedDeclarationSyntax
         {
-            if (!bindings.TryGetValue(syntax, out var symbol) || 
+            if (!bindings.TryGetValue(syntax, out var symbol) ||
                 symbol is not DeclaredSymbol currentDeclaration ||
                 string.IsNullOrEmpty(currentDeclaration.Name) ||
                 string.Equals(LanguageConstants.ErrorName, currentDeclaration.Name, StringComparison.Ordinal) ||
@@ -117,6 +117,18 @@ namespace Bicep.Core.TypeSystem
 
             declarationAccessDict[currentDeclaration].Add(syntax);
             base.VisitVariableAccessSyntax(syntax);
+        }
+
+        public override void VisitResourceAccessSyntax(ResourceAccessSyntax syntax)
+        {
+            if (!currentDeclarations.TryPeek(out var currentDeclaration))
+            {
+                // we're not inside a declaration, so there should be no risk of a cycle
+                return;
+            }
+
+            declarationAccessDict[currentDeclaration].Add(syntax);
+            base.VisitResourceAccessSyntax(syntax);
         }
 
         public override void VisitFunctionCallSyntax(FunctionCallSyntax syntax)

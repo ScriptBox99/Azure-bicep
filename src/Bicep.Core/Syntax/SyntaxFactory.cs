@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
 
@@ -16,6 +17,8 @@ namespace Bicep.Core.Syntax
         public static readonly TextSpan EmptySpan = new TextSpan(0, 0);
 
         public static readonly IEnumerable<SyntaxTrivia> EmptyTrivia = Enumerable.Empty<SyntaxTrivia>();
+
+        public static readonly SkippedTriviaSyntax EmptySkippedTrivia = new SkippedTriviaSyntax(EmptySpan, Enumerable.Empty<SyntaxBase>(), Enumerable.Empty<IDiagnostic>());
 
         public static Token CreateToken(TokenType tokenType, string text = "")
             => new Token(tokenType, EmptySpan, string.IsNullOrEmpty(text) ? TryGetTokenText(tokenType) : text, EmptyTrivia, EmptyTrivia);
@@ -139,17 +142,19 @@ namespace Bicep.Core.Syntax
             return CreateStringLiteral(text);
         }
 
-        public static IntegerLiteralSyntax CreateIntegerLiteral(long value) =>
-            new IntegerLiteralSyntax(CreateToken(TokenType.Integer, value.ToString()), value);
+        public static IntegerLiteralSyntax CreateIntegerLiteral(long value) => new(CreateToken(TokenType.Integer, value.ToString()), value);
 
-        public static StringSyntax CreateStringLiteral(string value)
-            => CreateString(value.AsEnumerable(), Enumerable.Empty<SyntaxBase>());
+        public static StringSyntax CreateStringLiteral(string value) => CreateString(value.AsEnumerable(), Enumerable.Empty<SyntaxBase>());
+
+        public static BooleanLiteralSyntax CreateBooleanLiteral(bool value) => new(TrueKeywordToken, value);
+
+        public static NullLiteralSyntax CreateNullLiteral() => new(NullKeywordToken);
 
         public static StringSyntax CreateString(IEnumerable<string> values, IEnumerable<SyntaxBase> expressions)
         {
             var valuesArray = values.ToArray();
             var expressionsArray = expressions.ToArray();
-            
+
             if (valuesArray.Length != expressionsArray.Length + 1)
             {
                 throw new ArgumentException($"The number of values must be 1 greater than the number of expressions");
@@ -193,7 +198,8 @@ namespace Bicep.Core.Syntax
 
         public static Token CreateStringInterpolationToken(bool isStart, bool isEnd, string value)
         {
-            return (isStart, isEnd) switch {
+            return (isStart, isEnd) switch
+            {
                 (true, true) => CreateToken(TokenType.StringComplete, $"'{EscapeBicepString(value)}'"),
                 (true, false) => CreateToken(TokenType.StringLeftPiece, $"'{EscapeBicepString(value)}${{"),
                 (false, false) => CreateToken(TokenType.StringMiddlePiece, $"}}{EscapeBicepString(value)}${{"),
@@ -351,6 +357,16 @@ namespace Bicep.Core.Syntax
             {
                 yield return new FunctionArgumentSyntax(CreateStringLiteral(string.Join("", stringList)), null);
             }
+        }
+
+        public static Token CreateNewLineWithIndent(string indent)
+        {
+            return new Token(
+                TokenType.NewLine,
+                SyntaxFactory.EmptySpan,
+                Environment.NewLine,
+                SyntaxFactory.EmptyTrivia,
+                new SyntaxTrivia[] { new SyntaxTrivia(SyntaxTriviaType.Whitespace, SyntaxFactory.EmptySpan, indent) });
         }
     }
 }

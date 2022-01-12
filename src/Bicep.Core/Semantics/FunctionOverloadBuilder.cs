@@ -15,14 +15,17 @@ namespace Bicep.Core.Semantics
         public FunctionOverloadBuilder(string name)
         {
             this.Name = name;
+            this.GenericDescription = string.Empty;
             this.Description = string.Empty;
             this.ReturnType = LanguageConstants.Any;
             this.FixedParameters = ImmutableArray.CreateBuilder<FixedFunctionParameter>();
-            this.ReturnTypeBuilder = args => LanguageConstants.Any;
+            this.ReturnTypeBuilder = (_, _, _, _, _) => LanguageConstants.Any;
             this.VariableParameter = null;
         }
 
         protected string Name { get; }
+
+        protected string GenericDescription { get; private set; }
 
         protected string Description { get; private set; }
 
@@ -33,6 +36,8 @@ namespace Bicep.Core.Semantics
         protected VariableFunctionParameter? VariableParameter { get; private set; }
 
         protected FunctionOverload.ReturnTypeBuilderDelegate ReturnTypeBuilder { get; private set; }
+
+        protected FunctionOverload.EvaluatorDelegate? Evaluator { get; private set; }
 
         protected FunctionFlags Flags { get; private set; }
 
@@ -45,13 +50,23 @@ namespace Bicep.Core.Semantics
         public virtual FunctionOverload BuildInternal() =>
             new FunctionOverload(
                 this.Name,
+                this.GenericDescription,
                 this.Description,
                 this.ReturnTypeBuilder,
                 this.ReturnType,
                 this.FixedParameters.ToImmutable(),
                 this.VariableParameter,
+                this.Evaluator,
                 this.Flags);
 
+        public FunctionOverloadBuilder WithGenericDescription(string genericDescription)
+        {
+            this.GenericDescription = genericDescription;
+            this.Description = genericDescription;
+
+            return this;
+        }
+        
         public FunctionOverloadBuilder WithDescription(string description)
         {
             this.Description = description;
@@ -62,14 +77,14 @@ namespace Bicep.Core.Semantics
         public FunctionOverloadBuilder WithReturnType(TypeSymbol returnType)
         {
             this.ReturnType = returnType;
-            this.ReturnTypeBuilder = args => returnType;
+            this.ReturnTypeBuilder = (_, _, _, _, _) => returnType;
 
             return this;
         }
 
-        public FunctionOverloadBuilder WithDynamicReturnType(FunctionOverload.ReturnTypeBuilderDelegate returnTypeBuilder)
+        public FunctionOverloadBuilder WithDynamicReturnType(FunctionOverload.ReturnTypeBuilderDelegate returnTypeBuilder, TypeSymbol signatureType)
         {
-            this.ReturnType = returnTypeBuilder(Enumerable.Empty<FunctionArgumentSyntax>());
+            this.ReturnType = signatureType;
             this.ReturnTypeBuilder = returnTypeBuilder;
 
             return this;
@@ -90,6 +105,12 @@ namespace Bicep.Core.Semantics
         public FunctionOverloadBuilder WithVariableParameter(string namePrefix, TypeSymbol type, int minimumCount, string description)
         {
             this.VariableParameter = new VariableFunctionParameter(namePrefix, description, type, minimumCount);
+            return this;
+        }
+
+        public FunctionOverloadBuilder WithEvaluator(FunctionOverload.EvaluatorDelegate evaluator)
+        {
+            Evaluator = evaluator;
             return this;
         }
 

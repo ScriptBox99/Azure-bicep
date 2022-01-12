@@ -11,7 +11,7 @@ namespace Bicep.Core.Parsing
     {
         private static readonly Regex TextSpanPattern = new Regex(@"^\[(?<startInclusive>\d+)\:(?<endExclusive>\d+)\]$", RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-        public TextSpan(int position, int length) 
+        public TextSpan(int position, int length)
         {
             if (position < 0)
             {
@@ -72,7 +72,7 @@ namespace Bicep.Core.Parsing
         /// <param name="a">The first object</param>
         /// <param name="b">The second object</param>
         /// <returns>the span from the beginning of the first object to the end of the 2nd one</returns>
-        public static TextSpan Between(IPositionable a, IPositionable b) => TextSpan.Between(a.Span,b.Span);
+        public static TextSpan Between(IPositionable a, IPositionable b) => TextSpan.Between(a.Span, b.Span);
 
         /// <summary>
         /// Calculates the span from the end of the first span to the beginning of the second span.
@@ -223,7 +223,7 @@ namespace Bicep.Core.Parsing
         /// <param name="first">The first non-null positionable</param>
         /// <param name="after">The sequence of nullable positionables</param>
         public static IPositionable LastNonNull(IPositionable first, params IPositionable?[] after)
-            => after.LastOrDefault() ?? first;
+            => after.LastOrDefault(x => x is not null) ?? first;
 
         public bool Equals(TextSpan? other)
         {

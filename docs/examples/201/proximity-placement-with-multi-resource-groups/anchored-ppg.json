@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "10459613126370567654"
+      "templateHash": "17798777799174646976"
     }
   },
   "parameters": {
@@ -31,7 +31,6 @@
       ]
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.Compute/proximityPlacementGroups",
@@ -54,7 +53,7 @@
         "name": "Standard"
       },
       "zones": [
-        "[parameters('zone')]"
+        "[format('{0}', parameters('zone'))]"
       ]
     },
     {
@@ -133,7 +132,7 @@
         }
       },
       "zones": [
-        "[parameters('zone')]"
+        "[format('{0}', parameters('zone'))]"
       ],
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName')))]",

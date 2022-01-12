@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Runtime.CompilerServices;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
+using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 
@@ -18,37 +20,18 @@ namespace Bicep.Core.TypeSystem
     {
         // maps syntax nodes to their declared types
         // processed nodes found not to have a declared type will have a null value
-        private readonly IDictionary<SyntaxBase, DeclaredTypeAssignment?> declaredTypes = new Dictionary<SyntaxBase, DeclaredTypeAssignment?>();
-
-        private readonly IResourceTypeProvider resourceTypeProvider;
+        private readonly ConcurrentDictionary<SyntaxBase, DeclaredTypeAssignment?> declaredTypes = new();
         private readonly ITypeManager typeManager;
         private readonly IBinder binder;
 
-        public DeclaredTypeManager(IResourceTypeProvider resourceTypeProvider, TypeManager typeManager, IBinder binder)
+        public DeclaredTypeManager(TypeManager typeManager, IBinder binder)
         {
-            this.resourceTypeProvider = resourceTypeProvider;
             this.typeManager = typeManager;
             this.binder = binder;
         }
 
-        public DeclaredTypeAssignment? GetDeclaredTypeAssignment(SyntaxBase syntax)
-        {
-            if (this.declaredTypes.TryGetValue(syntax, out var assignment))
-            {
-                // syntax node has already been processed
-                // return result as-is (even if null)
-                return assignment;
-            }
-
-            // the node has not been processed
-            // figure out the type
-            var newAssignment = GetTypeAssignment(syntax);
-
-            // cache the result
-            this.declaredTypes[syntax] = newAssignment;
-
-            return newAssignment;
-        }
+        public DeclaredTypeAssignment? GetDeclaredTypeAssignment(SyntaxBase syntax) =>
+            this.declaredTypes.GetOrAdd(syntax, key => GetTypeAssignment(key));
 
         public TypeSymbol? GetDeclaredType(SyntaxBase syntax) => this.GetDeclaredTypeAssignment(syntax)?.Reference.Type;
 
@@ -58,6 +41,9 @@ namespace Bicep.Core.TypeSystem
 
             switch (syntax)
             {
+                case ImportDeclarationSyntax import:
+                    return GetImportType(import);
+
                 case ParameterDeclarationSyntax parameter:
                     return GetParameterType(parameter);
 
@@ -115,6 +101,9 @@ namespace Bicep.Core.TypeSystem
 
                 case StringSyntax @string:
                     return GetStringType(@string);
+
+                case FunctionArgumentSyntax functionArgument:
+                    return GetFunctionArgumentType(functionArgument);
             }
 
             return null;
@@ -124,9 +113,19 @@ namespace Bicep.Core.TypeSystem
 
         private DeclaredTypeAssignment GetOutputType(OutputDeclarationSyntax syntax) => new(syntax.GetDeclaredType(), syntax);
 
+        private DeclaredTypeAssignment? GetImportType(ImportDeclarationSyntax syntax)
+        {
+            if (this.binder.GetSymbolInfo(syntax) is ImportedNamespaceSymbol importedNamespace)
+            {
+                return new(importedNamespace.DeclaredType, syntax);
+            }
+
+            return null;
+        }
+
         private DeclaredTypeAssignment GetResourceType(ResourceDeclarationSyntax syntax)
         {
-            var declaredResourceType = syntax.GetDeclaredType(this.binder, this.resourceTypeProvider);
+            var declaredResourceType = GetDeclaredResourceType(syntax);
 
             // if the value is a loop (not a condition or object), the type is an array of the declared resource type
             return new DeclaredTypeAssignment(
@@ -136,18 +135,8 @@ namespace Bicep.Core.TypeSystem
 
         private DeclaredTypeAssignment GetModuleType(ModuleDeclarationSyntax syntax)
         {
-            if (this.binder.GetSymbolInfo(syntax) is not ModuleSymbol moduleSymbol)
-            {
-                return new DeclaredTypeAssignment(ErrorType.Empty(), syntax);
-            }
+            var declaredModuleType = syntax.GetDeclaredType(this.binder);
 
-            if (!moduleSymbol.TryGetSemanticModel(out var moduleSemanticModel, out var failureDiagnostic))
-            {
-                return new DeclaredTypeAssignment(ErrorType.Create(failureDiagnostic), syntax);
-            }
-
-            var declaredModuleType = syntax.GetDeclaredType(this.binder.TargetScope, moduleSemanticModel);
-            
             // if the value is a loop (not a condition or object), the type is an array of the declared module type
             return new DeclaredTypeAssignment(
                 syntax.Value is ForSyntax ? new TypedArrayType(declaredModuleType, TypeSymbolValidationFlags.Default) : declaredModuleType,
@@ -177,8 +166,8 @@ namespace Bicep.Core.TypeSystem
                     // use its declared type
                     return this.GetDeclaredTypeAssignment(declaredSymbol.DeclaringSyntax);
 
-                case NamespaceSymbol namespaceSymbol:
-                    // the syntax node is referencing a namespace - use its type
+                case BuiltInNamespaceSymbol namespaceSymbol:
+                    // the syntax node is referencing a built in namespace - use its type
                     return new DeclaredTypeAssignment(namespaceSymbol.Type, declaringSyntax: null);
             }
 
@@ -193,7 +182,7 @@ namespace Bicep.Core.TypeSystem
             }
 
             var baseExpressionAssignment = GetDeclaredTypeAssignment(syntax.BaseExpression);
-            
+
             // it's ok to rely on useSyntax=true because those types have already been established
 
             var body = baseExpressionAssignment?.DeclaringSyntax switch
@@ -242,7 +231,7 @@ namespace Bicep.Core.TypeSystem
             return this.GetDeclaredTypeAssignment(((ResourceSymbol)symbol).DeclaringResource.Value);
         }
 
-        
+
         private DeclaredTypeAssignment? GetArrayAccessType(ArrayAccessSyntax syntax)
         {
             var baseExpressionAssignment = GetDeclaredTypeAssignment(syntax.BaseExpression);
@@ -263,7 +252,7 @@ namespace Bicep.Core.TypeSystem
                         ForSyntax { Body: IfConditionSyntax { Body: ObjectSyntax loopBody } } => loopBody,
                         _ => null
                     };
-                    
+
                     return new DeclaredTypeAssignment(arrayType.Item.Type, declaringSyntax);
 
                 case ObjectType objectType when syntax.IndexExpression is StringSyntax potentialLiteralValue && potentialLiteralValue.TryGetLiteralValue() is { } propertyName:
@@ -286,14 +275,17 @@ namespace Bicep.Core.TypeSystem
             // we are only handling paths in the AST that are going to produce a declared type
             // arrays can exist under a variable declaration, but variables don't have declared types,
             // so we don't need to check that case
-            if (parent is ObjectPropertySyntax)
+            switch (parent)
             {
-                // this array is a value of the property
-                // the declared type should be the same as the array and we should propagate the flags
-                return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                case ObjectPropertySyntax:
+                    // this array is a value of the property
+                    // the declared type should be the same as the array and we should propagate the flags
+                    return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                case FunctionArgumentSyntax:
+                    return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                default:
+                    return null;
             }
-
-            return null;
         }
 
         private DeclaredTypeAssignment? GetStringType(StringSyntax syntax)
@@ -303,14 +295,33 @@ namespace Bicep.Core.TypeSystem
             // we are only handling paths in the AST that are going to produce a declared type
             // strings can exist under a variable declaration, but variables don't have declared types,
             // so we don't need to check that case
-            if (parent is ObjectPropertySyntax || parent is ArrayItemSyntax)
+            switch (parent)
             {
-                // this string is a value of the property
-                // the declared type should be the same as the string and we should propagate the flags
-                return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                case ObjectPropertySyntax:
+                case ArrayItemSyntax:
+                    // this string is a value of the property
+                    // the declared type should be the same as the string and we should propagate the flags
+                    return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                case FunctionArgumentSyntax:
+                    return GetDeclaredTypeAssignment(parent)?.ReplaceDeclaringSyntax(syntax);
+                default:
+                    return null;
+            }
+        }
+
+        private DeclaredTypeAssignment? GetFunctionArgumentType(FunctionArgumentSyntax syntax)
+        {
+            var parent = this.binder.GetParent(syntax);
+            if (parent is not FunctionCallSyntaxBase parentFunction ||
+                SymbolHelper.TryGetSymbolInfo(this.binder, this.GetDeclaredType, parent) is not FunctionSymbol functionSymbol)
+            {
+                return null;
             }
 
-            return null;
+            var argIndex = parentFunction.Arguments.IndexOf(syntax);
+            var declaredType = functionSymbol.GetDeclaredArgumentType(argIndex);
+
+            return new DeclaredTypeAssignment(declaredType, declaringSyntax: null);
         }
 
         private DeclaredTypeAssignment? GetArrayItemType(ArrayItemSyntax syntax)
@@ -387,7 +398,8 @@ namespace Bicep.Core.TypeSystem
                 return null;
             }
 
-            var parentTypeAssignment = parent switch {
+            var parentTypeAssignment = parent switch
+            {
                 // variable declared type is calculated using its assigned type, so querying it here causes endless recursion.
                 // we can shortcut that by returning any[] here
                 VariableDeclarationSyntax var => new DeclaredTypeAssignment(LanguageConstants.Array, var),
@@ -400,7 +412,7 @@ namespace Bicep.Core.TypeSystem
             }
 
             var parentType = parentTypeAssignment.Reference.Type;
-            
+
             // a for-loop expressions are semantically valid in places that allow array values
             // for non-array types, there's no need to propagate them further since it won't lead to anything useful
             if (parentType is not ArrayType arrayType)
@@ -467,19 +479,19 @@ namespace Bicep.Core.TypeSystem
                     return TryCreateAssignment(ResolveDiscriminatedObjects(moduleType.Body.Type, syntax), syntax);
 
                 case IfConditionSyntax:
-                    if (GetDeclaredTypeAssignment(parent) is not {} ifParentTypeAssignment)
+                    if (GetDeclaredTypeAssignment(parent) is not { } ifParentTypeAssignment)
                     {
                         return null;
                     }
 
                     // if-condition declared type already resolved discriminators and used the object as the declaring syntax
                     Debug.Assert(ReferenceEquals(syntax, ifParentTypeAssignment.DeclaringSyntax), "ReferenceEquals(syntax,parentTypeAssignment.DeclaringSyntax)");
-                    
+
                     // the declared type will be the same as the parent
                     return ifParentTypeAssignment;
 
                 case ForSyntax:
-                    if (GetDeclaredTypeAssignment(parent) is not {} forParentTypeAssignment ||
+                    if (GetDeclaredTypeAssignment(parent) is not { } forParentTypeAssignment ||
                         forParentTypeAssignment.Reference.Type is not ArrayType arrayType)
                     {
                         return null;
@@ -491,8 +503,8 @@ namespace Bicep.Core.TypeSystem
                     return TryCreateAssignment(arrayType.Item.Type, syntax, forParentTypeAssignment.Flags);
 
                 case ObjectPropertySyntax:
-                    if (GetDeclaredTypeAssignment(parent) is not {} objectPropertyAssignment ||
-                        objectPropertyAssignment.Reference.Type is not {} objectPropertyParent)
+                    if (GetDeclaredTypeAssignment(parent) is not { } objectPropertyAssignment ||
+                        objectPropertyAssignment.Reference.Type is not { } objectPropertyParent)
                     {
                         return null;
                     }
@@ -502,8 +514,8 @@ namespace Bicep.Core.TypeSystem
                     return TryCreateAssignment(ResolveDiscriminatedObjects(objectPropertyParent, syntax), syntax, objectPropertyAssignment.Flags);
 
                 case ArrayItemSyntax:
-                    if (GetDeclaredTypeAssignment(parent) is not {} arrayItemAssignment ||
-                        arrayItemAssignment.Reference.Type is not {} arrayParent)
+                    if (GetDeclaredTypeAssignment(parent) is not { } arrayItemAssignment ||
+                        arrayItemAssignment.Reference.Type is not { } arrayParent)
                     {
                         return null;
                     }
@@ -511,6 +523,31 @@ namespace Bicep.Core.TypeSystem
                     // the object is an item in an array
                     // use the item's type and propagate flags
                     return TryCreateAssignment(ResolveDiscriminatedObjects(arrayParent, syntax), syntax, arrayItemAssignment.Flags);
+
+                case ImportDeclarationSyntax:
+                    if (GetDeclaredTypeAssignment(parent) is not { } importAssignment ||
+                        importAssignment.Reference.Type is not NamespaceType namespaceType)
+                    {
+                        return null;
+                    }
+
+                    if (namespaceType.ConfigurationType is null)
+                    {
+                        // this namespace doesn't support configuration, but it has been provided.
+                        // we'll check for this during type assignment.
+                        return null;
+                    }
+
+                    // the object is an item in an array
+                    // use the item's type and propagate flags
+                    return TryCreateAssignment(ResolveDiscriminatedObjects(namespaceType.ConfigurationType.Type, syntax), syntax, importAssignment.Flags);
+                case FunctionArgumentSyntax:
+                    if (GetDeclaredTypeAssignment(parent) is not { } parentAssignment)
+                    {
+                        return null;
+                    }
+
+                    return TryCreateAssignment(ResolveDiscriminatedObjects(parentAssignment.Reference.Type, syntax), syntax, parentAssignment.Flags);
             }
 
             return null;
@@ -543,7 +580,7 @@ namespace Bicep.Core.TypeSystem
             // the declared types on the declaration side of things will take advantage of properties
             // set on objects to resolve discriminators at all levels
             // to take advantage of this, we should first try looking up the property's declared type
-            var declaringProperty = objectSyntax?.SafeGetPropertyByName(propertyName);
+            var declaringProperty = objectSyntax?.TryGetPropertyByName(propertyName);
             if (useSyntax && declaringProperty != null)
             {
                 // it is important to get the property value's decl type instead of the property's decl type
@@ -635,5 +672,164 @@ namespace Bicep.Core.TypeSystem
         // references to symbols can be involved in cycles
         // we should not try to obtain the declared type for such symbols because we will likely never finish
         private bool IsCycleFree(DeclaredSymbol declaredSymbol) => this.binder.TryGetCycle(declaredSymbol) is null;
+
+        /// <summary>
+        /// Returns the declared type of the resource body (based on the type string).
+        /// Returns the same value for single resource or resource loops declarations.
+        /// </summary>
+        /// <param name="resourceTypeProvider">resource type provider</param>
+        private TypeSymbol GetDeclaredResourceType(ResourceDeclarationSyntax resource)
+        {
+            var stringSyntax = resource.TypeString;
+
+            if (stringSyntax != null && stringSyntax.IsInterpolated())
+            {
+                // TODO: in the future, we can relax this check to allow interpolation with compile-time constants.
+                // right now, codegen will still generate a format string however, which will cause problems for the type.
+                return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).ResourceTypeInterpolationUnsupported());
+            }
+
+            var stringContent = stringSyntax?.TryGetLiteralValue();
+            if (stringContent == null)
+            {
+                return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).InvalidResourceType());
+            }
+
+            var (typeGenerationFlags, parentResourceType) = GetResourceTypeGenerationFlags(resource);
+
+            var colonIndex = stringContent.IndexOf(':');
+            if (colonIndex > 0)
+            {
+                var scheme = stringContent.Substring(0, colonIndex);
+                var typeString = stringContent.Substring(colonIndex + 1);
+
+                if (binder.NamespaceResolver.TryGetNamespace(scheme) is not { } namespaceType)
+                {
+                    return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).UnknownResourceReferenceScheme(scheme, binder.NamespaceResolver.GetNamespaceNames().OrderBy(x => x, StringComparer.OrdinalIgnoreCase)));
+                }
+
+                if (parentResourceType is not null &&
+                    parentResourceType.DeclaringNamespace != namespaceType)
+                {
+                    return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).ParentResourceInDifferentNamespace(namespaceType.Name, parentResourceType.DeclaringNamespace.Name));
+                }
+
+                var (errorType, typeReference) = GetCombinedTypeReference(typeGenerationFlags, resource, parentResourceType, typeString);
+                if (errorType is not null)
+                {
+                    return errorType;
+                }
+
+                if (typeReference is null)
+                {
+                    // this won't happen, because GetCombinedTypeReference will either return non-null errorType, or non-null typeReference.
+                    // there's no great way to enforce this in the type system sadly - https://github.com/dotnet/roslyn/discussions/56962
+                    throw new InvalidOperationException($"typeReference is null");
+                }
+
+                if (namespaceType.ResourceTypeProvider.TryGetDefinedType(namespaceType, typeReference, typeGenerationFlags) is { } definedResource)
+                {
+                    return definedResource;
+                }
+
+                if (namespaceType.ResourceTypeProvider.TryGenerateFallbackType(namespaceType, typeReference, typeGenerationFlags) is { } defaultResource)
+                {
+                    return defaultResource;
+                }
+
+                return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).FailedToFindResourceTypeInNamespace(namespaceType.ProviderName, typeReference.FormatName()));
+            }
+            else
+            {
+                var (errorType, typeReference) = GetCombinedTypeReference(typeGenerationFlags, resource, parentResourceType, stringContent);
+                if (errorType is not null)
+                {
+                    return errorType;
+                }
+
+                if (typeReference is null)
+                {
+                    // this won't happen, because GetCombinedTypeReference will either return non-null errorType, or non-null typeReference.
+                    // there's no great way to enforce this in the type system sadly - https://github.com/dotnet/roslyn/discussions/56962
+                    throw new InvalidOperationException($"qualifiedTypeReference is null");
+                }
+
+                if (binder.NamespaceResolver.TryGetResourceType(typeReference, typeGenerationFlags) is { } resourceType)
+                {
+                    return resourceType;
+                }
+
+                return ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).InvalidResourceType());
+            }
+        }
+
+        private (ResourceTypeGenerationFlags flags, ResourceType? parentResourceType) GetResourceTypeGenerationFlags(ResourceDeclarationSyntax resource)
+        {
+            var isSyntacticallyNested = false;
+            TypeSymbol? parentType = null;
+
+            var parentResource = binder.GetAllAncestors<ResourceDeclarationSyntax>(resource).LastOrDefault();
+            if (parentResource is not null)
+            {
+                isSyntacticallyNested = true;
+                parentType = GetDeclaredType(parentResource);
+            }
+            else if (binder.GetSymbolInfo(resource) is ResourceSymbol resourceSymbol &&
+                binder.TryGetCycle(resourceSymbol) is null &&
+                resourceSymbol.TryGetBodyPropertyValue(LanguageConstants.ResourceParentPropertyName) is { } referenceParentSyntax &&
+                binder.GetSymbolInfo(referenceParentSyntax) is ResourceSymbol parentResourceSymbol)
+            {
+                parentResource = parentResourceSymbol.DeclaringResource;
+                parentType = GetDeclaredType(referenceParentSyntax);
+            }
+
+            var flags = ResourceTypeGenerationFlags.None;
+            if (resource.IsExistingResource())
+            {
+                flags |= ResourceTypeGenerationFlags.ExistingResource;
+            }
+
+            if (isSyntacticallyNested)
+            {
+                flags |= ResourceTypeGenerationFlags.NestedResource;
+            }
+
+            if (parentResource is not null)
+            {
+                flags |= ResourceTypeGenerationFlags.HasParentDefined;
+            }
+
+            return (flags, parentType as ResourceType);
+        }
+
+        private static (ErrorType? error, ResourceTypeReference? typeReference) GetCombinedTypeReference(ResourceTypeGenerationFlags flags, ResourceDeclarationSyntax resource, ResourceType? parentResourceType, string typeString)
+        {
+            if (ResourceTypeReference.TryParse(typeString) is not { } typeReference)
+            {
+                return (ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).InvalidResourceType()), null);
+            }
+
+            if (!flags.HasFlag(ResourceTypeGenerationFlags.NestedResource))
+            {
+                // this is not a syntactically nested resource - return the type reference as-is
+                return (null, typeReference);
+            }
+
+            // we're dealing with a syntactically nested resource here
+            if (parentResourceType is null)
+            {
+                return (ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).InvalidAncestorResourceType()), null);
+            }
+
+            if (typeReference.TypeSegments.Length > 1)
+            {
+                // OK this resource is the one that's wrong.
+                return (ErrorType.Create(DiagnosticBuilder.ForPosition(resource.Type).InvalidResourceTypeSegment(typeString)), null);
+            }
+
+            return (null, ResourceTypeReference.Combine(
+                parentResourceType.TypeReference,
+                typeReference));
+        }
     }
 }

@@ -54,7 +54,7 @@ resource longTermBackup 'Microsoft.Sql/servers/databases/backupLongTermRetention
     transparentDataEncryption
     shortTermBackup
   ]
-  name: 'Default'
+  name: 'default'
   parent: sqlDb
   properties: {
     weeklyRetention: sqlDatabase.longTermBackup.weeklyRetention
@@ -90,7 +90,7 @@ resource vulnerabilityAssessments 'Microsoft.Sql/servers/databases/vulnerability
     transparentDataEncryption
     azureDefender
   ]
-  name: 'Default'
+  name: 'default'
   parent: sqlDb
   properties: {
     recurringScans: {
@@ -99,7 +99,7 @@ resource vulnerabilityAssessments 'Microsoft.Sql/servers/databases/vulnerability
       emails: sqlDatabase.azureDefender.vulnerabilityAssessments.emails
     }
     storageContainerPath: !empty(sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.name) ? '${storageAccountVulnerabilityAssessments.properties.primaryEndpoints.blob}${sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.containerName}' : ''
-    storageAccountAccessKey: !empty(sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.name) ? listKeys(storageAccountVulnerabilityAssessments.id, storageAccountVulnerabilityAssessments.apiVersion).keys[0].value : ''
+    storageAccountAccessKey: !empty(sqlDatabase.azureDefender.vulnerabilityAssessments.storageAccount.name) ? storageAccountVulnerabilityAssessments.listKeys().keys[0].value : ''
   }
 }
 

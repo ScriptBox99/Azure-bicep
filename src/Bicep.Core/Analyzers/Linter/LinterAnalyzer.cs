@@ -1,60 +1,61 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using Azure.Deployments.Core.Extensions;
 using Bicep.Core.Analyzers.Interfaces;
 using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
 
 namespace Bicep.Core.Analyzers.Linter
 {
     public class LinterAnalyzer : IBicepAnalyzer
     {
-        public const string SettingsRoot = "analyzers";
         public const string AnalyzerName = "core";
-        public static string LinterEnabledSetting => $"{SettingsRoot}:{AnalyzerName}:enabled";
-        public static string LinterVerboseSetting => $"{SettingsRoot}:{AnalyzerName}:verbose";
 
-        private ConfigHelper configHelper = new ConfigHelper();
-        private ImmutableArray<IBicepAnalyzerRule> RuleSet;
-        private ImmutableArray<IDiagnostic> RuleCreationErrors;
+        public static string LinterEnabledSetting => $"{AnalyzerName}.enabled";
+
+        public static string LinterVerboseSetting => $"{AnalyzerName}.verbose";
+
+        private readonly RootConfiguration configuration;
+
+        private readonly LinterRulesProvider linterRulesProvider;
+
+        private ImmutableArray<IBicepAnalyzerRule> ruleSet;
+
+        private ImmutableArray<IDiagnostic> ruleCreationErrors;
 
         // TODO: This should be controlled by a core component, not an analyzer
-        public const string FailedRuleCode = "linter-internal-error";
+        public const string LinterRuleInternalError = "linter-internal-error";
 
-        public LinterAnalyzer()
+        public LinterAnalyzer(RootConfiguration configuration)
         {
-            (RuleSet, RuleCreationErrors) = CreateLinterRules();
+            this.configuration = configuration;
+            this.linterRulesProvider = new LinterRulesProvider();
+            (this.ruleSet, this.ruleCreationErrors) = CreateLinterRules();
         }
 
-        private bool LinterEnabled => this.configHelper.GetValue(LinterEnabledSetting, true);
-        private bool LinterVerbose => this.configHelper.GetValue(LinterVerboseSetting, true);
+        private bool LinterEnabled => this.configuration.Analyzers.GetValue(LinterEnabledSetting, false);
+
+        private bool LinterVerbose => this.configuration.Analyzers.GetValue(LinterVerboseSetting, false);
 
         private (ImmutableArray<IBicepAnalyzerRule> rules, ImmutableArray<IDiagnostic> errors) CreateLinterRules()
         {
-            List<IDiagnostic> errors = new List<IDiagnostic>();
-            List<IBicepAnalyzerRule> rules = new List<IBicepAnalyzerRule>();
+            var errors = new List<IDiagnostic>();
+            var rules = new List<IBicepAnalyzerRule>();
 
-            var ruleTypes = Assembly.GetExecutingAssembly()
-                .GetTypes()
-                .Where(t => typeof(IBicepAnalyzerRule).IsAssignableFrom(t)
-                            && t.IsClass
-                            && t.IsPublic
-                            && t.GetConstructor(Type.EmptyTypes) != null);
+            var ruleTypes = linterRulesProvider.GetRuleTypes();
 
             foreach (var ruleType in ruleTypes)
             {
                 try
                 {
-                    rules.Add((IBicepAnalyzerRule)Activator.CreateInstance(ruleType));
+                    rules.Add(Activator.CreateInstance(ruleType) as IBicepAnalyzerRule ?? throw new InvalidOperationException($"Failed to create an instance of \"{ruleType.Name}\"."));
                 }
                 catch (Exception ex)
                 {
@@ -69,33 +70,18 @@ namespace Bicep.Core.Analyzers.Linter
             return (rules.ToImmutableArray(), errors.ToImmutableArray());
         }
 
-        public IEnumerable<IBicepAnalyzerRule> GetRuleSet() => RuleSet;
+        public IEnumerable<IBicepAnalyzerRule> GetRuleSet() => ruleSet;
 
-        public IEnumerable<IDiagnostic> Analyze(SemanticModel semanticModel) => Analyze(semanticModel, default);
-
-        internal IEnumerable<IDiagnostic> Analyze(SemanticModel semanticModel, ConfigHelper? overrideConfig = default)
+        public IEnumerable<IDiagnostic> Analyze(SemanticModel semanticModel)
         {
-            // check for configuration overrides
-            /// typically only used in unit tests
-            var configHelp = overrideConfig ?? this.configHelper;
-
             var diagnostics = new List<IDiagnostic>();
 
-            try
-            {
-                configHelp.LoadConfigurationForSourceFile(semanticModel.SyntaxTree.FileUri);
-            }
-            catch (Exception ex)
-            {
-                diagnostics.Add(CreateInternalErrorDiagnostic(AnalyzerName, ex.InnerException?.Message ?? ex.Message));
-                // Build a default config to continue with.  This should not fail.
-                configHelp.LoadDefaultConfiguration();
-            }
-            this.RuleSet.ForEach(r => r.Configure(configHelp.Config));
+            this.ruleSet.ForEach(r => r.Configure(this.configuration.Analyzers));
+
             if (this.LinterEnabled)
             {
                 // Add diaagnostics for rules that failed to load
-                diagnostics.AddRange(RuleCreationErrors);
+                diagnostics.AddRange(ruleCreationErrors);
 
                 // add an info diagnostic for local configuration reporting
                 if (this.LinterVerbose)
@@ -103,59 +89,45 @@ namespace Bicep.Core.Analyzers.Linter
                     diagnostics.Add(GetConfigurationDiagnostic());
                 }
 
-                diagnostics.AddRange(RuleSet.Where(rule => rule.IsEnabled())
-                                     .SelectMany(r => r.Analyze(semanticModel)));
+                diagnostics.AddRange(ruleSet
+                    .Where(rule => rule.IsEnabled())
+                    .SelectMany(r => r.Analyze(semanticModel)));
             }
             else
             {
                 if (this.LinterVerbose)
                 {
-                    diagnostics.Add(
-                        new AnalyzerDiagnostic(AnalyzerName,
-                                new TextSpan(0, 0),
-                                DiagnosticLevel.Info,
-                                "Linter Disabled",
-                                string.Format(CoreResources.LinterDisabledFormatMessage, this.configHelper.CustomSettingsFileName),
-                                null, null));
+                    diagnostics.Add(new AnalyzerDiagnostic(
+                        AnalyzerName,
+                        new TextSpan(0, 0),
+                        DiagnosticLevel.Info,
+                        "Linter Disabled",
+                        string.Format(CoreResources.LinterDisabledFormatMessage, this.configuration.ConfigurationPath ?? ConfigurationManager.BuiltInConfigurationResourceName)));
                 }
             }
+
             return diagnostics;
         }
 
         private IDiagnostic GetConfigurationDiagnostic()
         {
-            var configMessage = this.configHelper.CustomSettingsFileName == default ?
-                                    CoreResources.BicepConfigNoCustomSettingsMessage
-                                    : string.Format(CoreResources.BicepConfigCustomSettingsFoundFormatMessage, this.configHelper.CustomSettingsFileName);
+            var configMessage = this.configuration.IsBuiltIn
+                ? CoreResources.BicepConfigNoCustomSettingsMessage
+                : string.Format(CoreResources.BicepConfigCustomSettingsFoundFormatMessage, this.configuration.ConfigurationPath);
 
-            return new AnalyzerDiagnostic(AnalyzerName,
-                                            new TextSpan(0, 0),
-                                            DiagnosticLevel.Info,
-                                            "Bicep Linter Configuration",
-                                            configMessage,
-                                            null, null);
-        }
-
-        /// <summary>
-        /// Internal method intended to allow easy configuration
-        /// override in Unit Testing
-        /// </summary>
-        /// <param name="overrideConfig"></param>
-        internal void OverrideConfig(ConfigHelper overrideConfig)
-        {
-            this.configHelper = overrideConfig;
-        }
-
-        internal IDiagnostic CreateInternalErrorDiagnostic(string analyzerName, string message)
-        {
             return new AnalyzerDiagnostic(
-                    analyzerName,
-                    new TextSpan(0, 0),
-                    DiagnosticLevel.Warning,
-                    LinterAnalyzer.FailedRuleCode,
-                    message,
-                    null,
-                    null);
+                AnalyzerName,
+                new TextSpan(0, 0),
+                DiagnosticLevel.Info,
+                "Bicep Linter Configuration",
+                configMessage);
         }
+
+        private static IDiagnostic CreateInternalErrorDiagnostic(string analyzerName, string message) => new AnalyzerDiagnostic(
+            analyzerName,
+            new TextSpan(0, 0),
+            DiagnosticLevel.Warning,
+            LinterAnalyzer.LinterRuleInternalError,
+            message);
     }
 }

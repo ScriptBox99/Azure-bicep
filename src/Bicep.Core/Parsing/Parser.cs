@@ -94,6 +94,7 @@ namespace Bicep.Core.Parsing
                             LanguageConstants.ResourceKeyword => this.ResourceDeclaration(leadingNodes),
                             LanguageConstants.OutputKeyword => this.OutputDeclaration(leadingNodes),
                             LanguageConstants.ModuleKeyword => this.ModuleDeclaration(leadingNodes),
+                            LanguageConstants.ImportKeyword => this.ImportDeclaration(leadingNodes),
                             _ => leadingNodes.Count > 0
                                 ? new MissingDeclarationSyntax(leadingNodes)
                                 : throw new ExpectedTokenException(current, b => b.UnrecognizedDeclaration()),
@@ -297,13 +298,7 @@ namespace Bicep.Core.Parsing
                 GetSuppressionFlag(name),
                 TokenType.Assignment, TokenType.NewLine);
 
-            Token? existingKeyword = null;
-            var current = reader.Peek();
-            if (current.Type == TokenType.Identifier && current.Text == LanguageConstants.ExistingKeyword)
-            {
-                existingKeyword = reader.Read();
-            }
-
+            var existingKeyword = GetOptionalKeyword(LanguageConstants.ExistingKeyword);
             var assignment = this.WithRecovery(this.Assignment, GetSuppressionFlag(type), TokenType.LeftBrace, TokenType.NewLine);
 
             var value = this.WithRecovery(() =>
@@ -350,6 +345,33 @@ namespace Bicep.Core.Parsing
                 TokenType.NewLine);
 
             return new ModuleDeclarationSyntax(leadingNodes, keyword, name, path, assignment, value);
+        }
+
+        private ImportDeclarationSyntax ImportDeclaration(IEnumerable<SyntaxBase> leadingNodes)
+        {
+            var keyword = ExpectKeyword(LanguageConstants.ImportKeyword);
+            var providerName = this.IdentifierWithRecovery(b => b.ExpectedImportProviderName(), RecoveryFlags.None, TokenType.NewLine);
+            var asKeyword = this.WithRecovery(() => this.ExpectKeyword(LanguageConstants.AsKeyword), GetSuppressionFlag(providerName), TokenType.NewLine);
+            var aliasName = this.IdentifierWithRecovery(b => b.ExpectedImportAliasName(), GetSuppressionFlag(asKeyword), TokenType.NewLine);
+            var config = this.WithRecoveryNullable(
+                () =>
+                {
+                    var current = reader.Peek();
+                    return current.Type switch
+                    {
+                        // no config is supplied
+                        TokenType.NewLine => null,
+                        TokenType.EndOfFile => null,
+
+                        // we have config!
+                        TokenType.LeftBrace => this.Object(ExpressionFlags.AllowComplexLiterals),
+                        _ => throw new ExpectedTokenException(current, b => b.ExpectedCharacter("{")),
+                    };
+                },
+                GetSuppressionFlag(providerName),
+                TokenType.NewLine);
+
+            return new(leadingNodes, keyword, providerName, asKeyword, aliasName, config);
         }
 
         private Token? NewLineOrEof()
@@ -991,7 +1013,7 @@ namespace Bicep.Core.Parsing
 
         private SyntaxBase ForBody(ExpressionFlags expressionFlags, bool isResourceOrModuleContext)
         {
-            if(!isResourceOrModuleContext)
+            if (!isResourceOrModuleContext)
             {
                 // we're not parsing a resource or module body, which means we can have any expression at this point
                 return this.Expression(WithExpressionFlag(expressionFlags, ExpressionFlags.AllowComplexLiterals));
@@ -1022,6 +1044,11 @@ namespace Bicep.Core.Parsing
 
             var itemsOrTokens = new List<SyntaxBase>();
 
+            if (!Check(TokenType.NewLine))
+            {
+                itemsOrTokens.Add(SkipEmpty(x => x.ExpectedNewLine()));
+            }
+
             while (!this.IsAtEnd() && this.reader.Peek().Type != TokenType.RightSquare)
             {
                 // this produces an item node, skipped tokens node, or just a newline token
@@ -1041,6 +1068,16 @@ namespace Bicep.Core.Parsing
                             DiagnosticBuilder.ForPosition(token.Span).UnexpectedCommaSeparator().AsEnumerable()
                         );
                         itemsOrTokens.Add(skippedSyntax);
+                    }
+
+                    // we've got a ']' immediately after a property.
+                    // consume it and exit early with an error to avoid assuming we're still inside the object
+                    if (Check(TokenType.RightSquare))
+                    {
+                        itemsOrTokens.Add(SkipEmpty(x => x.ExpectedNewLine()));
+                        var earlyCloseBracket = this.reader.Read();
+
+                        return new ArraySyntax(openBracket, itemsOrTokens, earlyCloseBracket);
                     }
 
                     // items must be followed by newlines
@@ -1085,6 +1122,12 @@ namespace Bicep.Core.Parsing
             }
 
             var propertiesOrResourcesTokens = new List<SyntaxBase>();
+
+            if (!Check(TokenType.NewLine))
+            {
+                propertiesOrResourcesTokens.Add(SkipEmpty(x => x.ExpectedNewLine()));
+            }
+
             while (!this.IsAtEnd() && this.reader.Peek().Type != TokenType.RightBrace)
             {
                 // this produces a property node, skipped tokens node, or just a newline token
@@ -1104,6 +1147,16 @@ namespace Bicep.Core.Parsing
                             DiagnosticBuilder.ForPosition(token.Span).UnexpectedCommaSeparator().AsEnumerable()
                         );
                         propertiesOrResourcesTokens.Add(skippedSyntax);
+                    }
+
+                    // we've got a '}' immediately after a property.
+                    // consume it and exit early with an error to avoid assuming we're still inside the object
+                    if (Check(TokenType.RightBrace))
+                    {
+                        propertiesOrResourcesTokens.Add(SkipEmpty(x => x.ExpectedNewLine()));
+                        var earlyCloseBrace = this.reader.Read();
+
+                        return new ObjectSyntax(openBrace, propertiesOrResourcesTokens, earlyCloseBrace);
                     }
 
                     // properties must be followed by newlines
@@ -1286,6 +1339,12 @@ namespace Bicep.Core.Parsing
 
         private Token ExpectKeyword(string expectedKeyword)
         {
+            return GetOptionalKeyword(expectedKeyword) ??
+                throw new ExpectedTokenException(this.reader.Peek(), b => b.ExpectedKeyword(expectedKeyword));
+        }
+
+        private Token? GetOptionalKeyword(string expectedKeyword)
+        {
             if (this.CheckKeyword(expectedKeyword))
             {
                 // only read the token if it matches the expectations
@@ -1293,7 +1352,7 @@ namespace Bicep.Core.Parsing
                 return reader.Read();
             }
 
-            throw new ExpectedTokenException(this.reader.Peek(), b => b.ExpectedKeyword(expectedKeyword));
+            return null;
         }
 
         private bool Match(params TokenType[] types)

@@ -2,29 +2,41 @@
 // Licensed under the MIT License.
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
-using Bicep.Core.Analyzers.Linter;
-using Bicep.Core.Configuration;
+using Bicep.Core.Analyzers.Interfaces;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit;
 using Bicep.Core.Extensions;
+using Bicep.Core.FileSystem;
+using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
+using Bicep.Core.Text;
 using Bicep.Core.TypeSystem;
+using Bicep.Core.Workspaces;
 
 namespace Bicep.Core.Semantics
 {
-    public class SemanticModel
+    public class SemanticModel : ISemanticModel
     {
         private readonly Lazy<EmitLimitationInfo> emitLimitationInfoLazy;
         private readonly Lazy<SymbolHierarchy> symbolHierarchyLazy;
         private readonly Lazy<ResourceAncestorGraph> resourceAncestorsLazy;
-        private readonly Lazy<LinterAnalyzer> linterAnalyzerLazy;
+        private readonly Lazy<ImmutableArray<TypeProperty>> parameterTypePropertiesLazy;
+        private readonly Lazy<ImmutableArray<TypeProperty>> outputTypePropertiesLazy;
 
-        public SemanticModel(Compilation compilation, SyntaxTree syntaxTree)
+        private readonly Lazy<ImmutableArray<ResourceMetadata>> allResourcesLazy;
+        private readonly Lazy<IEnumerable<IDiagnostic>> allDiagnostics;
+
+        public SemanticModel(Compilation compilation, BicepFile sourceFile, IFileResolver fileResolver, IBicepAnalyzer linterAnalyzer)
         {
+            Trace.WriteLine($"Building semantic model for {sourceFile.FileUri}");
+
             Compilation = compilation;
-            SyntaxTree = syntaxTree;
+            SourceFile = sourceFile;
+            FileResolver = fileResolver;
 
             // create this in locked mode by default
             // this blocks accidental type or binding queries until binding is done
@@ -32,8 +44,8 @@ namespace Bicep.Core.Semantics
             var symbolContext = new SymbolContext(compilation, this);
             SymbolContext = symbolContext;
 
-            Binder = new Binder(syntaxTree, symbolContext);
-            TypeManager = new TypeManager(compilation.ResourceTypeProvider, Binder);
+            Binder = new Binder(compilation.NamespaceProvider, sourceFile, symbolContext);
+            TypeManager = new TypeManager(Binder, fileResolver);
 
             // name binding is done
             // allow type queries now
@@ -47,14 +59,51 @@ namespace Bicep.Core.Semantics
 
                 return hierarchy;
             });
-            this.resourceAncestorsLazy = new Lazy<ResourceAncestorGraph>(() => ResourceAncestorGraph.Compute(syntaxTree, Binder));
+            this.resourceAncestorsLazy = new Lazy<ResourceAncestorGraph>(() => ResourceAncestorGraph.Compute(this));
+            this.ResourceMetadata = new ResourceMetadataCache(this);
 
-            // lazy loading the linter will delay linter rule loading
-            // and configuration loading until the linter is actually needed
-            this.linterAnalyzerLazy = new Lazy<LinterAnalyzer>( () => new LinterAnalyzer());
+            LinterAnalyzer = linterAnalyzer;
+
+            this.allResourcesLazy = new Lazy<ImmutableArray<ResourceMetadata>>(() => GetAllResourceMetadata());
+
+            // lazy load single use diagnostic set
+            this.allDiagnostics = new Lazy<IEnumerable<IDiagnostic>>(() => AssembleDiagnostics());
+
+            this.parameterTypePropertiesLazy = new Lazy<ImmutableArray<TypeProperty>>(() =>
+            {
+                var paramTypeProperties = new List<TypeProperty>();
+
+                foreach (var param in this.Root.ParameterDeclarations.DistinctBy(p => p.Name))
+                {
+                    var typePropertyFlags = TypePropertyFlags.WriteOnly;
+                    if (SyntaxHelper.TryGetDefaultValue(param.DeclaringParameter) == null)
+                    {
+                        // if there's no default value, it must be specified
+                        typePropertyFlags |= TypePropertyFlags.Required;
+                    }
+
+                    var description = SemanticModelHelper.TryGetDescription(this, param.DeclaringParameter);
+                    paramTypeProperties.Add(new TypeProperty(param.Name, param.Type, typePropertyFlags, description));
+                }
+
+                return paramTypeProperties.ToImmutableArray();
+            });
+
+            this.outputTypePropertiesLazy = new Lazy<ImmutableArray<TypeProperty>>(() =>
+            {
+                var outputTypeProperties = new List<TypeProperty>();
+
+                foreach (var output in this.Root.OutputDeclarations.DistinctBy(o => o.Name))
+                {
+                    var description = SemanticModelHelper.TryGetDescription(this, output.DeclaringOutput);
+                    outputTypeProperties.Add(new TypeProperty(output.Name, output.Type, TypePropertyFlags.ReadOnly, description));
+                }
+
+                return outputTypeProperties.ToImmutableArray();
+            });
         }
 
-        public SyntaxTree SyntaxTree { get; }
+        public BicepFile SourceFile { get; }
 
         public IBinder Binder { get; }
 
@@ -64,11 +113,21 @@ namespace Bicep.Core.Semantics
 
         public ITypeManager TypeManager { get; }
 
+        public IFileResolver FileResolver { get; }
+
         public EmitLimitationInfo EmitLimitationInfo => emitLimitationInfoLazy.Value;
 
         public ResourceAncestorGraph ResourceAncestors => resourceAncestorsLazy.Value;
 
-        private LinterAnalyzer LinterAnalyzer => linterAnalyzerLazy.Value;
+        public ResourceMetadataCache ResourceMetadata { get; }
+
+        public IBicepAnalyzer LinterAnalyzer { get; }
+
+        public ImmutableArray<TypeProperty> ParameterTypeProperties => this.parameterTypePropertiesLazy.Value;
+
+        public ImmutableArray<TypeProperty> OutputTypeProperties => this.outputTypePropertiesLazy.Value;
+
+        public ImmutableArray<ResourceMetadata> AllResources => allResourcesLazy.Value;
 
         /// <summary>
         /// Gets all the parser and lexer diagnostics unsorted. Does not include diagnostics from the semantic model.
@@ -86,7 +145,7 @@ namespace Bicep.Core.Semantics
             var visitor = new SemanticDiagnosticVisitor(diagnosticWriter);
             visitor.Visit(this.Root);
 
-            foreach (var missingDeclarationSyntax in this.SyntaxTree.ProgramSyntax.Children.OfType<MissingDeclarationSyntax>())
+            foreach (var missingDeclarationSyntax in this.SourceFile.ProgramSyntax.Children.OfType<MissingDeclarationSyntax>())
             {
                 // Trigger type checking manually as missing declarations are not bound to any symbol.
                 this.TypeManager.GetTypeInfo(missingDeclarationSyntax);
@@ -103,14 +162,10 @@ namespace Bicep.Core.Semantics
         /// Gets all the analyzer diagnostics unsorted.
         /// </summary>
         /// <returns></returns>
-        public IReadOnlyList<IDiagnostic> GetAnalyzerDiagnostics(ConfigHelper? overrideConfig = default)
+        public IReadOnlyList<IDiagnostic> GetAnalyzerDiagnostics()
         {
-            if (overrideConfig != default)
-            {
-                LinterAnalyzer.OverrideConfig(overrideConfig);
-            }
+            var diagnostics = LinterAnalyzer.Analyze(this);
 
-            var diagnostics = LinterAnalyzer.Analyze(this, overrideConfig);
             var diagnosticWriter = ToListDiagnosticWriter.Create();
             diagnosticWriter.WriteMultiple(diagnostics);
 
@@ -118,16 +173,50 @@ namespace Bicep.Core.Semantics
         }
 
         /// <summary>
-        /// Gets all the diagnostics sorted by span position ascending. This includes lexer, parser, and semantic diagnostics.
+        /// Cached diagnostics from compilation
         /// </summary>
-        public IEnumerable<IDiagnostic> GetAllDiagnostics(ConfigHelper? overrideConfig = default) =>
-            GetParseDiagnostics()
-            .Concat(GetSemanticDiagnostics())
-            .Concat(GetAnalyzerDiagnostics(overrideConfig))
-            .OrderBy(diag => diag.Span.Position);
+        public IEnumerable<IDiagnostic> GetAllDiagnostics()
+        {
+            return AssembleDiagnostics();
+        }
 
+        private IReadOnlyList<IDiagnostic> AssembleDiagnostics()
+        {
+            var diagnostics = GetParseDiagnostics()
+                .Concat(GetSemanticDiagnostics())
+                .Concat(GetAnalyzerDiagnostics())
+                .OrderBy(diag => diag.Span.Position);
+            var filteredDiagnostics = new List<IDiagnostic>();
+
+            var disabledDiagnosticsCache = SourceFile.DisabledDiagnosticsCache;
+            foreach (IDiagnostic diagnostic in diagnostics)
+            {
+                (int diagnosticLine, _) = TextCoordinateConverter.GetPosition(SourceFile.LineStarts, diagnostic.Span.Position);
+
+                if (diagnosticLine == 0 || !diagnostic.CanBeSuppressed())
+                {
+                    filteredDiagnostics.Add(diagnostic);
+                    continue;
+                }
+
+                if (disabledDiagnosticsCache.TryGetDisabledNextLineDirective(diagnosticLine - 1) is { } disableNextLineDirectiveEndPositionAndCodes &&
+                    disableNextLineDirectiveEndPositionAndCodes.diagnosticCodes.Contains(diagnostic.Code))
+                {
+                    continue;
+                }
+
+                filteredDiagnostics.Add(diagnostic);
+            }
+
+            return filteredDiagnostics;
+        }
+
+        /// <summary>
+        /// Immediately runs diagnostics and returns true if any errors are detected
+        /// </summary>
+        /// <returns>True if analysis finds errors</returns>
         public bool HasErrors()
-            => GetAllDiagnostics().Any(x => x.Level == DiagnosticLevel.Error);
+            => allDiagnostics.Value.Any(x => x.Level == DiagnosticLevel.Error);
 
         public TypeSymbol GetTypeInfo(SyntaxBase syntax) => this.TypeManager.GetTypeInfo(syntax);
 
@@ -143,75 +232,7 @@ namespace Bicep.Core.Semantics
         /// </summary>
         /// <param name="syntax">the syntax node</param>
         public Symbol? GetSymbolInfo(SyntaxBase syntax)
-        {
-            static PropertySymbol? GetPropertySymbol(TypeSymbol? baseType, string property)
-            {
-                if (baseType is null)
-                {
-                    return null;
-                }
-
-                var typeProperty = TypeAssignmentVisitor.UnwrapType(baseType) switch {
-                    ObjectType x => x.Properties.TryGetValue(property, out var tp) ? tp : null,
-                    DiscriminatedObjectType x => x.TryGetDiscriminatorProperty(property),
-                    _ => null
-                };
-
-                if (typeProperty is null)
-                {
-                    return null;
-                }
-
-                return new PropertySymbol(property, typeProperty.Description, typeProperty.TypeReference.Type);
-            }
-
-            switch (syntax)
-            {
-                case InstanceFunctionCallSyntax ifc:
-                {
-                    var baseType = GetDeclaredType(ifc.BaseExpression);
-
-                    if (baseType is null)
-                    {
-                        return null;
-                    }
-
-                    switch (TypeAssignmentVisitor.UnwrapType(baseType))
-                    {
-                        case NamespaceType namespaceType when SyntaxTree.Hierarchy.GetParent(ifc) is DecoratorSyntax:
-                            return namespaceType.DecoratorResolver.TryGetSymbol(ifc.Name);
-                        case ObjectType objectType:
-                            return objectType.MethodResolver.TryGetSymbol(ifc.Name);
-                    }
-
-                    return null;
-                }
-                case PropertyAccessSyntax propertyAccess:
-                {
-                    var baseType = GetDeclaredType(propertyAccess.BaseExpression);
-                    var property = propertyAccess.PropertyName.IdentifierName;
-
-                    return GetPropertySymbol(baseType, property);
-                }
-                case ObjectPropertySyntax objectProperty:
-                {
-                    if (Binder.GetParent(objectProperty) is not {} parentSyntax)
-                    {
-                        return null;
-                    }
-                    
-                    var baseType = GetDeclaredType(parentSyntax);
-                    if (objectProperty.TryGetKeyText() is not {} property)
-                    {
-                        return null;
-                    }
-
-                    return GetPropertySymbol(baseType, property);
-                }
-            }
-
-            return this.Binder.GetSymbolInfo(syntax);
-        }
+            => SymbolHelper.TryGetSymbolInfo(Binder, TypeManager.GetDeclaredType, syntax);
 
         /// <summary>
         /// Returns all syntax nodes that represent a reference to the specified symbol. This includes the definitions of the symbol as well.
@@ -219,7 +240,7 @@ namespace Bicep.Core.Semantics
         /// </summary>
         /// <param name="symbol">The symbol</param>
         public IEnumerable<SyntaxBase> FindReferences(Symbol symbol)
-            => SyntaxAggregator.Aggregate(this.SyntaxTree.ProgramSyntax, new List<SyntaxBase>(), (accumulated, current) =>
+            => SyntaxAggregator.Aggregate(this.SourceFile.ProgramSyntax, new List<SyntaxBase>(), (accumulated, current) =>
                 {
                     if (object.ReferenceEquals(symbol, this.GetSymbolInfo(current)))
                     {
@@ -229,6 +250,20 @@ namespace Bicep.Core.Semantics
                     return accumulated;
                 },
                 accumulated => accumulated);
+
+        private ImmutableArray<ResourceMetadata> GetAllResourceMetadata()
+        {
+            var resources = ImmutableArray.CreateBuilder<ResourceMetadata>();
+            foreach (var resourceSymbol in ResourceSymbolVisitor.GetAllResources(Root))
+            {
+                if (this.ResourceMetadata.TryLookup(resourceSymbol.DeclaringSyntax) is { } resource)
+                {
+                    resources.Add(resource);
+                }
+            }
+
+            return resources.ToImmutable();
+        }
 
         /// <summary>
         /// Gets the file that was compiled.

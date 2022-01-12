@@ -3,8 +3,9 @@
 using System.Collections.Generic;
 using System;
 using Newtonsoft.Json.Linq;
+using Azure.Deployments.Core.Configuration;
+using Azure.Deployments.Core.Definitions.Schema;
 using Azure.Deployments.Templates.Engines;
-using Azure.Deployments.Templates.Configuration;
 using Azure.Deployments.Core.Collections;
 using Azure.Deployments.Core.Instrumentation;
 using Azure.Deployments.Templates.Schema;
@@ -14,6 +15,7 @@ using System.Linq;
 using Azure.Deployments.Expression.Expressions;
 using Azure.Deployments.Core.ErrorResponses;
 using System.Collections.Immutable;
+using Bicep.Core.UnitTests.Utils;
 
 namespace Bicep.Core.IntegrationTests
 {
@@ -58,7 +60,7 @@ namespace Bicep.Core.IntegrationTests
             var typeSegments = resource.Type.Value.Split('/');
             var nameSegments = resource.Name.Value.Split('/');
 
-            var types = new [] { typeSegments.First() }
+            var types = new[] { typeSegments.First() }
                 .Concat(typeSegments.Skip(1).Zip(nameSegments, (type, name) => $"{type}/{name}"));
 
             return $"{scopeString}providers/{string.Join('/', types)}";
@@ -66,7 +68,8 @@ namespace Bicep.Core.IntegrationTests
 
         private static void ProcessTemplateLanguageExpressions(Template template, EvaluationConfiguration config, TemplateDeploymentScope deploymentScope)
         {
-            var scopeString = deploymentScope switch {
+            var scopeString = deploymentScope switch
+            {
                 TemplateDeploymentScope.Tenant => "/",
                 TemplateDeploymentScope.ManagementGroup => $"/providers/Microsoft.Management/managementGroups/{config.ManagementGroup}/",
                 TemplateDeploymentScope.Subscription => $"/subscriptions/{config.SubscriptionId}/",
@@ -76,7 +79,7 @@ namespace Bicep.Core.IntegrationTests
 
             var resourceLookup = template.Resources.ToOrdinalInsensitiveDictionary(x => GetResourceId(scopeString, x));
 
-            var evaluationContext = TemplateEngine.GetExpressionEvaluationContext(template);
+            var evaluationContext = TemplateEngine.GetExpressionEvaluationContext(config.ManagementGroup, config.SubscriptionId, config.ResourceGroup, template);
             var defaultEvaluateFunction = evaluationContext.EvaluateFunction;
             evaluationContext.EvaluateFunction = (FunctionExpression functionExpression, JToken[] parameters, TemplateErrorAdditionalInfo additionalInfo) =>
             {
@@ -95,7 +98,7 @@ namespace Bicep.Core.IntegrationTests
                     var apiVersion = parameters.Length > 1 ? parameters[1].ToString() : null;
                     var fullBody = parameters.Length > 2 ? parameters[2].ToString().EqualsOrdinalInsensitively("Full") : false;
 
-                    if (resourceLookup.TryGetValue(resourceId, out var foundResource) && 
+                    if (resourceLookup.TryGetValue(resourceId, out var foundResource) &&
                         (apiVersion is null || StringComparer.OrdinalIgnoreCase.Equals(apiVersion, foundResource.ApiVersion.Value)))
                     {
                         return fullBody ? foundResource.ToJToken() : foundResource.Properties.ToJToken();
@@ -148,22 +151,15 @@ namespace Bicep.Core.IntegrationTests
 
         private static JToken EvaluateTemplate(JToken? templateJtoken, EvaluationConfiguration config)
         {
-            DeploymentsInterop.Initialize();
-
             templateJtoken = templateJtoken ?? throw new ArgumentNullException(nameof(templateJtoken));
 
-            var deploymentScope = templateJtoken["$schema"]?.ToString() switch {
-                "https://schema.management.azure.com/schemas/2019-08-01/tenantDeploymentTemplate.json#" => TemplateDeploymentScope.Tenant,
-                "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#" => TemplateDeploymentScope.ManagementGroup,
-                "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#" => TemplateDeploymentScope.Subscription,
-                "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#" => TemplateDeploymentScope.ResourceGroup,
-                _ => throw new InvalidOperationException($"Unrecognized schema: {templateJtoken["$schema"]}"),
-            };
+            var deploymentScope = TemplateHelper.GetDeploymentScope(templateJtoken["$schema"]!.ToString());
 
             var metadata = new InsensitiveDictionary<JToken>(config.Metadata);
             if (deploymentScope == TemplateDeploymentScope.Subscription || deploymentScope == TemplateDeploymentScope.ResourceGroup)
             {
-                metadata["subscription"] = new JObject {
+                metadata["subscription"] = new JObject
+                {
                     ["id"] = $"/subscriptions/{config.SubscriptionId}",
                     ["subscriptionId"] = config.SubscriptionId,
                     ["tenantId"] = config.TenantId,
@@ -171,24 +167,39 @@ namespace Bicep.Core.IntegrationTests
             }
             if (deploymentScope == TemplateDeploymentScope.ResourceGroup)
             {
-                metadata["resourceGroup"] = new JObject {
+                metadata["resourceGroup"] = new JObject
+                {
                     ["id"] = $"/subscriptions/{config.SubscriptionId}/resourceGroups/{config.ResourceGroup}",
                     ["location"] = config.RgLocation,
                 };
+            };
+            if (deploymentScope == TemplateDeploymentScope.ManagementGroup)
+            {
+                metadata["managementGroup"] = new JObject
+                {
+                    ["id"] = $"/providers/Microsoft.Management/managementGroups/{config.ManagementGroup}",
+                    ["name"] = config.ManagementGroup,
+                    ["type"] = "Microsoft.Management/managementGroups",
+                };
+            };
+            // tenant() function is available at all scopes
+            metadata["tenant"] = new JObject
+            {
+                ["tenantId"] = config.TenantId,
             };
 
             try
             {
                 var template = TemplateEngine.ParseTemplate(templateJtoken.ToString());
 
-                TemplateEngine.ValidateTemplate(template, "2020-06-01", deploymentScope);
+                TemplateEngine.ValidateTemplate(template, "2020-10-01", deploymentScope);
                 TemplateEngine.ParameterizeTemplate(template, new InsensitiveDictionary<JToken>(config.Parameters), metadata, new InsensitiveDictionary<JToken>());
 
-                TemplateEngine.ProcessTemplateLanguageExpressions(template, "2020-06-01");
+                TemplateEngine.ProcessTemplateLanguageExpressions(config.ManagementGroup, config.SubscriptionId, config.ResourceGroup, template, "2020-10-01");
 
                 ProcessTemplateLanguageExpressions(template, config, deploymentScope);
 
-                TemplateEngine.ValidateProcessedTemplate(template, "2020-06-01", deploymentScope);
+                TemplateEngine.ValidateProcessedTemplate(template, "2020-10-01", deploymentScope);
 
                 return template.ToJToken();
             }

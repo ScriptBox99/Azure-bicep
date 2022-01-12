@@ -29,6 +29,15 @@ param (
 
 $ErrorActionPreference = 'Stop';
 
+if($PSVersionTable.PSEdition -ne 'Core')
+{
+  # The Compress-Archive cmdlet on Windows PowerShell uses \ as the directory separator charactor
+  # when creating .zip files. When extracted on a non-Windows machine, \ is a valid file name character
+  # so the user gets a flat list of files instead of directories and subdirectories.
+  # This was fixed in PS Core/.net 5.
+  Write-Error "This script requires PowerShell Core to run.";
+}
+
 $org = 'https://dev.azure.com/msazure/';
 $project = 'One';
 $pipelineName = 'BicepMirror-Official'
@@ -51,6 +60,15 @@ $artifacts = @(
     );
   },
   @{
+    buildArtifactName = 'drop_build_bicep_linux_arm64';
+    assets = @(
+      @{
+        assetName = 'bicep-linux-arm64';
+        relativePath = 'bicep-Release-linux-arm64/bicep';
+      }
+    );
+  },
+  @{
     buildArtifactName = 'drop_build_bicep_linux_musl';
     assets = @(
       @{
@@ -65,6 +83,15 @@ $artifacts = @(
       @{
         assetName = 'bicep-osx-x64';
         relativePath = 'bicep-Release-osx-x64/bicep';
+      }
+    );
+  },
+  @{
+    buildArtifactName = 'drop_build_bicep_osx_arm64';
+    assets = @(
+      @{
+        assetName = 'bicep-osx-arm64';
+        relativePath = 'bicep-Release-osx-arm64/bicep';
       }
     );
   },
@@ -86,6 +113,14 @@ $artifacts = @(
       @{
         assetName = "Azure.Bicep.MSBuild.$buildVersion.snupkg";
         relativePath = "Azure.Bicep.MSBuild.$buildVersion.snupkg";
+      },
+      @{
+        assetName = "Azure.Bicep.RegistryModuleTool.$buildVersion.nupkg";
+        relativePath = "Azure.Bicep.RegistryModuleTool.$buildVersion.nupkg";
+      },
+      @{
+        assetName = "Azure.Bicep.RegistryModuleTool.$buildVersion.snupkg";
+        relativePath = "Azure.Bicep.RegistryModuleTool.$buildVersion.snupkg";
       }
     );
     zipAssets = @(
@@ -96,6 +131,15 @@ $artifacts = @(
         relativePath = 'bicep.LangServer/*';
       }
     )
+  },
+  @{
+    buildArtifactName = 'drop_build_bicep_windows_arm64';
+    assets = @(
+      @{
+        assetName = 'bicep-win-arm64.exe';
+        relativePath = 'bicep-Release-win-arm64/bicep.exe';
+      }
+    );
   },
   @{
     buildArtifactName = 'drop_build_vsix';
@@ -116,6 +160,15 @@ $artifacts = @(
     );
   },
   @{
+    buildArtifactName = 'drop_build_packages_windows_arm64';
+    assets = @(
+      @{
+        assetName = "Azure.Bicep.CommandLine.win-arm64.$buildVersion.nupkg";
+        relativePath = "Azure.Bicep.CommandLine.win-arm64.$buildVersion.nupkg";
+      }
+    );
+  },
+  @{
     buildArtifactName = 'drop_build_packages_linux';
     assets = @(
       @{
@@ -125,11 +178,29 @@ $artifacts = @(
     );
   },
   @{
+    buildArtifactName = 'drop_build_packages_linux_arm64';
+    assets = @(
+      @{
+        assetName = "Azure.Bicep.CommandLine.linux-arm64.$buildVersion.nupkg";
+        relativePath = "Azure.Bicep.CommandLine.linux-arm64.$buildVersion.nupkg";
+      }
+    );
+  },
+  @{
     buildArtifactName = 'drop_build_packages_osx';
     assets = @(
       @{
         assetName = "Azure.Bicep.CommandLine.osx-x64.$buildVersion.nupkg";
         relativePath = "Azure.Bicep.CommandLine.osx-x64.$buildVersion.nupkg";
+      }
+    );
+  },
+  @{
+    buildArtifactName = 'drop_build_packages_osx_arm64';
+    assets = @(
+      @{
+        assetName = "Azure.Bicep.CommandLine.osx-arm64.$buildVersion.nupkg";
+        relativePath = "Azure.Bicep.CommandLine.osx-arm64.$buildVersion.nupkg";
       }
     );
   }

@@ -55,7 +55,7 @@ output subnet1id string = subnet1.id
 
             using (new AssertionScope())
             {
-                diags.Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().Should().BeEmpty();
 
                 template.Should().HaveValueAtPath("$.resources[0].name", "myVnet");
                 template.Should().NotHaveValueAtPath("$.resources[0].dependsOn");
@@ -76,7 +76,7 @@ output subnet1id string = subnet1.id
         [TestMethod]
         public void Parent_property_works_with_extension_resources()
         {
-            var (template, diags, _) = CompilationHelper.Compile(@"
+            var result = CompilationHelper.Compile(@"
 resource res1 'Microsoft.Rp1/resource1@2020-06-01' = {
   name: 'res1'
 }
@@ -102,25 +102,24 @@ output res2childtype string = res2child.type
 output res2childid string = res2child.id
 ");
 
-            using (new AssertionScope())
-            {
-                template.Should().HaveValueAtPath("$.resources[0].name", "res1");
-                template.Should().NotHaveValueAtPath("$.resources[0].dependsOn");
+            result.Diagnostics.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
-                template.Should().HaveValueAtPath("$.resources[1].name", "[format('{0}/{1}', 'res1', 'child1')]");
-                template.Should().HaveValueAtPath("$.resources[1].dependsOn", new JArray { "[resourceId('Microsoft.Rp1/resource1', 'res1')]" });
+            result.Template.Should().HaveValueAtPath("$.resources[0].name", "res1");
+            result.Template.Should().NotHaveValueAtPath("$.resources[0].dependsOn");
 
-                template.Should().HaveValueAtPath("$.resources[2].name", "res2");
-                template.Should().HaveValueAtPath("$.resources[2].dependsOn", new JArray { "[resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1')]" });
+            result.Template.Should().HaveValueAtPath("$.resources[1].name", "[format('{0}/{1}', 'res1', 'child1')]");
+            result.Template.Should().HaveValueAtPath("$.resources[1].dependsOn", new JArray { "[resourceId('Microsoft.Rp1/resource1', 'res1')]" });
 
-                template.Should().HaveValueAtPath("$.resources[3].name", "[format('{0}/{1}', 'res2', 'child2')]");
-                template.Should().HaveValueAtPath("$.resources[3].dependsOn", new JArray { "[extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2', 'res2')]" });
+            result.Template.Should().HaveValueAtPath("$.resources[2].name", "res2");
+            result.Template.Should().HaveValueAtPath("$.resources[2].dependsOn", new JArray { "[resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1')]" });
 
-                template.Should().HaveValueAtPath("$.outputs['res2childprop'].value", "[reference(extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2/child2', 'res2', 'child2')).someProp]");
-                template.Should().HaveValueAtPath("$.outputs['res2childname'].value", "child2");
-                template.Should().HaveValueAtPath("$.outputs['res2childtype'].value", "Microsoft.Rp2/resource2/child2");
-                template.Should().HaveValueAtPath("$.outputs['res2childid'].value", "[extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2/child2', 'res2', 'child2')]");
-            }
+            result.Template.Should().HaveValueAtPath("$.resources[3].name", "[format('{0}/{1}', 'res2', 'child2')]");
+            result.Template.Should().HaveValueAtPath("$.resources[3].dependsOn", new JArray { "[extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2', 'res2')]" });
+
+            result.Template.Should().HaveValueAtPath("$.outputs['res2childprop'].value", "[reference(extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2/child2', 'res2', 'child2')).someProp]");
+            result.Template.Should().HaveValueAtPath("$.outputs['res2childname'].value", "child2");
+            result.Template.Should().HaveValueAtPath("$.outputs['res2childtype'].value", "Microsoft.Rp2/resource2/child2");
+            result.Template.Should().HaveValueAtPath("$.outputs['res2childid'].value", "[extensionResourceId(resourceId('Microsoft.Rp1/resource1/child1', 'res1', 'child1'), 'Microsoft.Rp2/resource2/child2', 'res2', 'child2')]");
         }
 
         [TestMethod]
@@ -144,7 +143,7 @@ output res1childid string = child1.id
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 // child1
                 template.Should().HaveValueAtPath("$.resources[0].name", "[format('{0}/{1}', 'res1', 'child1')]");
@@ -181,7 +180,7 @@ output res1childid string = child1.id
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 template.Should().NotHaveValueAtPath("$.resources[0]");
 
@@ -192,10 +191,33 @@ output res1childid string = child1.id
             }
         }
 
-        [TestMethod]
-        public void Parent_property_blocks_existing_parents_at_different_scopes()
+        [DataTestMethod]
+        [DataRow("resourceGroup('other')")]
+        [DataRow("subscription()")]
+        [DataRow("managementGroup('abcdef')")]
+        public void Parent_property_blocks_existing_parents_at_different_scopes(string parentScope)
         {
-            var (template, diags, _) = CompilationHelper.Compile(@"
+            var result = CompilationHelper.Compile(@"
+resource res1 'Microsoft.Rp1/resource1@2020-06-01' existing = {
+  scope: " + parentScope + @"
+  name: 'res1'
+}
+
+resource child1 'Microsoft.Rp1/resource1/child1@2020-06-01' = {
+  parent: res1
+  name: 'child1'
+}
+");
+
+            result.Diagnostics.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                ("BCP165", DiagnosticLevel.Error, "Cannot deploy a resource with ancestor under a different scope. Resource \"res1\" has the \"scope\" property set."),
+            });
+        }
+
+        [TestMethod]
+        public void Parent_property_allows_existing_parents_at_tenant_scope()
+        {
+            var result = CompilationHelper.Compile(@"
 resource res1 'Microsoft.Rp1/resource1@2020-06-01' existing = {
   scope: tenant()
   name: 'res1'
@@ -207,13 +229,9 @@ resource child1 'Microsoft.Rp1/resource1/child1@2020-06-01' = {
 }
 ");
 
-            using (new AssertionScope())
-            {
-                template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
-                  ("BCP165", DiagnosticLevel.Error, "Cannot deploy a resource with ancestor under a different scope. Resource \"res1\" has the \"scope\" property set."),
-                });
-            }
+            result.Diagnostics.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
+            result.Template.Should().HaveValueAtPath("$.resources[0].scope", "/");
+            result.Template.Should().HaveValueAtPath("$.resources[0].name", "[format('{0}/{1}', 'res1', 'child1')]");
         }
 
         [TestMethod]
@@ -238,7 +256,7 @@ resource res2child 'Microsoft.Rp2/resource2/child2@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP164", DiagnosticLevel.Error, "The \"scope\" property is unsupported for a resource with a parent resource. This resource has \"res2\" declared as its parent."),
                 });
             }
@@ -249,6 +267,7 @@ resource res2child 'Microsoft.Rp2/resource2/child2@2020-06-01' = {
         {
             var (template, diags, _) = CompilationHelper.Compile(@"
 resource vmExt 'Microsoft.Compute/virtualMachines/extensions@2020-06-01' = {
+  name: 'vmExt'
   parent: vmExt
   location: 'eastus'
 }
@@ -257,7 +276,7 @@ resource vmExt 'Microsoft.Compute/virtualMachines/extensions@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP079", DiagnosticLevel.Error, "This expression is referencing its own declaration, which is not allowed.")
                 });
             }
@@ -281,7 +300,7 @@ resource vmExt 'Microsoft.Compute/virtualMachines/extensions@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP080", DiagnosticLevel.Error, "The expression is involved in a cycle (\"vmExt\" -> \"vm\")."),
                   ("BCP080", DiagnosticLevel.Error, "The expression is involved in a cycle (\"vm\" -> \"vmExt\").")
                 });
@@ -305,8 +324,8 @@ resource res2 'Microsoft.Rp2/resource2/child2@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
-                  ("BCP171", DiagnosticLevel.Error, "Resource type \"Microsoft.Rp2/resource2/child2\" is not a valid child resource of parent \"Microsoft.Rp1/resource1\"."),
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                  ("BCP036", DiagnosticLevel.Error, "The property \"parent\" expected a value of type \"Microsoft.Rp2/resource2\" but the provided value is of type \"Microsoft.Rp1/resource1@2020-06-01\"."),
                 });
             }
         }
@@ -328,9 +347,9 @@ resource res2 'Microsoft.Rp1/resource1/child2@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP047", DiagnosticLevel.Error, "String interpolation is unsupported for specifying the resource type."),
-                  ("BCP172", DiagnosticLevel.Error, "The resource type cannot be validated due to an error in parent resource \"res1\"."),
+                  ("BCP062", DiagnosticLevel.Error, "The referenced declaration with name \"res1\" is not valid."),
                 });
             }
         }
@@ -357,7 +376,7 @@ resource res3 'Microsoft.Rp1/resource1/child2@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP170", DiagnosticLevel.Error, "Expected resource name to not contain any \"/\" characters. Child resources with a parent resource reference (via the parent property or via nesting) must not contain a fully-qualified name."),
                   ("BCP170", DiagnosticLevel.Error, "Expected resource name to not contain any \"/\" characters. Child resources with a parent resource reference (via the parent property or via nesting) must not contain a fully-qualified name."),
                 });
@@ -376,7 +395,7 @@ resource res1 'Microsoft.Rp1/resource1@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP169", DiagnosticLevel.Error, "Expected resource name to contain 0 \"/\" character(s). The number of name segments must match the number of segments in the resource type."),
                 });
             }
@@ -390,7 +409,7 @@ resource res1 'Microsoft.Rp1/resource1/child2@2020-06-01' = {
             using (new AssertionScope())
             {
                 template.Should().NotHaveValue();
-                diags.ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                   ("BCP169", DiagnosticLevel.Error, "Expected resource name to contain 1 \"/\" character(s). The number of name segments must match the number of segments in the resource type."),
                 });
             }
@@ -400,7 +419,7 @@ resource res1 'Microsoft.Rp1/resource1/child2@2020-06-01' = {
         public void Top_level_resource_should_have_appropriate_number_of_slashes_in_interpolated_names()
         {
 
-            var result = CompilationHelper.Compile(TestTypeHelper.CreateEmptyProvider(),
+            var result = CompilationHelper.Compile(TestTypeHelper.CreateEmptyAzResourceTypeLoader(),
                 ("main.bicep", @"
 param p1 string
 
@@ -411,11 +430,11 @@ resource res1 'Microsoft.Rp1/resource1@2020-06-01' = {
 
             // There are definitely too many '/' characters in the name - we should return an error.
             result.Should().NotGenerateATemplate();
-            result.Should().HaveDiagnostics(new [] {
+            result.Diagnostics.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().HaveDiagnostics(new[] {
                 ("BCP169", DiagnosticLevel.Error, "Expected resource name to contain 0 \"/\" character(s). The number of name segments must match the number of segments in the resource type."),
             });
 
-            result = CompilationHelper.Compile(TestTypeHelper.CreateEmptyProvider(),
+            result = CompilationHelper.Compile(TestTypeHelper.CreateEmptyAzResourceTypeLoader(),
                 ("main.bicep", @"
 param p1 string
 
@@ -425,7 +444,7 @@ resource res1 'Microsoft.Rp1/resource1/child1@2020-06-01' = {
 "));
 
             // The name requires a single '/' character to be valid, but we cannot be sure that 'p1' doesn't contain it - we should not return an error.
-            result.Should().NotHaveAnyDiagnostics();
+            result.Diagnostics.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
         }
 
         [TestMethod]
@@ -453,7 +472,7 @@ output child0Name string = child[0].name
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 template.Should().NotHaveValueAtPath("$.resources[0].copy");
                 template.Should().HaveValueAtPath("$.resources[0].name", "parent");
@@ -501,7 +520,7 @@ output child0Name string = child[0].name
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 template.Should().HaveValueAtPath("$.resources[0].copy", new JObject
                 {
@@ -553,7 +572,7 @@ output childName string = child.name
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 template.Should().HaveValueAtPath("$.resources[0].copy", new JObject
                 {
@@ -601,7 +620,7 @@ output child0Name string = child[0].name
 
             using (new AssertionScope())
             {
-                diags.ExcludingMissingTypes().Should().BeEmpty();
+                diags.ExcludingLinterDiagnostics().ExcludingMissingTypes().Should().BeEmpty();
 
                 template.Should().HaveValueAtPath("$.resources[0].copy", new JObject
                 {

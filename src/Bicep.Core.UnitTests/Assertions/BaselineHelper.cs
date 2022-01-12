@@ -27,6 +27,12 @@ namespace Bicep.Core.UnitTests.Assertions
             actualLocation = GetAbsolutePathRelativeToRepoRoot(actualLocation);
             expectedLocation = GetAbsolutePathRelativeToRepoRoot(expectedLocation);
 
+            if (Path.GetDirectoryName(expectedLocation) is { } parentDir &&
+                !Directory.Exists(parentDir))
+            {
+                Directory.CreateDirectory(parentDir);
+            }
+
             File.Copy(actualLocation, expectedLocation, overwrite: true);
         }
 
@@ -46,9 +52,10 @@ namespace Bicep.Core.UnitTests.Assertions
                 return Path.GetFullPath(path);
             }
 
-            throw new InvalidOperationException("Unable to determine the repo root path.");
+            string message = ps.Streams.Error.FirstOrDefault()?.Exception?.Message ?? "Unknown error";
+            throw new InvalidOperationException($"Unable to determine the repo root path. {message}");
         }
-        
+
         public static string GetAssertionFormatString(bool isBaselineUpdate)
         {
             var output = new StringBuilder();
@@ -62,7 +69,7 @@ Found diffs between actual and expected:
             if (isBaselineUpdate)
             {
                 output.Append(@"
-Baseline has been updated.
+Baseline {2} has been updated.
 ");
             }
             else

@@ -3,10 +3,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Bicep.Core.CodeAction;
 using Bicep.Core.Extensions;
+using Bicep.Core.Modules;
+using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
@@ -17,12 +20,18 @@ namespace Bicep.Core.Diagnostics
 {
     public static class DiagnosticBuilder
     {
+        public const string UseStringInterpolationInsteadClause = "Use string interpolation instead.";
+
         public delegate ErrorDiagnostic ErrorBuilderDelegate(DiagnosticBuilderInternal builder);
 
         public delegate Diagnostic DiagnosticBuilderDelegate(DiagnosticBuilderInternal builder);
 
         public class DiagnosticBuilderInternal
         {
+
+            private const string TypeInaccuracyClause = " If this is an inaccuracy in the documentation, please report it to the Bicep Team.";
+            private static readonly Uri TypeInaccuracyLink = new("https://aka.ms/bicep-type-issues");
+
             public DiagnosticBuilderInternal(TextSpan textSpan)
             {
                 TextSpan = textSpan;
@@ -40,6 +49,18 @@ namespace Bicep.Core.Diagnostics
             private static string BuildAccessiblePropertiesClause(string? accessedSymbolName, IEnumerable<string>? accessiblePropertyNames) => accessedSymbolName is not null && accessiblePropertyNames is not null
                 ? $" Properties of {accessedSymbolName} which can be calculated at the start include {ToQuotedString(accessiblePropertyNames.OrderBy(s => s))}."
                 : string.Empty;
+
+            private static string BuildInvalidOciArtifactReferenceClause(string? aliasName, string referenceValue) => aliasName is not null
+                ? $"The OCI artifact reference \"{referenceValue}\" after resolving alias \"{aliasName}\" is not valid."
+                : $"The specified OCI artifact reference \"{referenceValue}\" is not valid.";
+
+            private static string BuildInvalidTemplateSpecReferenceClause(string? aliasName, string referenceValue) => aliasName is not null
+                ? $"The Template Spec reference \"{referenceValue}\" after resolving alias \"{aliasName}\" is not valid."
+                : $"The specified Template Spec reference \"{referenceValue}\" is not valid.";
+
+            private static string BuildBicepConfigurationClause(string? configurationPath) => configurationPath is not null
+                ? $"Bicep configuration \"{configurationPath}\""
+                : $"built-in Bicep configuration";
 
             public ErrorDiagnostic UnrecognizedToken(string token) => new(
                 TextSpan,
@@ -184,7 +205,7 @@ namespace Bicep.Core.Diagnostics
             public ErrorDiagnostic InvalidResourceType() => new(
                 TextSpan,
                 "BCP029",
-                "The resource type is not valid. Specify a valid resource type of format \"<provider>/<types>@<apiVersion>\".");
+                "The resource type is not valid. Specify a valid resource type of format \"<types>@<apiVersion>\".");
 
             public ErrorDiagnostic InvalidOutputType() => new(
                 TextSpan,
@@ -213,17 +234,26 @@ namespace Bicep.Core.Diagnostics
                 "BCP034",
                 $"The enclosing array expected an item of type \"{expectedType}\", but the provided item was of type \"{actualType}\".");
 
-            public Diagnostic MissingRequiredProperties(bool warnInsteadOfError, Symbol? sourceDeclaration, IEnumerable<string> properties, string blockName)
+            public Diagnostic MissingRequiredProperties(bool warnInsteadOfError, Symbol? sourceDeclaration, ObjectSyntax objectSyntax, IEnumerable<string> properties, string blockName)
             {
                 var sourceDeclarationClause = sourceDeclaration is not null
                     ? $" from source declaration \"{sourceDeclaration.Name}\""
                     : string.Empty;
 
-                return new(
+                var newSyntax = objectSyntax.AddChildrenWithFormatting(
+                    properties.Select(p => SyntaxFactory.CreateObjectProperty(p, SyntaxFactory.EmptySkippedTrivia))
+                );
+
+                var codeFix = new CodeFix("Add required properties", true, new CodeReplacement(objectSyntax.Span, newSyntax.ToTextPreserveFormatting()));
+
+                return new FixableDiagnostic(
                     TextSpan,
                     warnInsteadOfError ? DiagnosticLevel.Warning : DiagnosticLevel.Error,
                     "BCP035",
-                    $"The specified \"{blockName}\" declaration is missing the following required properties{sourceDeclarationClause}: {ToQuotedString(properties)}.");
+                    $"The specified \"{blockName}\" declaration is missing the following required properties{sourceDeclarationClause}: {ToQuotedString(properties)}.",
+                    null,
+                    null,
+                    codeFix);
             }
 
             public Diagnostic PropertyTypeMismatch(bool warnInsteadOfError, Symbol? sourceDeclaration, string property, TypeSymbol expectedType, TypeSymbol actualType)
@@ -239,7 +269,7 @@ namespace Bicep.Core.Diagnostics
                     $"The property \"{property}\" expected a value of type \"{expectedType}\" but the provided value{sourceDeclarationClause} is of type \"{actualType}\".");
             }
 
-            public Diagnostic DisallowedProperty(bool warnInsteadOfError, Symbol? sourceDeclaration, string property, TypeSymbol type, IEnumerable<string> validUnspecifiedProperties)
+            public Diagnostic DisallowedProperty(bool warnInsteadOfError, Symbol? sourceDeclaration, string property, TypeSymbol type, IEnumerable<string> validUnspecifiedProperties, bool isResourceSyntax)
             {
                 var permissiblePropertiesClause = validUnspecifiedProperties.Any()
                     ? $" Permissible properties include {ToQuotedString(validUnspecifiedProperties)}."
@@ -253,7 +283,7 @@ namespace Bicep.Core.Diagnostics
                     TextSpan,
                     warnInsteadOfError ? DiagnosticLevel.Warning : DiagnosticLevel.Error,
                     "BCP037",
-                    $"The property \"{property}\"{sourceDeclarationClause} is not allowed on objects of type \"{type}\".{permissiblePropertiesClause}");
+                    $"The property \"{property}\"{sourceDeclarationClause} is not allowed on objects of type \"{type}\".{permissiblePropertiesClause}{(isResourceSyntax ? TypeInaccuracyClause : string.Empty)}", isResourceSyntax ? TypeInaccuracyLink : null);
             }
 
             public Diagnostic DisallowedInterpolatedKeyProperty(bool warnInsteadOfError, Symbol? sourceDeclaration, TypeSymbol type, IEnumerable<string> validUnspecifiedProperties)
@@ -288,10 +318,10 @@ namespace Bicep.Core.Diagnostics
                 "BCP044",
                 $"Cannot apply operator \"{operatorName}\" to operand of type \"{type}\".");
 
-            public ErrorDiagnostic BinaryOperatorInvalidType(string operatorName, TypeSymbol type1, TypeSymbol type2) => new(
+            public ErrorDiagnostic BinaryOperatorInvalidType(string operatorName, TypeSymbol type1, TypeSymbol type2, string? additionalInfo) => new(
                 TextSpan,
                 "BCP045",
-                $"Cannot apply operator \"{operatorName}\" to operands of type \"{type1}\" and \"{type2}\".");
+                $"Cannot apply operator \"{operatorName}\" to operands of type \"{type1}\" and \"{type2}\".{(additionalInfo is null ? string.Empty : " " + additionalInfo)}");
 
             public ErrorDiagnostic ValueTypeMismatch(TypeSymbol type) => new(
                 TextSpan,
@@ -331,15 +361,15 @@ namespace Bicep.Core.Diagnostics
                 "BCP049",
                 $"The array index must be of type \"{LanguageConstants.String}\" or \"{LanguageConstants.Int}\" but the provided index was of type \"{wrongType}\".");
 
-            public ErrorDiagnostic ModulePathIsEmpty() => new(
+            public ErrorDiagnostic FilePathIsEmpty() => new(
                 TextSpan,
                 "BCP050",
-                "The specified module path is empty.");
+                "The specified path is empty.");
 
-            public ErrorDiagnostic ModulePathBeginsWithForwardSlash() => new(
+            public ErrorDiagnostic FilePathBeginsWithForwardSlash() => new(
                 TextSpan,
                 "BCP051",
-                "The specified module path begins with \"/\". Module files must be referenced using relative paths.");
+                "The specified path begins with \"/\". Files must be referenced using relative paths.");
 
             public Diagnostic UnknownProperty(bool warnInsteadOfError, TypeSymbol type, string badProperty) => new(
                 TextSpan,
@@ -426,7 +456,7 @@ namespace Bicep.Core.Diagnostics
             public ErrorDiagnostic ExpectedResourceTypeString() => new(
                 TextSpan,
                 "BCP068",
-                "Expected a resource type string. Specify a valid resource type of format \"<provider>/<types>@<apiVersion>\".");
+                "Expected a resource type string. Specify a valid resource type of format \"<types>@<apiVersion>\".");
 
             public ErrorDiagnostic FunctionNotSupportedOperatorAvailable(string function, string @operator) => new(
                 TextSpan,
@@ -438,21 +468,21 @@ namespace Bicep.Core.Diagnostics
                 "BCP070",
                 $"Argument of type \"{argumentType}\" is not assignable to parameter of type \"{parameterType}\".");
 
-            public ErrorDiagnostic ArgumentCountMismatch(int argumentCount, int mininumArgumentCount, int? maximumArgumentCount)
+            public ErrorDiagnostic ArgumentCountMismatch(int argumentCount, int minimumArgumentCount, int? maximumArgumentCount)
             {
                 string expected;
 
                 if (!maximumArgumentCount.HasValue)
                 {
-                    expected = $"as least {mininumArgumentCount} {(mininumArgumentCount == 1 ? "argument" : "arguments")}";
+                    expected = $"at least {minimumArgumentCount} {(minimumArgumentCount == 1 ? "argument" : "arguments")}";
                 }
-                else if (mininumArgumentCount == maximumArgumentCount.Value)
+                else if (minimumArgumentCount == maximumArgumentCount.Value)
                 {
-                    expected = $"{mininumArgumentCount} {(mininumArgumentCount == 1 ? "argument" : "arguments")}";
+                    expected = $"{minimumArgumentCount} {(minimumArgumentCount == 1 ? "argument" : "arguments")}";
                 }
                 else
                 {
-                    expected = $"{mininumArgumentCount} to {maximumArgumentCount} arguments";
+                    expected = $"{minimumArgumentCount} to {maximumArgumentCount} arguments";
                 }
 
                 return new ErrorDiagnostic(
@@ -537,15 +567,15 @@ namespace Bicep.Core.Diagnostics
                 "BCP084",
                 $"The symbolic name \"{name}\" is reserved. Please use a different symbolic name. Reserved namespaces are {ToQuotedString(namespaces.OrderBy(ns => ns))}.");
 
-            public ErrorDiagnostic ModulePathContainsForbiddenCharacters(IEnumerable<char> forbiddenChars) => new(
+            public ErrorDiagnostic FilePathContainsForbiddenCharacters(IEnumerable<char> forbiddenChars) => new(
                 TextSpan,
                 "BCP085",
-                $"The specified module path contains one ore more invalid path characters. The following are not permitted: {ToQuotedString(forbiddenChars.OrderBy(x => x).Select(x => x.ToString()))}.");
+                $"The specified file path contains one ore more invalid path characters. The following are not permitted: {ToQuotedString(forbiddenChars.OrderBy(x => x).Select(x => x.ToString()))}.");
 
-            public ErrorDiagnostic ModulePathHasForbiddenTerminator(IEnumerable<char> forbiddenPathTerminatorChars) => new(
+            public ErrorDiagnostic FilePathHasForbiddenTerminator(IEnumerable<char> forbiddenPathTerminatorChars) => new(
                 TextSpan,
                 "BCP086",
-                $"The specified module path ends with an invalid character. The following are not permitted: {ToQuotedString(forbiddenPathTerminatorChars.OrderBy(x => x).Select(x => x.ToString()))}.");
+                $"The specified file path ends with an invalid character. The following are not permitted: {ToQuotedString(forbiddenPathTerminatorChars.OrderBy(x => x).Select(x => x.ToString()))}.");
 
             public ErrorDiagnostic ComplexLiteralsNotAllowed() => new(
                 TextSpan,
@@ -580,15 +610,15 @@ namespace Bicep.Core.Diagnostics
                 "BCP091",
                 $"An error occurred reading file. {failureMessage}");
 
-            public ErrorDiagnostic ModulePathInterpolationUnsupported() => new(
+            public ErrorDiagnostic FilePathInterpolationUnsupported() => new(
                 TextSpan,
                 "BCP092",
-                "String interpolation is not supported in module paths.");
+                "String interpolation is not supported in file paths.");
 
-            public ErrorDiagnostic ModulePathCouldNotBeResolved(string modulePath, string parentPath) => new(
+            public ErrorDiagnostic FilePathCouldNotBeResolved(string filePath, string parentPath) => new(
                 TextSpan,
                 "BCP093",
-                $"Module path \"{modulePath}\" could not be resolved relative to \"{parentPath}\".");
+                $"File path \"{filePath}\" could not be resolved relative to \"{parentPath}\".");
 
             public ErrorDiagnostic CyclicModuleSelfReference() => new(
                 TextSpan,
@@ -610,10 +640,10 @@ namespace Bicep.Core.Diagnostics
                 "BCP097",
                 "Expected a module path string. This should be a relative path to another bicep file, e.g. 'myModule.bicep' or '../parent/myModule.bicep'");
 
-            public ErrorDiagnostic ModulePathContainsBackSlash() => new(
+            public ErrorDiagnostic FilePathContainsBackSlash() => new(
                 TextSpan,
                 "BCP098",
-                "The specified module path contains a \"\\\" character. Use \"/\" instead as the directory separator character.");
+                "The specified file path contains a \"\\\" character. Use \"/\" instead as the directory separator character.");
 
             public ErrorDiagnostic AllowedMustContainItems() => new(
                 TextSpan,
@@ -623,7 +653,7 @@ namespace Bicep.Core.Diagnostics
             public ErrorDiagnostic IfFunctionNotSupported() => new(
                 TextSpan,
                 "BCP100",
-                "The \"if\" function is not supported. Use the ternary conditional operator instead.");
+                "The function \"if\" is not supported. Use the \"?:\" (ternary conditional) operator instead, e.g. condition ? ValueIfTrue : ValueIfFalse");
 
             public ErrorDiagnostic CreateArrayFunctionNotSupported() => new(
                 TextSpan,
@@ -681,10 +711,10 @@ namespace Bicep.Core.Diagnostics
                 null,
                 new CodeFix($"Change \"{name}\" to \"{suggestedName}\"", true, CodeManipulator.Replace(TextSpan, suggestedName)));
 
-            public ErrorDiagnostic ModulePathContainsControlChars() => new(
+            public ErrorDiagnostic FilePathContainsControlChars() => new(
                 TextSpan,
                 "BCP111",
-                $"The specified module path contains invalid control code characters.");
+                $"The specified file path contains invalid control code characters.");
 
             public ErrorDiagnostic TargetScopeMultipleDeclarations() => new(
                 TextSpan,
@@ -925,10 +955,10 @@ namespace Bicep.Core.Diagnostics
                 "BCP156",
                 $"The resource type segment \"{typeSegment}\" is invalid. Nested resources must specify a single type segment, and optionally can specify an api version using the format \"<type>@<apiVersion>\".");
 
-            public ErrorDiagnostic InvalidAncestorResourceType(string resourceName) => new(
+            public ErrorDiagnostic InvalidAncestorResourceType() => new(
                 TextSpan,
                 "BCP157",
-                $"The resource type cannot be determined due to an error in containing resource \"{resourceName}\".");
+                $"The resource type cannot be determined due to an error in the containing resource.");
 
             public ErrorDiagnostic ResourceRequiredForResourceAccess(string wrongType) => new(
                 TextSpan,
@@ -1078,6 +1108,241 @@ namespace Bicep.Core.Diagnostics
                 TextSpan,
                 "BCP183",
                 $"The value of the module \"{LanguageConstants.ModuleParamsPropertyName}\" property must be an object literal.");
+
+            public ErrorDiagnostic FileExceedsMaximumSize(string filePath, long maxSize, string unit) => new(
+               TextSpan,
+               "BCP184",
+               $"File '{filePath}' exceeded maximum size of {maxSize} {unit}.");
+
+            public Diagnostic FileEncodingMismatch(string detectedEncoding) => new(
+               TextSpan,
+               DiagnosticLevel.Info,
+               "BCP185",
+               $"Encoding mismatch. File was loaded with '{detectedEncoding}' encoding.");
+
+            public ErrorDiagnostic UnparseableJsonType() => new(
+               TextSpan,
+               "BCP186",
+               $"Unable to parse literal JSON value. Please ensure that it is well-formed.");
+
+            public Diagnostic FallbackPropertyUsed(string property) => new(
+                TextSpan,
+                DiagnosticLevel.Warning,
+                "BCP187",
+                $"The property \"{property}\" does not exist in the resource definition, although it might still be valid.{TypeInaccuracyClause}", TypeInaccuracyLink);
+
+            public ErrorDiagnostic ReferencedArmTemplateHasErrors() => new(
+                TextSpan,
+                "BCP188",
+                $"The referenced ARM template has errors. Please see https://aka.ms/arm-template for information on how to diagnose and fix the template.");
+
+            public ErrorDiagnostic UnknownModuleReferenceScheme(string badScheme, ImmutableArray<string> allowedSchemes)
+            {
+                string FormatSchemes() => ToQuotedString(allowedSchemes.Where(scheme => !string.Equals(scheme, ModuleReferenceSchemes.Local)));
+
+                return new(
+                    TextSpan,
+                    "BCP189",
+                    (allowedSchemes.Contains(ModuleReferenceSchemes.Local, StringComparer.Ordinal), allowedSchemes.Any(scheme => !string.Equals(scheme, ModuleReferenceSchemes.Local, StringComparison.Ordinal))) switch
+                    {
+                        (false, false) => "Module references are not supported in this context.",
+                        (false, true) => $"The specified module reference scheme \"{badScheme}\" is not recognized. Specify a module reference using one of the following schemes: {FormatSchemes()}",
+                        (true, false) => $"The specified module reference scheme \"{badScheme}\" is not recognized. Specify a path to a local module file.",
+                        (true, true) => $"The specified module reference scheme \"{badScheme}\" is not recognized. Specify a path to a local module file or a module reference using one of the following schemes: {FormatSchemes()}",
+                    });
+            }
+
+            // TODO: This error is context sensitive:
+            // - In CLI, it's permanent and only likely to occur with bicep build --no-restore.
+            // - In VS code, it's transient until the background restore finishes.
+            //
+            // Should it be split into two separate errors instead?
+            public ErrorDiagnostic ModuleRequiresRestore(string moduleRef) => new(
+                TextSpan,
+                "BCP190",
+                $"The module with reference \"{moduleRef}\" has not been restored.");
+
+            public ErrorDiagnostic ModuleRestoreFailed(string moduleRef) => new(
+                TextSpan,
+                "BCP191",
+                $"Unable to restore the module with reference \"{moduleRef}\".");
+
+            public ErrorDiagnostic ModuleRestoreFailedWithMessage(string moduleRef, string message) => new(
+                TextSpan,
+                "BCP192",
+                $"Unable to restore the module with reference \"{moduleRef}\": {message}");
+
+            public ErrorDiagnostic InvalidOciArtifactReference(string? aliasName, string badRef) => new(
+                TextSpan,
+                "BCP193",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} Specify a reference in the format of \"{ModuleReferenceSchemes.Oci}:<artifact-uri>:<tag>\", or \"{ModuleReferenceSchemes.Oci}/<module-alias>:<module-name-or-path>:<tag>\".");
+
+            public ErrorDiagnostic InvalidTemplateSpecReference(string? aliasName, string badRef) => new(
+                TextSpan,
+                "BCP194",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, badRef)} Specify a reference in the format of \"{ModuleReferenceSchemes.TemplateSpecs}:<subscription-ID>/<resource-group-name>/<template-spec-name>:<version>\", or \"{ModuleReferenceSchemes.TemplateSpecs}/<module-alias>:<template-spec-name>:<version>\".");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceInvalidPathSegment(string? aliasName, string badRef, string badSegment) => new(
+                TextSpan,
+                "BCP195",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The module path segment \"{badSegment}\" is not valid. Each module name path segment must be a lowercase alphanumeric string optionally separated by a \".\", \"_\" , or \"-\".");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceMissingTagOrDigest(string? aliasName, string badRef) => new(
+                TextSpan,
+                "BCP196",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The module tag or digest is missing.");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceTagTooLong(string? aliasName, string badRef, string badTag, int maxLength) => new(
+                TextSpan,
+                "BCP197",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The tag \"{badTag}\" exceeds the maximum length of {maxLength} characters.");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceInvalidTag(string? aliasName, string badRef, string badTag) => new(
+                TextSpan,
+                "BCP198",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The tag \"{badTag}\" is not valid. Valid characters are alphanumeric, \".\", \"_\", or \"-\" but the tag cannot begin with \".\", \"_\", or \"-\".");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceRepositoryTooLong(string? aliasName, string badRef, string badRepository, int maxLength) => new(
+                TextSpan,
+                "BCP199",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} Module path \"{badRepository}\" exceeds the maximum length of {maxLength} characters.");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceRegistryTooLong(string? aliasName, string badRef, string badRegistry, int maxLength) => new(
+                TextSpan,
+                "BCP200",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The registry \"{badRegistry}\" exceeds the maximum length of {maxLength} characters.");
+
+            public ErrorDiagnostic ExpectedImportProviderName() => new(
+                TextSpan,
+                "BCP201",
+                "Expected an import provider name at this location.");
+
+            public ErrorDiagnostic ExpectedImportAliasName() => new(
+                TextSpan,
+                "BCP202",
+                "Expected an import alias name at this location.");
+
+            public ErrorDiagnostic ImportsAreDisabled() => new(
+                TextSpan,
+                "BCP203",
+                "Import statements are currently not supported.");
+
+            public ErrorDiagnostic UnrecognizedImportProvider(string identifier) => new(
+                TextSpan,
+                "BCP204",
+                $"Imported namespace \"{identifier}\" is not recognized.");
+
+            public ErrorDiagnostic ImportProviderDoesNotSupportConfiguration(string identifier) => new(
+                TextSpan,
+                "BCP205",
+                $"Imported namespace \"{identifier}\" does not support configuration.");
+
+            public ErrorDiagnostic ImportProviderRequiresConfiguration(string identifier) => new(
+                TextSpan,
+                "BCP206",
+                $"Imported namespace \"{identifier}\" requires configuration, but none was provided.");
+
+            public ErrorDiagnostic NamespaceMultipleDeclarations(string identifier) => new(
+                TextSpan,
+                "BCP207",
+                $"Namespace \"{identifier}\" is imported multiple times. Remove the duplicates.");
+
+            public ErrorDiagnostic UnknownResourceReferenceScheme(string badNamespace, IEnumerable<string> allowedNamespaces) => new(
+                TextSpan,
+                "BCP208",
+                $"The specified namespace \"{badNamespace}\" is not recognized. Specify a resource reference using one of the following namespaces: {ToQuotedString(allowedNamespaces)}.");
+
+            public ErrorDiagnostic FailedToFindResourceTypeInNamespace(string @namespace, string resourceType) => new(
+                TextSpan,
+                "BCP209",
+                $"Failed to find resource type \"{resourceType}\" in namespace \"{@namespace}\".");
+
+            public ErrorDiagnostic ParentResourceInDifferentNamespace(string childNamespace, string parentNamespace) => new(
+                TextSpan,
+                "BCP210",
+                $"Resource type belonging to namespace \"{childNamespace}\" cannot have a parent resource type belonging to different namespace \"{parentNamespace}\".");
+
+            public ErrorDiagnostic InvalidModuleAliasName(string aliasName) => new(
+                TextSpan,
+                "BCP211",
+                $"The module alias name \"{aliasName}\" is invalid. Valid characters are alphanumeric, \"_\", or \"-\".");
+
+            public ErrorDiagnostic TemplateSpecModuleAliasNameDoesNotExistInConfiguration(string aliasName, string? configurationPath) => new(
+                TextSpan,
+                "BCP212",
+                $"The Template Spec module alias name \"{aliasName}\" does not exist in the {BuildBicepConfigurationClause(configurationPath)}.");
+
+            public ErrorDiagnostic OciArtifactModuleAliasNameDoesNotExistInConfiguration(string aliasName, string? configurationPath) => new(
+                TextSpan,
+                "BCP213",
+                $"The OCI artifact module alias name \"{aliasName}\" does not exist in the {BuildBicepConfigurationClause(configurationPath)}.");
+
+            public ErrorDiagnostic InvalidTemplateSpecAliasSubscriptionNullOrUndefined(string aliasName, string? configurationPath) => new(
+                TextSpan,
+                "BCP214",
+                $"The Template Spec module alias \"{aliasName}\" in the {BuildBicepConfigurationClause(configurationPath)} is in valid. The \"subscription\" property cannot be null or undefined.");
+
+            public ErrorDiagnostic InvalidTemplateSpecAliasResourceGroupNullOrUndefined(string aliasName, string? configurationPath) => new(
+                TextSpan,
+                "BCP215",
+                $"The Template Spec module alias \"{aliasName}\" in the {BuildBicepConfigurationClause(configurationPath)} is in valid. The \"resourceGroup\" property cannot be null or undefined.");
+
+            public ErrorDiagnostic InvalidOciArtifactModuleAliasRegistryNullOrUndefined(string aliasName, string? configurationPath) => new(
+                TextSpan,
+                "BCP216",
+                $"The OCI artifact module alias \"{aliasName}\" in the {BuildBicepConfigurationClause(configurationPath)} is invalid. The \"registry\" property cannot be null or undefined.");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceInvalidSubscirptionId(string? aliasName, string subscriptionId, string referenceValue) => new(
+                TextSpan,
+                "BCP217",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The subscription ID \"{subscriptionId}\" in is not a GUID.");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceResourceGroupNameTooLong(string? aliasName, string resourceGroupName, string referenceValue, int maximumLength) => new(
+                TextSpan,
+                "BCP218",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The resource group name \"{resourceGroupName}\" exceeds the maximum length of {maximumLength} characters.");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceInvalidResourceGroupName(string? aliasName, string resourceGroupName, string referenceValue) => new(
+                TextSpan,
+                "BCP219",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The resource group name \"{resourceGroupName}\" is invalid. Valid characters are alphanumeric, unicode charaters, \".\", \"_\", \"-\", \"(\", or \")\", but the resource group name cannot end with \".\".");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceTemplateSpecNameTooLong(string? aliasName, string templateSpecName, string referenceValue, int maximumLength) => new(
+                TextSpan,
+                "BCP220",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The Template Spec name \"{templateSpecName}\" exceeds the maximum length of {maximumLength} characters.");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceInvalidTemplateSpecName(string? aliasName, string templateSpecName, string referenceValue) => new(
+                TextSpan,
+                "BCP221",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The Template Spec name \"{templateSpecName}\" is invalid. Valid characters are alphanumeric, \".\", \"_\", \"-\", \"(\", or \")\", but the Template Spec name cannot end with \".\".");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceTemplateSpecVersionTooLong(string? aliasName, string templateSpecVersion, string referenceValue, int maximumLength) => new(
+                TextSpan,
+                "BCP222",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The Template Spec version \"{templateSpecVersion}\" exceeds the maximum length of {maximumLength} characters.");
+
+            public ErrorDiagnostic InvalidTemplateSpecReferenceInvalidTemplateSpecVersion(string? aliasName, string templateSpecVersion, string referenceValue) => new(
+                TextSpan,
+                "BCP223",
+                $"{BuildInvalidTemplateSpecReferenceClause(aliasName, referenceValue)} The Template Spec version \"{templateSpecVersion}\" is invalid. Valid characters are alphanumeric, \".\", \"_\", \"-\", \"(\", or \")\", but the Template Spec name cannot end with \".\".");
+
+            public ErrorDiagnostic InvalidOciArtifactReferenceInvalidDigest(string? aliasName, string badRef, string badDigest) => new(
+                TextSpan,
+                "BCP224",
+                $"{BuildInvalidOciArtifactReferenceClause(aliasName, badRef)} The digest \"{badDigest}\" is not valid. The valid format is a string \"sha256:\" followed by exactly 64 lowercase hexadecimal digits.");
+
+            public Diagnostic AmbiguousDiscriminatorPropertyValue(string propertyName) => new(
+                TextSpan,
+                DiagnosticLevel.Warning,
+                "BCP225",
+                $"The discriminator property \"{propertyName}\" value cannot be determined at compilation time. Type checking for this object is disabled.");
+
+            public ErrorDiagnostic MissingDiagnosticCodes() => new(
+                TextSpan,
+                "BCP226",
+                "Expected at least one diagnostic code at this location. Valid format is \"#disable-next-line diagnosticCode1 diagnosticCode2 ...\""
+            );
         }
 
         public static DiagnosticBuilderInternal ForPosition(TextSpan span)

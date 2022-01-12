@@ -8,21 +8,27 @@ using Bicep.Core.Diagnostics;
 using Bicep.Core.Text;
 using Bicep.Core.Emit;
 using Bicep.Core.Semantics;
-using Bicep.Core.Syntax;
 using Bicep.Wasm.LanguageHelpers;
 using System.Linq;
-using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Workspaces;
 using Bicep.Core.Extensions;
 using Bicep.Decompiler;
+using Bicep.Core.Registry;
+using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.Features;
+using Bicep.Core.Configuration;
+using IOFileSystem = System.IO.Abstractions.FileSystem;
+using Bicep.Core.Analyzers.Linter;
 
 namespace Bicep.Wasm
 {
     public class Interop
     {
-        private static readonly IResourceTypeProvider resourceTypeProvider = AzResourceTypeProvider.CreateWithAzTypes();
+        private static readonly IFeatureProvider features = new FeatureProvider();
+
+        private static readonly INamespaceProvider namespaceProvider = new DefaultNamespaceProvider(new AzResourceTypeLoader(), features);
 
         private readonly IJSRuntime jsRuntime;
 
@@ -35,7 +41,7 @@ namespace Bicep.Wasm
         public object CompileAndEmitDiagnostics(string content)
         {
             var (output, diagnostics) = CompileInternal(content);
-            
+
             return new
             {
                 template = output,
@@ -50,13 +56,16 @@ namespace Bicep.Wasm
         {
             var jsonUri = new Uri("inmemory:///main.json");
 
-            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string> {
+            var fileResolver = new InMemoryFileResolver(new Dictionary<Uri, string>
+            {
                 [jsonUri] = jsonContent,
             });
 
             try
             {
-                var (entrypointUri, filesToSave) = TemplateDecompiler.DecompileFileWithModules(resourceTypeProvider, fileResolver, jsonUri);
+                var bicepUri = PathHelper.ChangeToBicepExtension(jsonUri);
+                var decompiler = new TemplateDecompiler(namespaceProvider, fileResolver, new EmptyModuleRegistryProvider(), new ConfigurationManager(new IOFileSystem()));
+                var (entrypointUri, filesToSave) = decompiler.DecompileFileWithModules(jsonUri, bicepUri);
 
                 return new DecompileResult(filesToSave[entrypointUri], null);
             }
@@ -72,7 +81,8 @@ namespace Bicep.Wasm
             var tokenTypes = Enum.GetValues(typeof(SemanticTokenType)).Cast<SemanticTokenType>();
             var tokenStrings = tokenTypes.OrderBy(t => (int)t).Select(t => t.ToString().ToLowerInvariant());
 
-            return new {
+            return new
+            {
                 tokenModifiers = new string[] { },
                 tokenTypes = tokenStrings.ToArray(),
             };
@@ -82,20 +92,26 @@ namespace Bicep.Wasm
         public object GetSemanticTokens(string content)
         {
             var compilation = GetCompilation(content);
-            var tokens = SemanticTokenVisitor.BuildSemanticTokens(compilation.SyntaxTreeGrouping.EntryPoint);
+            var tokens = SemanticTokenVisitor.BuildSemanticTokens(compilation.SourceFileGrouping.EntryPoint);
 
             var data = new List<int>();
             SemanticToken? prevToken = null;
-            foreach (var token in tokens) {
-                if (prevToken == null) {
+            foreach (var token in tokens)
+            {
+                if (prevToken == null)
+                {
                     data.Add(token.Line);
                     data.Add(token.Character);
                     data.Add(token.Length);
-                } else if (prevToken.Line != token.Line) {
+                }
+                else if (prevToken.Line != token.Line)
+                {
                     data.Add(token.Line - prevToken.Line);
                     data.Add(token.Character);
                     data.Add(token.Length);
-                } else {
+                }
+                else
+                {
                     data.Add(0);
                     data.Add(token.Character - prevToken.Character);
                     data.Add(token.Length);
@@ -107,7 +123,8 @@ namespace Bicep.Wasm
                 prevToken = token;
             }
 
-            return new {
+            return new
+            {
                 data = data.ToArray(),
             };
         }
@@ -116,9 +133,10 @@ namespace Bicep.Wasm
         {
             try
             {
-                var lineStarts = TextCoordinateConverter.GetLineStarts(content);
                 var compilation = GetCompilation(content);
-                var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel(), ThisAssembly.AssemblyFileVersion);
+                var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
+                var emitterSettings = new EmitterSettings(features);
+                var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel(), emitterSettings);
 
                 // memory stream is not ideal for frequent large allocations
                 using var stream = new MemoryStream();
@@ -144,12 +162,16 @@ namespace Bicep.Wasm
         {
             var fileUri = new Uri("inmemory:///main.bicep");
             var workspace = new Workspace();
-            var syntaxTree = SyntaxTree.Create(fileUri, fileContents);
-            workspace.UpsertSyntaxTrees(syntaxTree.AsEnumerable());
+            var sourceFile = SourceFileFactory.CreateSourceFile(fileUri, fileContents);
+            workspace.UpsertSourceFile(sourceFile);
 
-            var syntaxTreeGrouping = SyntaxTreeGroupingBuilder.Build(new FileResolver(), workspace, fileUri);
+            var fileResolver = new FileResolver();
+            var dispatcher = new ModuleDispatcher(new EmptyModuleRegistryProvider());
+            var configurationManager = new ConfigurationManager(new IOFileSystem());
+            var configuration = configurationManager.GetBuiltInConfiguration(disableAnalyzers: true);
+            var sourceFileGrouping = SourceFileGroupingBuilder.Build(fileResolver, dispatcher, workspace, fileUri, configuration);
 
-            return new Compilation(resourceTypeProvider, syntaxTreeGrouping);
+            return new Compilation(namespaceProvider, sourceFileGrouping, configuration, new LinterAnalyzer(configuration));
         }
 
         private static string ReadStreamToEnd(Stream stream)
@@ -163,7 +185,8 @@ namespace Bicep.Wasm
             var (startLine, startChar) = TextCoordinateConverter.GetPosition(lineStarts, diagnostic.Span.Position);
             var (endLine, endChar) = TextCoordinateConverter.GetPosition(lineStarts, diagnostic.GetEndPosition());
 
-            return new {
+            return new
+            {
                 code = diagnostic.Code,
                 message = diagnostic.Message,
                 severity = ToMonacoSeverity(diagnostic.Level),
@@ -175,7 +198,8 @@ namespace Bicep.Wasm
         }
 
         private static int ToMonacoSeverity(DiagnosticLevel level)
-            => level switch {
+            => level switch
+            {
                 DiagnosticLevel.Info => 2,
                 DiagnosticLevel.Warning => 4,
                 DiagnosticLevel.Error => 8,

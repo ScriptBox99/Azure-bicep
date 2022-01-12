@@ -13,6 +13,9 @@ using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Bicep.Core.Extensions;
+using Moq;
+using Bicep.Core.FileSystem;
+using Bicep.Core.Semantics.Namespaces;
 
 namespace Bicep.Core.UnitTests.TypeSystem.Az
 {
@@ -21,7 +24,7 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
     {
         private static readonly ImmutableHashSet<string> ExpectedLoopVariantProperties = new[]
         {
-            LanguageConstants.ResourceNamePropertyName,
+            AzResourceTypeProvider.ResourceNamePropertyName,
             LanguageConstants.ResourceScopePropertyName,
             LanguageConstants.ResourceParentPropertyName
         }.ToImmutableHashSet(LanguageConstants.IdentifierComparer);
@@ -29,12 +32,15 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
         [DataTestMethod]
         [DataRow(ResourceTypeGenerationFlags.None)]
         [DataRow(ResourceTypeGenerationFlags.ExistingResource)]
-        [DataRow(ResourceTypeGenerationFlags.PermitLiteralNameProperty)]
+        [DataRow(ResourceTypeGenerationFlags.HasParentDefined)]
         [DataRow(ResourceTypeGenerationFlags.NestedResource)]
-        [DataRow(ResourceTypeGenerationFlags.ExistingResource | ResourceTypeGenerationFlags.PermitLiteralNameProperty)]
+        [DataRow(ResourceTypeGenerationFlags.ExistingResource | ResourceTypeGenerationFlags.HasParentDefined)]
         public void AzResourceTypeProvider_can_deserialize_all_types_without_throwing(ResourceTypeGenerationFlags flags)
         {
-            var resourceTypeProvider = AzResourceTypeProvider.CreateWithAzTypes();
+            var typeProvider = TestTypeHelper.CreateWithAzTypes();
+            var namespaceType = typeProvider.TryGetNamespace("az", "az", ResourceScope.ResourceGroup)!;
+
+            var resourceTypeProvider = namespaceType.ResourceTypeProvider;
             var availableTypes = resourceTypeProvider.GetAvailableTypes();
 
             // sanity check - we know there should be a lot of types available
@@ -43,8 +49,8 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
 
             foreach (var availableType in availableTypes)
             {
-                resourceTypeProvider.HasType(availableType).Should().BeTrue();
-                var resourceType = resourceTypeProvider.GetType(availableType, flags);
+                resourceTypeProvider.HasDefinedType(availableType).Should().BeTrue();
+                var resourceType = resourceTypeProvider.TryGetDefinedType(namespaceType, availableType, flags)!;
 
                 try
                 {
@@ -53,7 +59,7 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
                 }
                 catch (Exception exception)
                 {
-                    throw new InvalidOperationException($"Deserializing type {availableType.FormatName()} failed", exception);
+                    throw new InvalidOperationException($"Deserializing type {availableType} failed", exception);
                 }
 
                 bool IsSymbolicProperty(TypeProperty property)
@@ -72,15 +78,15 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
                     var topLevelProperties = GetTopLevelProperties(resourceType);
                     var symbolicProperties = topLevelProperties.Where(property => IsSymbolicProperty(property));
                     symbolicProperties.Should().NotBeEmpty();
-                    symbolicProperties.Should().OnlyContain(property => property.Flags.HasFlag(TypePropertyFlags.DisallowAny), $"because all symbolic properties in type '{availableType.FullyQualifiedType}' and api version '{availableType.ApiVersion}' should have the {nameof(TypePropertyFlags.DisallowAny)} flag.");
+                    symbolicProperties.Should().OnlyContain(property => property.Flags.HasFlag(TypePropertyFlags.DisallowAny), $"because all symbolic properties in type '{availableType}' should have the {nameof(TypePropertyFlags.DisallowAny)} flag.");
 
                     var loopVariantProperties = topLevelProperties.Where(property =>
                         ExpectedLoopVariantProperties.Contains(property.Name) &&
                         (!string.Equals(property.Name, LanguageConstants.ResourceScopePropertyName, LanguageConstants.IdentifierComparison) || IsSymbolicProperty(property)));
                     loopVariantProperties.Should().NotBeEmpty();
-                    loopVariantProperties.Should().OnlyContain(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant), $"because all loop variant properties in type '{availableType.FullyQualifiedType}' and api version '{availableType.ApiVersion}' should have the {nameof(TypePropertyFlags.LoopVariant)} flag.");
+                    loopVariantProperties.Should().OnlyContain(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant), $"because all loop variant properties in type '{availableType}' should have the {nameof(TypePropertyFlags.LoopVariant)} flag.");
 
-                    if(flags.HasFlag(ResourceTypeGenerationFlags.NestedResource))
+                    if (flags.HasFlag(ResourceTypeGenerationFlags.NestedResource))
                     {
                         // syntactically nested resources should not have the parent property
                         topLevelProperties.Should().NotContain(property => string.Equals(property.Name, LanguageConstants.ResourceParentPropertyName, LanguageConstants.IdentifierComparison));
@@ -91,9 +97,9 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
 
         [TestMethod]
         public void AzResourceTypeProvider_can_list_all_types_without_throwing()
-        
+
         {
-            var resourceTypeProvider = AzResourceTypeProvider.CreateWithAzTypes();
+            var resourceTypeProvider = new AzResourceTypeProvider(new AzResourceTypeLoader());
             var availableTypes = resourceTypeProvider.GetAvailableTypes();
 
             // sanity check - we know there should be a lot of types available
@@ -104,8 +110,9 @@ namespace Bicep.Core.UnitTests.TypeSystem.Az
         [TestMethod]
         public void AzResourceTypeProvider_should_warn_for_missing_resource_types()
         {
+            var configuration = BicepTestConstants.BuiltInConfigurationWithAnalyzersDisabled;
             Compilation createCompilation(string program)
-                => new Compilation(AzResourceTypeProvider.CreateWithAzTypes(), SyntaxTreeGroupingFactory.CreateFromText(program));
+                    => new Compilation(new DefaultNamespaceProvider(new AzResourceTypeLoader(), BicepTestConstants.Features), SourceFileGroupingFactory.CreateFromText(program, new Mock<IFileResolver>(MockBehavior.Strict).Object), configuration, BicepTestConstants.LinterAnalyzer);
 
             // Missing top-level properties - should be an error
             var compilation = createCompilation(@"
@@ -113,7 +120,7 @@ resource missingResource 'Mock.Rp/madeUpResourceType@2020-01-01' = {
   name: 'missingResource'
 }
 ");
-            compilation.Should().HaveDiagnostics(new [] {
+            compilation.Should().HaveDiagnostics(new[] {
                 ("BCP081", DiagnosticLevel.Warning, "Resource type \"Mock.Rp/madeUpResourceType@2020-01-01\" does not have types available.")
             });
         }
@@ -122,7 +129,7 @@ resource missingResource 'Mock.Rp/madeUpResourceType@2020-01-01' = {
         public void AzResourceTypeProvider_should_error_for_top_level_and_warn_for_nested_properties()
         {
             Compilation createCompilation(string program)
-                => new Compilation(BuiltInTestTypes.Create(), SyntaxTreeGroupingFactory.CreateFromText(program));
+                => new Compilation(BuiltInTestTypes.Create(), SourceFileGroupingFactory.CreateFromText(program, new Mock<IFileResolver>(MockBehavior.Strict).Object), BicepTestConstants.BuiltInConfiguration, BicepTestConstants.LinterAnalyzer);
 
             // Missing top-level properties - should be an error
             var compilation = createCompilation(@"
@@ -130,7 +137,7 @@ resource missingRequired 'Test.Rp/readWriteTests@2020-01-01' = {
   name: 'missingRequired'
 }
 ");
-            compilation.Should().HaveDiagnostics(new [] {
+            compilation.Should().HaveDiagnostics(new[] {
                 ("BCP035", DiagnosticLevel.Error, "The specified \"resource\" declaration is missing the following required properties: \"properties\".")
             });
 
@@ -144,8 +151,8 @@ resource unexpectedTopLevel 'Test.Rp/readWriteTests@2020-01-01' = {
   madeUpProperty: true
 }
 ");
-            compilation.Should().HaveDiagnostics(new [] {
-                ("BCP037", DiagnosticLevel.Error, "The property \"madeUpProperty\" is not allowed on objects of type \"Test.Rp/readWriteTests@2020-01-01\". Permissible properties include \"dependsOn\"."),
+            compilation.Should().HaveDiagnostics(new[] {
+                ("BCP037", DiagnosticLevel.Error, "The property \"madeUpProperty\" is not allowed on objects of type \"Test.Rp/readWriteTests@2020-01-01\". Permissible properties include \"dependsOn\". If this is an inaccuracy in the documentation, please report it to the Bicep Team."),
             });
 
             // Missing non top-level properties - should be a warning
@@ -156,7 +163,7 @@ resource missingRequiredProperty 'Test.Rp/readWriteTests@2020-01-01' = {
   }
 }
 ");
-            compilation.Should().HaveDiagnostics(new [] {
+            compilation.Should().HaveDiagnostics(new[] {
                 ("BCP035", DiagnosticLevel.Warning, "The specified \"object\" declaration is missing the following required properties: \"required\"."),
             });
 
@@ -170,12 +177,12 @@ resource unexpectedPropertiesProperty 'Test.Rp/readWriteTests@2020-01-01' = {
   }
 }
 ");
-            compilation.Should().HaveDiagnostics(new [] {
-                ("BCP037", DiagnosticLevel.Warning, "The property \"madeUpProperty\" is not allowed on objects of type \"Properties\". Permissible properties include \"readwrite\", \"writeonly\"."),
+            compilation.Should().HaveDiagnostics(new[] {
+                ("BCP037", DiagnosticLevel.Warning, "The property \"madeUpProperty\" is not allowed on objects of type \"Properties\". Permissible properties include \"readwrite\", \"writeonly\". If this is an inaccuracy in the documentation, please report it to the Bicep Team."),
             });
         }
 
-        private static ImmutableHashSet<TypeSymbol> ExpectedBuiltInTypes { get; } = new []
+        private static ImmutableHashSet<TypeSymbol> ExpectedBuiltInTypes { get; } = new[]
         {
             LanguageConstants.Any,
             LanguageConstants.Null,

@@ -11,13 +11,17 @@ namespace Bicep.Core.Samples
 {
     public static class DataSets
     {
-        public static DataSet AKS_LF => CreateDataSet(); 
+        public static DataSet AKS_LF => CreateDataSet();
 
-        public static DataSet Dependencies_LF => CreateDataSet(); 
+        public static DataSet Dependencies_LF => CreateDataSet();
+
+        public static DataSet DisableNextLineDiagnosticsDirective_CRLF => CreateDataSet();
 
         public static DataSet Empty => CreateDataSet();
 
         public static DataSet InvalidCycles_CRLF => CreateDataSet();
+
+        public static DataSet InvalidDisableNextLineDiagnosticsDirective_CRLF => CreateDataSet();
 
         public static DataSet InvalidExpressions_LF => CreateDataSet();
 
@@ -44,6 +48,8 @@ namespace Bicep.Core.Samples
         public static DataSet Parameters_CRLF => CreateDataSet();
 
         public static DataSet Parameters_LF => CreateDataSet();
+
+        public static DataSet Registry_LF => CreateDataSet();
 
         public static DataSet Resources_CRLF => CreateDataSet();
 
@@ -80,6 +86,10 @@ namespace Bicep.Core.Samples
         public static DataSet InvalidMultilineString_CRLF => CreateDataSet();
 
         public static DataSet IntermediaryVariables_LF => CreateDataSet();
+
+        public static DataSet InvalidLoadFunctions_CRLF => CreateDataSet();
+
+        public static DataSet LoadFunctions_CRLF => CreateDataSet();
 
         public static IEnumerable<DataSet> AllDataSets =>
             typeof(DataSets)

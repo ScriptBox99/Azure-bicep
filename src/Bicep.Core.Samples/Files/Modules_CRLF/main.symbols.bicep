@@ -1,8 +1,11 @@
-param deployTimeSuffix string = newGuid()
-//@[6:22) Parameter deployTimeSuffix. Type: string. Declaration start char: 0, length: 41
 
+@sys.description('this is deployTimeSuffix param')
+param deployTimeSuffix string = newGuid()
+//@[6:22) Parameter deployTimeSuffix. Type: string. Declaration start char: 0, length: 93
+
+@sys.description('this module a')
 module modATest './modulea.bicep' = {
-//@[7:15) Module modATest. Type: module. Declaration start char: 0, length: 217
+//@[7:15) Module modATest. Type: module. Declaration start char: 0, length: 252
   name: 'modATest'
   params: {
     stringParamB: 'hello!'
@@ -18,17 +21,36 @@ module modATest './modulea.bicep' = {
   }
 }
 
+
+@sys.description('this module b')
 module modB './child/moduleb.bicep' = {
-//@[7:11) Module modB. Type: module. Declaration start char: 0, length: 101
+//@[7:11) Module modB. Type: module. Declaration start char: 0, length: 136
   name: 'modB'
   params: {
     location: 'West US'
   }
 }
 
+@sys.description('this is just module b with a condition')
 module modBWithCondition './child/moduleb.bicep' = if (1 + 1 == 2) {
-//@[7:24) Module modBWithCondition. Type: module. Declaration start char: 0, length: 143
+//@[7:24) Module modBWithCondition. Type: module. Declaration start char: 0, length: 203
   name: 'modBWithCondition'
+  params: {
+    location: 'East US'
+  }
+}
+
+module modC './child/modulec.json' = {
+//@[7:11) Module modC. Type: module. Declaration start char: 0, length: 100
+  name: 'modC'
+  params: {
+    location: 'West US'
+  }
+}
+
+module modCWithCondition './child/modulec.json' = if (2 - 1 == 1) {
+//@[7:24) Module modCWithCondition. Type: module. Declaration start char: 0, length: 142
+  name: 'modCWithCondition'
   params: {
     location: 'East US'
   }
@@ -58,11 +80,12 @@ module optionalWithAllParams './child/optionalParams.bicep'= {
 }
 
 resource resWithDependencies 'Mock.Rp/mockResource@2020-01-01' = {
-//@[9:28) Resource resWithDependencies. Type: Mock.Rp/mockResource@2020-01-01. Declaration start char: 0, length: 193
+//@[9:28) Resource resWithDependencies. Type: Mock.Rp/mockResource@2020-01-01. Declaration start char: 0, length: 233
   name: 'harry'
   properties: {
     modADep: modATest.outputs.stringOutputA
     modBDep: modB.outputs.myResourceId
+    modCDep: modC.outputs.myResourceId
   }
 }
 
@@ -125,8 +148,10 @@ output modCalculatedNameOutput object = moduleWithCalculatedName.outputs.outputO
 /*
   valid loop cases
 */ 
+
+@sys.description('this is myModules')
 var myModules = [
-//@[4:13) Variable myModules. Type: array. Declaration start char: 0, length: 123
+//@[4:13) Variable myModules. Type: array. Declaration start char: 0, length: 162
   {
     name: 'one'
     location: 'eastus2'
@@ -395,3 +420,14 @@ module secureModuleLooped 'child/secureParams.bicep' = [for (secret, i) in secre
 
 
 // END: Key Vault Secret Reference
+
+module withSpace 'module with space.bicep' = {
+//@[7:16) Module withSpace. Type: module. Declaration start char: 0, length: 70
+  name: 'withSpace'
+}
+
+module folderWithSpace 'child/folder with space/child with space.bicep' = {
+//@[7:22) Module folderWithSpace. Type: module. Declaration start char: 0, length: 104
+  name: 'childWithSpace'
+}
+

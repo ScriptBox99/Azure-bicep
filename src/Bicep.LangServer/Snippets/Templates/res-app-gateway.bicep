@@ -1,84 +1,84 @@
 ﻿// Application Gateway
-resource ${1:applicationGateway} 'Microsoft.Network/applicationGateways@2020-11-01' = {
-  name: ${2:'name'}
-  location: resourceGroup().location
+resource /*${1:applicationGateway}*/applicationGateway 'Microsoft.Network/applicationGateways@2020-11-01' = {
+  name: /*${2:'name'}*/'name'
+  location: /*${3:location}*/'location'
   properties: {
     sku: {
-      name: '${3|Standard_Small,Standard_Medium,Standard_Large,WAF_Medium,WAF_Large,Standard_v2,WAF_v2|}'
-      tier: '${4|Standard,WAF,Standard_v2,WAF_v2|}'
-      capacity: ${5:'capacity'}
+      name: /*'${4|Standard_Small,Standard_Medium,Standard_Large,WAF_Medium,WAF_Large,Standard_v2,WAF_v2|}'*/'Standard_Small'
+      tier: /*'${5|Standard,WAF,Standard_v2,WAF_v2|}'*/'Standard'
+      capacity: /*${6:'capacity'}*/'capacity'
     }
     gatewayIPConfigurations: [
       {
-        name: ${6:'name'}
+        name: /*${7:'name'}*/'name'
         properties: {
           subnet: {
-            id: ${7:'id'}
+            id: /*${8:'id'}*/'id'
           }
         }
       }
     ]
     frontendIPConfigurations: [
       {
-        name: ${8:'name'}
+        name: /*${9:'name'}*/'name'
         properties: {
           publicIPAddress: {
-            id: ${9:'id'}
+            id: /*${10:'id'}*/'id'
           }
         }
       }
     ]
     frontendPorts: [
       {
-        name: ${10:'name'}
+        name: /*${11:'name'}*/'name'
         properties: {
-          port: ${11:'port'}
+          port: /*${12:'port'}*/'port'
         }
       }
     ]
     backendAddressPools: [
       {
-        name: ${12:'name'}
+        name: /*${13:'name'}*/'name'
       }
     ]
     backendHttpSettingsCollection: [
       {
-        name: ${13:'name'}
+        name: /*${14:'name'}*/'name'
         properties: {
-          port: ${14:'port'}
-          protocol: '${15|Http,Https|}'
+          port: /*${15:'port'}*/'port'
+          protocol: /*'${16|Http,Https|}'*/'Http'
           cookieBasedAffinity: 'Disabled'
         }
       }
     ]
     httpListeners: [
       {
-        name: ${16:'name'}
+        name: /*${17:'name'}*/'name'
         properties: {
           frontendIPConfiguration: {
-            id: ${17:'id'}
+            id: /*${18:'id'}*/'id'
           }
           frontendPort: {
-            id: ${18:'id'}
+            id: /*${19:'id'}*/'id'
           }
-          protocol: '${19|Http,Https|}'
+          protocol: /*'${20|Http,Https|}'*/'Http'
           sslCertificate: null
         }
       }
     ]
     requestRoutingRules: [
       {
-        name: ${20:'name'}
+        name: /*${21:'name'}*/'name'
         properties: {
-          ruleType: '${21|Basic,PathBasedRouting|}'
+          ruleType: /*'${22|Basic,PathBasedRouting|}'*/'Basic'
           httpListener: {
-            id: ${22:'id'}
+            id: /*${23:'id'}*/'id'
           }
           backendAddressPool: {
-            id: ${23:'id'}
+            id: /*${24:'id'}*/'id'
           }
           backendHttpSettings: {
-            id: ${24:'id'}
+            id: /*${25:'id'}*/'id'
           }
         }
       }

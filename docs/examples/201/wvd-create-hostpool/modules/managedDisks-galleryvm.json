@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "8415762130566971384"
+      "templateHash": "15709312384976462390"
     }
   },
   "parameters": {
@@ -271,7 +271,6 @@
       }
     }
   },
-  "functions": [],
   "variables": {
     "emptyArray": [],
     "domain_var": "[if(equals(parameters('domain'), ''), last(split(parameters('administratorAccountUsername'), '@')), parameters('domain'))]",
@@ -309,7 +308,7 @@
           }
         ],
         "enableAcceleratedNetworking": "[parameters('enableAcceleratedNetworking')]",
-        "networkSecurityGroup": "[if(empty(parameters('networkSecurityGroupId')), json('null'), json(format('{{\"id\": \"{0}\"}}', variables('nsgId'))))]"
+        "networkSecurityGroup": "[if(empty(parameters('networkSecurityGroupId')), null(), json(format('{{\"id\": \"{0}\"}}', variables('nsgId'))))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'NSG-linkedTemplate')]"
@@ -332,7 +331,7 @@
         "hardwareProfile": {
           "vmSize": "[parameters('rdshVmSize')]"
         },
-        "availabilitySet": "[if(equals(parameters('availabilityOption'), 'AvailabilitySet'), variables('vmAvailabilitySetResourceId'), json('null'))]",
+        "availabilitySet": "[if(equals(parameters('availabilityOption'), 'AvailabilitySet'), variables('vmAvailabilitySetResourceId'), null())]",
         "osProfile": {
           "computerName": "[concat(parameters('rdshPrefix'), add(range(0, parameters('rdshNumberOfInstances'))[copyIndex()], parameters('vmInitialNumber')))]",
           "adminUsername": "[variables('vmAdministratorUsername')]",
@@ -474,7 +473,7 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-10-01",
+      "apiVersion": "2020-10-01",
       "name": "NSG-linkedTemplate",
       "properties": {
         "expressionEvaluationOptions": {
@@ -505,7 +504,7 @@
             "_generator": {
               "name": "bicep",
               "version": "dev",
-              "templateHash": "17602823694330426971"
+              "templateHash": "8777864661194051401"
             }
           },
           "parameters": {
@@ -525,7 +524,6 @@
               "type": "array"
             }
           },
-          "functions": [],
           "resources": [
             {
               "condition": "[parameters('createNetworkSecurityGroup')]",

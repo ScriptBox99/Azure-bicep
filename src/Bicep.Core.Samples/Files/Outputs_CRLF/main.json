@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "14103994745963413323"
+      "templateHash": "16196292690847002686"
     }
   },
   "parameters": {
@@ -13,7 +13,6 @@
       "type": "string"
     }
   },
-  "functions": [],
   "variables": {
     "varWithOverlappingOutput": "hello"
   },
@@ -21,11 +20,17 @@
   "outputs": {
     "myStr": {
       "type": "string",
-      "value": "hello"
+      "value": "hello",
+      "metadata": {
+        "description": "string output description"
+      }
     },
     "myInt": {
       "type": "int",
-      "value": 7
+      "value": 7,
+      "metadata": {
+        "description": "int output description"
+      }
     },
     "myOtherInt": {
       "type": "int",
@@ -33,7 +38,10 @@
     },
     "myBool": {
       "type": "bool",
-      "value": "[not(false())]"
+      "value": "[not(false())]",
+      "metadata": {
+        "description": "bool output description"
+      }
     },
     "myOtherBool": {
       "type": "bool",
@@ -41,7 +49,10 @@
     },
     "suchEmpty": {
       "type": "array",
-      "value": []
+      "value": [],
+      "metadata": {
+        "description": "object array description"
+      }
     },
     "suchEmpty2": {
       "type": "object",
@@ -66,6 +77,9 @@
             "hello"
           ]
         }
+      },
+      "metadata": {
+        "description": "object output description"
       }
     },
     "myArr": {

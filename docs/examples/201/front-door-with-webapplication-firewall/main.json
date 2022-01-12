@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "5090334688815975202"
+      "templateHash": "16808045335522622772"
     }
   },
   "parameters": {
@@ -42,7 +42,6 @@
       ]
     }
   },
-  "functions": [],
   "variables": {
     "frontDoorNameLower": "[toLower(parameters('frontDoorName'))]",
     "backendPool1Name": "[format('{0}-backendPool1', variables('frontDoorNameLower'))]",
@@ -73,7 +72,7 @@
               "sessionAffinityEnabledState": "Disabled",
               "sessionAffinityTtlSeconds": 0,
               "webApplicationFirewallPolicyLink": {
-                "id": "[resourceId('Microsoft.Network/FrontDoorWebApplicationFirewallPolicies', variables('frontDoorWafName'))]"
+                "id": "[format('{0}', resourceId('Microsoft.Network/FrontDoorWebApplicationFirewallPolicies', variables('frontDoorWafName')))]"
               }
             }
           }
@@ -144,7 +143,6 @@
                 "/*"
               ],
               "enabledState": "Enabled",
-              "resourceState": "Enabled",
               "routeConfiguration": {
                 "@odata.type": "#Microsoft.Azure.FrontDoor.Models.FrontdoorForwardingConfiguration",
                 "forwardingProtocol": "HttpsOnly",
@@ -170,7 +168,6 @@
                 "/redirect"
               ],
               "enabledState": "Enabled",
-              "resourceState": "Enabled",
               "routeConfiguration": {
                 "@odata.type": "#Microsoft.Azure.FrontDoor.Models.FrontdoorRedirectConfiguration",
                 "customHost": "[variables('redirectExampleTarget')]",

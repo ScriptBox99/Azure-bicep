@@ -33,12 +33,12 @@ namespace Bicep.LangServer.IntegrationTests
         [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
         public async Task RenamingIdentifierAccessOrDeclarationShouldRenameDeclarationAndAllReferences(DataSet dataSet)
         {
-            var uri = DocumentUri.From($"/{dataSet.Name}");
-
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
+            var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
+            var uri = DocumentUri.From(fileUri);
+            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
+            var client = helper.Client;
             var symbolTable = compilation.ReconstructSymbolTable();
-            var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
+            var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
             var symbolToSyntaxLookup = symbolTable
                 .Where(pair => pair.Value.Kind != SymbolKind.Error)
@@ -51,7 +51,7 @@ namespace Bicep.LangServer.IntegrationTests
                                && pair.Value.Kind != SymbolKind.Namespace
                                // symbols whose identifiers have parse errors will have a name like <error> or <missing>
                                && pair.Value.Name.Contains("<") == false);
-            
+
             const string expectedNewText = "NewIdentifier";
             foreach (var (syntax, symbol) in validVariableAccessPairs)
             {
@@ -82,16 +82,16 @@ namespace Bicep.LangServer.IntegrationTests
         [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
         public async Task RenamingFunctionsShouldProduceEmptyEdit(DataSet dataSet)
         {
-            var uri = DocumentUri.From($"/{dataSet.Name}");
-
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
+            var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
+            var uri = DocumentUri.From(fileUri);
+            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
+            var client = helper.Client;
             var symbolTable = compilation.ReconstructSymbolTable();
-            var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
+            var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
             var validFunctionCallPairs = symbolTable
                 .Where(pair => pair.Value.Kind == SymbolKind.Function)
-                .Select(pair=>pair.Key);
+                .Select(pair => pair.Key);
 
             foreach (var syntax in validFunctionCallPairs)
             {
@@ -113,14 +113,14 @@ namespace Bicep.LangServer.IntegrationTests
             // local function
             bool IsWrongNode(SyntaxBase node) => !(node is ISymbolReference) && !(node is ITopLevelNamedDeclarationSyntax) && !(node is Token);
 
-            var uri = DocumentUri.From($"/{dataSet.Name}");
-
-            using var client = await IntegrationTestHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var compilation = dataSet.CopyFilesAndCreateCompilation(TestContext, out _);
-            var lineStarts = compilation.SyntaxTreeGrouping.EntryPoint.LineStarts;
+            var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
+            var uri = DocumentUri.From(fileUri);
+            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
+            var client = helper.Client;
+            var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
             var wrongNodes = SyntaxAggregator.Aggregate(
-                compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax,
+                compilation.SourceFileGrouping.EntryPoint.ProgramSyntax,
                 new List<SyntaxBase>(),
                 (accumulated, node) =>
                 {

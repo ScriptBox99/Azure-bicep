@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using Bicep.Core.Semantics;
+using Bicep.Core.Semantics.Metadata;
 using Bicep.Core.Syntax;
 
 namespace Bicep.Core.Utils
@@ -10,11 +11,11 @@ namespace Bicep.Core.Utils
     internal class ResourceDefinition
     {
         public string ResourceName { get; }
-        public ResourceSymbol? ResourceScope { get; }
+        public ResourceMetadata? ResourceScope { get; }
         public string FullyQualifiedResourceType { get; }
         public StringSyntax ResourceNamePropertyValue { get; }
 
-        public ResourceDefinition(string resourceName, ResourceSymbol? resourceScope, string fullyQualifiedResourceType, StringSyntax resourceNamePropertyValue)
+        public ResourceDefinition(string resourceName, ResourceMetadata? resourceScope, string fullyQualifiedResourceType, StringSyntax resourceNamePropertyValue)
         {
             ResourceName = resourceName;
             ResourceScope = resourceScope;
@@ -29,8 +30,12 @@ namespace Bicep.Core.Utils
         private class ResourceComparer : IEqualityComparer<ResourceDefinition>
         {
 
-            public bool Equals(ResourceDefinition x, ResourceDefinition y)
+            public bool Equals(ResourceDefinition? x, ResourceDefinition? y)
             {
+                if (x is null || y is null)
+                {
+                    return false;
+                }
 
                 if (!string.Equals(x.FullyQualifiedResourceType, y.FullyQualifiedResourceType, StringComparison.OrdinalIgnoreCase))
                 {

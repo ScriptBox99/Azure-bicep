@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 using System.Linq;
 using Azure.Deployments.Expression.Configuration;
-using Azure.Deployments.Expression.Expressions;
 using Azure.Deployments.Expression.Serializers;
 using Bicep.Core.Emit;
 using Bicep.Core.Semantics;
@@ -18,7 +17,7 @@ namespace Bicep.Core.UnitTests.Emit
     {
         [DataTestMethod]
         [DataRow("null", "[null()]")]
-        [DataRow("true","[true()]")]
+        [DataRow("true", "[true()]")]
         [DataRow("false", "[false()]")]
         [DataRow("32", "[32]")]
         [DataRow("'hello world'", "hello world")]
@@ -51,27 +50,28 @@ namespace Bicep.Core.UnitTests.Emit
         [DataRow("resourceGroup().location", "[resourceGroup().location]")]
         [DataRow("resourceGroup()['location']", "[resourceGroup().location]")]
         [DataRow("[\n4\n][0]", "[createArray(4)[0]]")]
-        [DataRow("[\n[]\n[\n12\n's'\n][1]\n\n]","[createArray(createArray(), createArray(12, 's')[1])]")]
-        [DataRow("42[33].foo","[int(42)[33].foo]")]
-        [DataRow("'foo'[x()]","[string('foo')[x()]]")]
-        [DataRow("1 ?? 2 ?? 3","[coalesce(coalesce(1, 2), 3)]")]
+        [DataRow("[\n[]\n[\n12\n's'\n][1]\n\n]", "[createArray(createArray(), createArray(12, 's')[1])]")]
+        [DataRow("42[33].foo", "[int(42)[33].foo]")]
+        [DataRow("'foo'[x()]", "[string('foo')[x()]]")]
+        [DataRow("1 ?? 2 ?? 3", "[coalesce(coalesce(1, 2), 3)]")]
         [DataRow("5 ?? 3 + 2 ?? 7", "[coalesce(coalesce(5, add(3, 2)), 7)]")]
         [DataRow("true ?? true && false ?? false || true", "[coalesce(coalesce(true(), and(true(), false())), or(false(), true()))]")]
         [DataRow("null ?? true", "[coalesce(null(), true())]")]
         public void ShouldConvertExpressionsCorrectly(string text, string expected)
         {
             var programText = $"var test = {text}";
-            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SyntaxTreeGroupingFactory.CreateFromText(programText));
+            var compilation = new Compilation(TestTypeHelper.CreateEmptyProvider(), SourceFileGroupingFactory.CreateFromText(programText, BicepTestConstants.FileResolver), BicepTestConstants.BuiltInConfiguration, BicepTestConstants.LinterAnalyzer);
 
-            var programSyntax = compilation.SyntaxTreeGrouping.EntryPoint.ProgramSyntax;
+            var programSyntax = compilation.SourceFileGrouping.EntryPoint.ProgramSyntax;
             var variableDeclarationSyntax = programSyntax.Children.OfType<VariableDeclarationSyntax>().First();
 
-            var converter = new ExpressionConverter(new EmitterContext(compilation.GetEntrypointSemanticModel()));
+            var converter = new ExpressionConverter(new EmitterContext(compilation.GetEntrypointSemanticModel(), BicepTestConstants.EmitterSettings));
             var converted = converter.ConvertExpression(variableDeclarationSyntax.Value);
 
             var serializer = new ExpressionSerializer(new ExpressionSerializerSettings
             {
-                IncludeOuterSquareBrackets = true, SingleStringHandling = ExpressionSerializerSingleStringHandling.SerializeAsString
+                IncludeOuterSquareBrackets = true,
+                SingleStringHandling = ExpressionSerializerSingleStringHandling.SerializeAsString
             });
 
             var actual = serializer.SerializeExpression(converted);

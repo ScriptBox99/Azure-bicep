@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "10929616126180001294"
+      "templateHash": "9146811373829415744"
     }
   },
   "parameters": {
@@ -22,7 +22,6 @@
       }
     }
   },
-  "functions": [],
   "resources": [
     {
       "type": "Microsoft.Sql/servers/firewallRules",

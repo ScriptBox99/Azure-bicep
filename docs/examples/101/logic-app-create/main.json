@@ -5,24 +5,31 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "8733046177907588940"
+      "templateHash": "4440531950594760658"
     }
   },
   "parameters": {
     "logicAppName": {
       "type": "string",
-      "defaultValue": "BicepLogicApp"
+      "metadata": {
+        "description": "The name of the logic app to create."
+      }
     },
     "testUri": {
       "type": "string",
-      "defaultValue": "http://status.azure.com/en-us/status/"
+      "defaultValue": "https://status.azure.com/en-us/status/",
+      "metadata": {
+        "description": "A test URI"
+      }
     },
     "location": {
       "type": "string",
-      "defaultValue": "usgovvirginia"
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
     }
   },
-  "functions": [],
   "variables": {
     "frequency": "Hour",
     "interval": "1",
@@ -37,9 +44,19 @@
       "apiVersion": "2019-05-01",
       "name": "[parameters('logicAppName')]",
       "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "[parameters('logicAppName')]"
+      },
       "properties": {
         "definition": {
           "$schema": "[variables('workflowSchema')]",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "testUri": {
+              "type": "string",
+              "defaultValue": "[parameters('testUri')]"
+            }
+          },
           "triggers": {
             "recurrence": {
               "type": "[variables('type')]",

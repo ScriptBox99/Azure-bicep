@@ -1,4 +1,4 @@
-![Build](https://github.com/Azure/bicep/workflows/Build/badge.svg)
+[![Build](https://github.com/Azure/bicep/actions/workflows/build.yml/badge.svg)](https://github.com/Azure/bicep/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/Azure/bicep/branch/main/graph/badge.svg)](https://codecov.io/gh/Azure/bicep)
 [![Good First Issues](https://img.shields.io/github/issues/Azure/Bicep/good%20first%20issue?color=important&label=good%20first%20issue&style=flat)](https://github.com/Azure/Bicep/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 [![Needs Feedback](https://img.shields.io/github/issues/Azure/Bicep/needs%20feedback?color=blue&label=needs%20feedback%20&style=flat)](https://github.com/Azure/bicep/issues?q=is%3Aopen+is%3Aissue+label%3A%22needs+feedback%22)
@@ -34,26 +34,26 @@ Bicep code is transpiled to standard ARM Template JSON files, which effectively 
 
 To get going with Bicep:
 
-1. **Start by [installing the tooling](./docs/installing.md).**
-1. **Complete the [Bicep tutorial](./docs/tutorial/01-simple-template.md)**
+1. **Start by [installing the tooling](https://docs.microsoft.com/azure/azure-resource-manager/bicep/install).**
+2. **Complete the [Bicep Learning Path](https://docs.microsoft.com/learn/paths/bicep-deploy/)**
 
 Alternatively, you can try the [Bicep Playground](https://aka.ms/bicepdemo) or use the [VS Code Devcontainer/Codespaces](https://github.com/Azure/vscode-remote-try-bicep) repo to get a preconfigured environment.
 
-If you have an existing ARM Template or set of resources that you would like to convert to `.bicep` format, see [Decompiling an ARM Template](./docs/decompiling.md).
+If you have an existing ARM Template or set of resources that you would like to convert to `.bicep` format, see [Decompiling an ARM Template](https://docs.microsoft.com/azure/azure-resource-manager/bicep/decompile).
 
-Full details of how the bicep language works can be found in the [Bicep documentation](https://github.com/Azure/bicep/tree/main/docs) and there is a rich library of [examples](https://github.com/Azure/bicep/tree/main/docs/examples) to help you get a jumpstart.
+Full details of how the bicep language works can be found in the [Bicep documentation](https://docs.microsoft.com/azure/azure-resource-manager/bicep/) and there is a rich library of [examples](https://github.com/Azure/bicep/tree/main/docs/examples) to help you get a jumpstart.
 
 ## How does Bicep work?
 
-First, author your Bicep code using the Bicep language service as part of the [Bicep VS Code extension](./docs/installing.md#bicep-vs-code-extension)
+First, author your Bicep code using the Bicep language service as part of the [Bicep VS Code extension](https://docs.microsoft.com/azure/azure-resource-manager/bicep/install#vs-code-and-bicep-extension)
 
-Both [Az CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (2.20.0+) and the [PowerShell Az module](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps) (v5.6.0+) have Bicep support built-in. This means you can use the standard deployment commands with your `*.bicep` files and the tooling will transpile the code and send it to ARM on your behalf. For example, to deploy `main.bicep` to a resource group `my-rg`, we can use the CLI command we are already used to:
+Both [Az CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (2.20.0+) and the [PowerShell Az module](https://docs.microsoft.com/powershell/azure/install-az-ps) (v5.6.0+) have Bicep support built-in. This means you can use the standard deployment commands with your `*.bicep` files and the tooling will transpile the code and send it to ARM on your behalf. For example, to deploy `main.bicep` to a resource group `my-rg`, we can use the CLI command we are already used to:
 
 ```bash
 az deployment group create -f ./main.bicep -g my-rg
 ```
 
-For more detail on taking advantage of new Bicep constructs that replace an equivalent from ARM Templates, you can read the [moving from ARM => Bicep](./docs/arm2bicep.md) doc.
+For more detail on taking advantage of new Bicep constructs that replace an equivalent from ARM Templates, you can read the [moving from ARM => Bicep](https://docs.microsoft.com/azure/azure-resource-manager/bicep/compare-template-syntax) doc.
 
 ## Known limitations
 
@@ -66,10 +66,10 @@ For more detail on taking advantage of new Bicep constructs that replace an equi
 **What unique benefits do you get with Bicep?**
 
 1. Day 0 resource provider support. Any Azure resource — whether in private or public preview or GA — can be provisioned using Bicep.
-2. Much simpler syntax [compared to equivalent ARM Template JSON](./docs/arm2bicep.md)
+2. Much simpler syntax [compared to equivalent ARM Template JSON](https://docs.microsoft.com/azure/azure-resource-manager/bicep/compare-template-syntax)
 3. No state or state files to manage. All state is stored in Azure, so makes it easy to collaborate and make changes to resources confidently. 
 4. Tooling is the cornerstone to any great experience with a programming language. Our VS Code extension for Bicep makes it extremely easy to author and get started with advanced type validation based on all Azure resource type [API definitions](https://github.com/Azure/azure-rest-api-specs/tree/master/specification).
-5. Easily break apart your code with native [modules](./docs/spec/modules.md) 
+5. Easily break apart your code with native [modules](https://docs.microsoft.com/azure/azure-resource-manager/bicep/modules) 
 6. Supported by Microsoft support and 100% free to use.
 
 **Why create a new language instead of using an existing one?**
@@ -96,7 +96,7 @@ Bicep is a DSL focused on deploying end-to-end solutions in Azure. In practice, 
 
 **What happens to my existing ARM Template investments?**
 
-One of our goals is to make the transition from ARM Templates to Bicep as easy as possible. The Bicep CLI supports a `decompile` command to generate Bicep code from an ARM template. Please see [Decompiling an ARM Template](https://github.com/Azure/bicep/blob/main/docs/decompiling.md) for usage information.
+One of our goals is to make the transition from ARM Templates to Bicep as easy as possible. The Bicep CLI supports a `decompile` command to generate Bicep code from an ARM template. Please see [Decompiling an ARM Template](https://docs.microsoft.com/azure/azure-resource-manager/bicep/decompile) for usage information.
 
 Note that while we want to make it easy to transition to Bicep, we will continue to support and enhance the underlying ARM Template JSON language. As mentioned in [What is Bicep?](#what-is-bicep), ARM Template JSON remains the wire format that will be sent to Azure to carry out a deployment.
 
@@ -108,7 +108,7 @@ We are here to help you be successful with Bicep, please do not hesitate to reac
 
 ## Reference
 
-* [Complete language spec](./docs/spec/bicep.md)
+* [Complete language spec](https://docs.microsoft.com/azure/azure-resource-manager/bicep/file)
 * [@BicepLang](https://twitter.com/BicepLang)
 * [ARM Template Reference](https://docs.microsoft.com/azure/templates/)
 
@@ -116,7 +116,7 @@ We are here to help you be successful with Bicep, please do not hesitate to reac
 
 * [Bicep GitHub Action](https://github.com/marketplace/actions/bicep-build)
 * [Bicep Language Service support in Neovim](https://github.com/Azure/bicep/issues/1141#issuecomment-749372637)
-* [Bicep PowerShell Module](https://github.com/StefanIvemo/BicepPowerShell)
+* [Bicep PowerShell Module](https://github.com/PSBicep/PSBicep)
 * [Bicep Tasks extension for Azure Pipelines](https://marketplace.visualstudio.com/items?itemName=piraces.bicep-tasks)
 
 ## Alternatives
@@ -129,6 +129,11 @@ Because we are now treating the ARM Template as an IL, we expect and encourage o
 ## Telemetry
 
 When using the Bicep VS Code extension, VS Code collects usage data and sends it to Microsoft to help improve our products and services. Read our [privacy statement](https://go.microsoft.com/fwlink/?LinkID=528096&clcid=0x409) to learn more. If you don’t wish to send usage data to Microsoft, you can set the `telemetry.enableTelemetry` setting to `false`. Learn more in our [FAQ](https://code.visualstudio.com/docs/supporting/faq#_how-to-disable-telemetry-reporting).
+
+## License
+All files except for the [Azure Architecture SVG Icons](./src/vscode-bicep/src/visualizer/app/assets/icons/azure) in the repository are subject to the [MIT license](./LICENSE).
+
+The [Azure Architecture SVG Icons](./src/vscode-bicep/src/visualizer/app/assets/icons/azure) used in the Bicep VS Code extension are subject to the [Terms of Use](https://docs.microsoft.com/azure/architecture/icons/#terms).
 
 ## Contributing
 See [Contributing to Bicep](./CONTRIBUTING.md) for information on building/running the code, contributing code, contributing examples and contributing feature requests or bug reports.

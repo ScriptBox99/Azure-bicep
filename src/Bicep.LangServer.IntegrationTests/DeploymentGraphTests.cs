@@ -20,7 +20,6 @@ using TextRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 namespace Bicep.LangServer.IntegrationTests
 {
     [TestClass]
-    [SuppressMessage("Style", "VSTHRD200:Use \"Async\" suffix for async methods", Justification = "Test methods do not need to follow this convention.")]
     public class DeploymentGraphTests
     {
         [NotNull]
@@ -32,11 +31,11 @@ namespace Bicep.LangServer.IntegrationTests
             var diagnosticsListener = new MultipleMessageListener<PublishDiagnosticsParams>();
             var fileSystemDict = new Dictionary<Uri, string>();
 
-            var client = await IntegrationTestHelper.StartServerWithClientConnectionAsync(
+            using var helper = await LanguageServerHelper.StartServerWithClientConnectionAsync(
                 this.TestContext,
                 options => options.OnPublishDiagnostics(diagnosticsParams => diagnosticsListener.AddMessage(diagnosticsParams)),
-                BuiltInTestTypes.Create(),
-                new InMemoryFileResolver(fileSystemDict));
+                new LanguageServer.Server.CreationOptions(NamespaceProvider: BuiltInTestTypes.Create(), FileResolver: new InMemoryFileResolver(fileSystemDict)));
+            var client = helper.Client;
 
             var mainUri = DocumentUri.FromFileSystemPath("/main.bicep");
             fileSystemDict[mainUri.ToUri()] = @"
@@ -103,16 +102,15 @@ resource res5 'Test.Rp/basicTests@2020-01-01' = {
 
             deploymentGraph.Should().NotBeNull();
             deploymentGraph!.Nodes.Should().Equal(
-                new BicepDeploymentGraphNode("mod1", "<module>", false, CreateTextRange(15, 0, 17, 1), true, false, Path.GetFullPath(module1Uri.GetFileSystemPath())),
+                new BicepDeploymentGraphNode("mod1", "<module>", false, CreateTextRange(15, 0, 17, 1), true, false, Path.GetFullPath(mainUri.GetFileSystemPath())),
                 new BicepDeploymentGraphNode("mod1::res3", "Test.Rp/basicTests", false, CreateTextRange(1, 0, 3, 1), false, false, Path.GetFullPath(module1Uri.GetFileSystemPath())),
-                new BicepDeploymentGraphNode("mod2", "<module>", false, CreateTextRange(19, 0, 21, 1), true, false, Path.GetFullPath(module2Uri.GetFileSystemPath())),
-                new BicepDeploymentGraphNode("mod2::nestedMod", "<module>", true, CreateTextRange(5, 0, 9, 1), true, false, Path.GetFullPath(nestedModuleUri.GetFileSystemPath())),
+                new BicepDeploymentGraphNode("mod2", "<module>", false, CreateTextRange(19, 0, 21, 1), true, false, Path.GetFullPath(mainUri.GetFileSystemPath())),
+                new BicepDeploymentGraphNode("mod2::nestedMod", "<module>", true, CreateTextRange(5, 0, 10, 2), true, false, Path.GetFullPath(module2Uri.GetFileSystemPath())),
                 new BicepDeploymentGraphNode("mod2::nestedMod::res5", "Test.Rp/basicTests", false, CreateTextRange(1, 0, 3, 1), false, false, Path.GetFullPath(nestedModuleUri.GetFileSystemPath())),
                 new BicepDeploymentGraphNode("mod2::res4", "Test.Rp/basicTests", false, CreateTextRange(1, 0, 3, 1), false, false, Path.GetFullPath(module2Uri.GetFileSystemPath())),
-                new BicepDeploymentGraphNode("nonExistingMod", "<module>", false, CreateTextRange(23, 0, 24, 1), false, true, Path.GetFullPath("/path/to/nonExistingModule.bicep")),
+                new BicepDeploymentGraphNode("nonExistingMod", "<module>", false, CreateTextRange(23, 0, 24, 1), false, true, Path.GetFullPath(mainUri.GetFileSystemPath())),
                 new BicepDeploymentGraphNode("res1", "Test.Rp/basicTests", false, CreateTextRange(1, 0, 3, 1), false, false, Path.GetFullPath(mainUri.GetFileSystemPath())),
-                new BicepDeploymentGraphNode("res2", "Test.Rp/readWriteTests", false, CreateTextRange(5, 0, 10, 1), false, true, Path.GetFullPath(mainUri.GetFileSystemPath())),
-                new BicepDeploymentGraphNode("unknownRes", "<unknown>", false, CreateTextRange(12, 0, 12, 23), false, true, Path.GetFullPath(mainUri.GetFileSystemPath())));
+                new BicepDeploymentGraphNode("res2", "Test.Rp/readWriteTests", false, CreateTextRange(5, 0, 10, 1), false, true, Path.GetFullPath(mainUri.GetFileSystemPath())));
             deploymentGraph!.Edges.Should().Equal(
                 new BicepDeploymentGraphEdge("mod2::nestedMod", "mod2::res4"),
                 new BicepDeploymentGraphEdge("res2", "mod1"));
@@ -120,6 +118,6 @@ resource res5 'Test.Rp/basicTests@2020-01-01' = {
         }
 
         private static TextRange CreateTextRange(int startLine, int startCharacter, int endLine, int endCharacter) =>
-            new(new (startLine, startCharacter), new (endLine, endCharacter));
+            new(new(startLine, startCharacter), new(endLine, endCharacter));
     }
 }

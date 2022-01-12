@@ -12,7 +12,7 @@ import {
 } from "vscode-azureextensionui";
 import { ErrorAction, Message, CloseAction } from "vscode-languageclient/node";
 
-const dotnetRuntimeVersion = "5.0";
+const dotnetRuntimeVersion = "6.0";
 const packagedServerPath = "bicepLanguageServer/Bicep.LangServer.dll";
 const extensionId = "ms-azuretools.vscode-bicep";
 
@@ -44,6 +44,9 @@ async function launchLanguageService(
   const serverExecutable: lsp.Executable = {
     command: dotnetCommandPath,
     args: [languageServerPath],
+    options: {
+      env: process.env,
+    },
   };
 
   const serverOptions: lsp.ServerOptions = {
@@ -53,6 +56,10 @@ async function launchLanguageService(
 
   const clientOptions: lsp.LanguageClientOptions = {
     documentSelector: [{ language: "bicep" }],
+    initializationOptions: {
+      // this tells the server that this client can handle additional DocumentUri schemes
+      enableRegistryContent: true,
+    },
     progressOnInitialization: true,
     outputChannel,
     middleware: {
@@ -74,6 +81,7 @@ async function launchLanguageService(
       fileEvents: [
         vscode.workspace.createFileSystemWatcher("**/"), // folder changes
         vscode.workspace.createFileSystemWatcher("**/*.bicep"), // .bicep file changes
+        vscode.workspace.createFileSystemWatcher("**/*.{json,jsonc,arm}"), // ARM template file changes
       ],
     },
   };

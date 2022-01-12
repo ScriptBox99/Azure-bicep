@@ -9,6 +9,7 @@ using System.Linq;
 using Azure.Deployments.Core.Extensions;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
+using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
 
@@ -22,19 +23,38 @@ namespace Bicep.Core.Semantics
 
         private readonly IDictionary<SyntaxBase, Symbol> bindings;
 
-        private readonly ImmutableDictionary<string, NamespaceSymbol> namespaces;
+        private readonly NamespaceResolver namespaceResolver;
 
-        private readonly IReadOnlyDictionary<SyntaxBase, LocalScope> allLocalScopes;
+        private readonly ImmutableDictionary<SyntaxBase, LocalScope> allLocalScopes;
 
         private readonly Stack<LocalScope> activeScopes;
 
-        public NameBindingVisitor(IReadOnlyDictionary<string, DeclaredSymbol> declarations, IDictionary<SyntaxBase, Symbol> bindings, ImmutableDictionary<string, NamespaceSymbol> namespaces, ImmutableArray<LocalScope> localScopes)
+        private NameBindingVisitor(
+            IReadOnlyDictionary<string, DeclaredSymbol> declarations,
+            IDictionary<SyntaxBase, Symbol> bindings,
+            NamespaceResolver namespaceResolver,
+            ImmutableDictionary<SyntaxBase, LocalScope> allLocalScopes)
         {
             this.declarations = declarations;
             this.bindings = bindings;
-            this.namespaces = namespaces;
-            this.allLocalScopes = ScopeCollectorVisitor.Build(localScopes);
+            this.namespaceResolver = namespaceResolver;
+            this.allLocalScopes = allLocalScopes;
             this.activeScopes = new Stack<LocalScope>();
+        }
+
+        public static ImmutableDictionary<SyntaxBase, Symbol> GetBindings(
+            ProgramSyntax programSyntax,
+            IReadOnlyDictionary<string, DeclaredSymbol> outermostDeclarations,
+            NamespaceResolver namespaceResolver,
+            ImmutableArray<LocalScope> childScopes)
+        {
+            // bind identifiers to declarations
+            var bindings = new Dictionary<SyntaxBase, Symbol>();
+            var allLocalScopes = ScopeCollectorVisitor.Build(childScopes);
+            var binder = new NameBindingVisitor(outermostDeclarations, bindings, namespaceResolver, allLocalScopes);
+            binder.Visit(programSyntax);
+
+            return bindings.ToImmutableDictionary();
         }
 
         public override void VisitProgramSyntax(ProgramSyntax syntax)
@@ -72,7 +92,7 @@ namespace Bicep.Core.Semantics
         {
             base.VisitResourceAccessSyntax(syntax);
 
-            // we need to resolve which resource delaration the LHS is pointing to - and then 
+            // we need to resolve which resource delaration the LHS is pointing to - and then
             // validate that we can resolve the name.
             this.bindings.TryGetValue(syntax.BaseExpression, out var symbol);
 
@@ -95,7 +115,7 @@ namespace Bicep.Core.Semantics
             if (resourceBody == null)
             {
                 // If we have no body then there will be nothing to reference.
-                var error = new ErrorSymbol(DiagnosticBuilder.ForPosition(syntax.ResourceName).NestedResourceNotFound(resourceSymbol.Name, syntax.ResourceName.IdentifierName, nestedResourceNames: new []{ "(none)", }));
+                var error = new ErrorSymbol(DiagnosticBuilder.ForPosition(syntax.ResourceName).NestedResourceNotFound(resourceSymbol.Name, syntax.ResourceName.IdentifierName, nestedResourceNames: new[] { "(none)", }));
                 this.bindings.Add(syntax, error);
                 return;
             }
@@ -114,7 +134,7 @@ namespace Bicep.Core.Semantics
                 this.bindings.Add(syntax, error);
                 return;
             }
-            
+
             // This is valid.
             this.bindings.Add(syntax, referencedResource);
         }
@@ -185,6 +205,18 @@ namespace Bicep.Core.Semantics
             allowedFlags = FunctionFlags.Default;
         }
 
+        public override void VisitImportDeclarationSyntax(ImportDeclarationSyntax syntax)
+        {
+            allowedFlags = FunctionFlags.ImportDecorator;
+            this.VisitNodes(syntax.LeadingNodes);
+            this.Visit(syntax.Keyword);
+            this.Visit(syntax.ProviderName);
+            this.Visit(syntax.AsKeyword);
+            this.Visit(syntax.AliasName);
+            this.Visit(syntax.Config);
+            allowedFlags = FunctionFlags.Default;
+        }
+
         public override void VisitParameterDeclarationSyntax(ParameterDeclarationSyntax syntax)
         {
             allowedFlags = FunctionFlags.ParameterDecorator;
@@ -203,7 +235,8 @@ namespace Bicep.Core.Semantics
                 FunctionFlags.VariableDecorator |
                 FunctionFlags.ResourceDecorator |
                 FunctionFlags.ModuleDecorator |
-                FunctionFlags.OutputDecorator;
+                FunctionFlags.OutputDecorator |
+                FunctionFlags.ImportDecorator;
             base.VisitMissingDeclarationSyntax(syntax);
             allowedFlags = FunctionFlags.Default;
         }
@@ -254,12 +287,12 @@ namespace Bicep.Core.Semantics
         {
             // we must have a scope in the map for the loop body - otherwise binding won't work
             Debug.Assert(this.allLocalScopes.ContainsKey(syntax.Body), "this.allLocalScopes.ContainsKey(syntax.Body)");
-            
+
             // visit all the children
             base.VisitForSyntax(syntax);
         }
 
-        private Symbol LookupSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall) => 
+        private Symbol LookupSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall) =>
             this.LookupLocalSymbolByName(identifierSyntax, isFunctionCall) ?? LookupGlobalSymbolByName(identifierSyntax, isFunctionCall);
 
         private Symbol? LookupLocalSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall)
@@ -287,7 +320,7 @@ namespace Bicep.Core.Semantics
             return null;
         }
 
-        private static Symbol? LookupLocalSymbolByName(LocalScope scope, IdentifierSyntax identifierSyntax) => 
+        private static Symbol? LookupLocalSymbolByName(LocalScope scope, IdentifierSyntax identifierSyntax) =>
             // bind to first symbol matching the specified identifier
             // (errors about duplicate identifiers are emitted elsewhere)
             // loops currently are the only source of local symbols
@@ -302,8 +335,8 @@ namespace Bicep.Core.Semantics
 
         private Symbol LookupGlobalSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall)
         {
-            // attempt to find name in the imported namespaces
-            if (this.namespaces.TryGetValue(identifierSyntax.IdentifierName, out var namespaceSymbol))
+            // attempt to find name in the built in namespaces. imported namespaces will be present in the declarations list as they create declared symbols.
+            if (this.namespaceResolver.BuiltIns.TryGetValue(identifierSyntax.IdentifierName) is { } namespaceSymbol)
             {
                 // namespace symbol found
                 return namespaceSymbol;
@@ -320,24 +353,22 @@ namespace Bicep.Core.Semantics
             }
 
             // attempt to find function in all imported namespaces
-            var foundSymbols = this.namespaces
-                .Select(kvp => allowedFlags.HasAnyDecoratorFlag()
-                    ? kvp.Value.Type.MethodResolver.TryGetSymbol(identifierSyntax) ?? kvp.Value.Type.DecoratorResolver.TryGetSymbol(identifierSyntax)
-                    : kvp.Value.Type.MethodResolver.TryGetSymbol(identifierSyntax))
-                .Where(symbol => symbol != null)
-                .ToList();
-
-            if (foundSymbols.Count > 1)
+            var foundSymbols = namespaceResolver.ResolveUnqualifiedFunction(identifierSyntax, includeDecorators: allowedFlags.HasAnyDecoratorFlag());
+            if (foundSymbols.Count() > 1)
             {
+                var ambiguousNamespaces = foundSymbols.OfType<FunctionSymbol>().Select(x => x.DeclaringObject.Name);
+
                 // ambiguous symbol
-                return new ErrorSymbol(DiagnosticBuilder.ForPosition(identifierSyntax).AmbiguousSymbolReference(identifierSyntax.IdentifierName, this.namespaces.Keys));
+                return new ErrorSymbol(DiagnosticBuilder.ForPosition(identifierSyntax).AmbiguousSymbolReference(identifierSyntax.IdentifierName, ambiguousNamespaces.ToImmutableSortedSet(StringComparer.Ordinal)));
             }
 
-            var foundSymbol = Enumerable.FirstOrDefault(foundSymbols);
-            return isFunctionCall ? SymbolValidator.ResolveUnqualifiedFunction(allowedFlags, foundSymbol, identifierSyntax, namespaces.Values) : SymbolValidator.ResolveUnqualifiedSymbol(foundSymbol, identifierSyntax, namespaces.Values, declarations.Keys);
+            var foundSymbol = foundSymbols.FirstOrDefault();
+            return isFunctionCall ?
+                SymbolValidator.ResolveUnqualifiedFunction(allowedFlags, foundSymbol, identifierSyntax, namespaceResolver) :
+                SymbolValidator.ResolveUnqualifiedSymbol(foundSymbol, identifierSyntax, namespaceResolver, declarations.Keys);
         }
-        
-        private class ScopeCollectorVisitor: SymbolVisitor
+
+        private class ScopeCollectorVisitor : SymbolVisitor
         {
             private IDictionary<SyntaxBase, LocalScope> ScopeMap { get; } = new Dictionary<SyntaxBase, LocalScope>();
 
@@ -345,7 +376,7 @@ namespace Bicep.Core.Semantics
             protected override void VisitInternal(Symbol node)
             {
                 // We haven't typed checked yet, so don't visit anything that isn't a scope.
-                // 
+                //
                 // Now that resources can appear in a scope, this causes problems if we visit them and try
                 // to get type info.
                 if (node is ILanguageScope)
@@ -360,7 +391,7 @@ namespace Bicep.Core.Semantics
                 base.VisitLocalScope(symbol);
             }
 
-            public static IReadOnlyDictionary<SyntaxBase, LocalScope> Build(ImmutableArray<LocalScope> outermostScopes)
+            public static ImmutableDictionary<SyntaxBase, LocalScope> Build(ImmutableArray<LocalScope> outermostScopes)
             {
                 var visitor = new ScopeCollectorVisitor();
                 foreach (LocalScope outermostScope in outermostScopes)
@@ -368,7 +399,7 @@ namespace Bicep.Core.Semantics
                     visitor.Visit(outermostScope);
                 }
 
-                return visitor.ScopeMap.AsReadOnly();
+                return visitor.ScopeMap.ToImmutableDictionary();
             }
         }
     }

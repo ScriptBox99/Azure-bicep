@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "14276509269203403837"
+      "templateHash": "7661581430833195871"
     }
   },
   "parameters": {
@@ -94,7 +94,6 @@
       }
     }
   },
-  "functions": [],
   "variables": {
     "lockName": "[format('{0}-lck', parameters('name'))]",
     "diagnosticsName": "[format('{0}-dgs', parameters('name'))]"
@@ -175,7 +174,7 @@
     },
     {
       "condition": "[parameters('enableDiagnostics')]",
-      "type": "microsoft.insights/diagnosticSettings",
+      "type": "Microsoft.Insights/diagnosticSettings",
       "apiVersion": "2017-05-01-preview",
       "scope": "[format('Microsoft.OperationalInsights/workspaces/{0}', parameters('name'))]",
       "name": "[variables('diagnosticsName')]",

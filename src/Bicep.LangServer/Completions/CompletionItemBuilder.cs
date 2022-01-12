@@ -20,7 +20,7 @@ namespace Bicep.LanguageServer.Completions
         private InsertTextFormat insertTextFormat;
         private TextEditOrInsertReplaceEdit? textEdit;
         private InsertTextMode insertTextMode;
-        
+
         private string? sortText;
         private bool preselect;
         private Command? command;
@@ -48,7 +48,7 @@ namespace Bicep.LanguageServer.Completions
                 InsertText = this.insertText,
                 InsertTextFormat = this.insertTextFormat,
                 TextEdit = this.textEdit,
-                InsertTextMode = this.insertTextMode,                
+                InsertTextMode = this.insertTextMode,
                 SortText = this.sortText,
                 Preselect = this.preselect,
                 Command = this.command
@@ -82,7 +82,7 @@ namespace Bicep.LanguageServer.Completions
             });
             return this;
         }
-        
+
         public CompletionItemBuilder WithFilterText(string filterText)
         {
             this.filterText = filterText;
@@ -99,7 +99,7 @@ namespace Bicep.LanguageServer.Completions
 
             return this;
         }
-        
+
         public CompletionItemBuilder WithPlainTextEdit(Range range, string text)
         {
             this.AssertNoInsertText();
@@ -151,7 +151,7 @@ namespace Bicep.LanguageServer.Completions
             this.textEdit = new TextEdit
             {
                 Range = range,
-                NewText = text
+                NewText = text.Replace("\r", string.Empty)
             };
             this.insertTextMode = InsertTextMode.AdjustIndentation;
         }

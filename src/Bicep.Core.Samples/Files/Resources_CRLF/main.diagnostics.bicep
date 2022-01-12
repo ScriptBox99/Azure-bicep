@@ -1,3 +1,5 @@
+
+@sys.description('this is basicStorage')
 resource basicStorage 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   name: 'basicblobs'
   location: 'westus'
@@ -7,6 +9,7 @@ resource basicStorage 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   }
 }
 
+@sys.description('this is dnsZone')
 resource dnsZone 'Microsoft.Network/dnszones@2018-05-01' = {
   name: 'myZone'
   location: 'global'
@@ -82,7 +85,7 @@ resource farm 'Microsoft.Web/serverFarms@2019-08-01' = {
   }
   properties: {
     name: hostingPlanName // just hostingPlanName results in an error
-//@[4:8) [BCP037 (Warning)] The property "name" is not allowed on objects of type "schemas:6_properties". Permissible properties include "freeOfferExpirationTime", "hostingEnvironmentProfile", "hyperV", "isSpot", "isXenon", "maximumElasticWorkerCount", "perSiteScaling", "reserved", "spotExpirationTime", "targetWorkerCount", "targetWorkerSizeId", "workerTierName". (CodeDescription: none) |name|
+//@[4:8) [BCP037 (Warning)] The property "name" is not allowed on objects of type "AppServicePlanProperties". Permissible properties include "freeOfferExpirationTime", "hostingEnvironmentProfile", "hyperV", "isSpot", "isXenon", "maximumElasticWorkerCount", "perSiteScaling", "reserved", "spotExpirationTime", "targetWorkerCount", "targetWorkerSizeId", "workerTierName". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |name|
   }
 }
 
@@ -139,7 +142,6 @@ resource nested 'Microsoft.Resources/deployments@2019-10-01' = {
     template: {
       // string key value
       '$schema': 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
-//@[17:98) [no-hardcoded-env-urls (Warning)] Environment URLs should not be hardcoded. Use the environment() function to ensure compatibility across clouds. Found this disallowed host: "management.azure.com" (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-hardcoded-env-urls)) |'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'|
       contentVersion: '1.0.0.0'
       resources: [
       ]
@@ -231,6 +233,8 @@ resource resourceWithEscaping 'My.Rp/mockResource@2020-01-01' = {
 }
 
 param shouldDeployVm bool = true
+
+@sys.description('this is vmWithCondition')
 resource vmWithCondition 'Microsoft.Compute/virtualMachines@2020-06-01' = if (shouldDeployVm) {
   name: 'vmName'
   location: 'westus'
@@ -269,6 +273,7 @@ resource extensionDependencies 'My.Rp/mockResource@2020-01-01' = {
   }
 }
 
+@sys.description('this is existing1')
 resource existing1 'Mock.Rp/existingExtensionResource@2020-01-01' existing = {
 //@[19:65) [BCP081 (Warning)] Resource type "Mock.Rp/existingExtensionResource@2020-01-01" does not have types available. (CodeDescription: none) |'Mock.Rp/existingExtensionResource@2020-01-01'|
   name: 'existing1'
@@ -302,6 +307,7 @@ var storageAccounts = [
 ]
 
 // just a storage account loop
+@sys.description('this is just a storage account loop')
 resource storageResources 'Microsoft.Storage/storageAccounts@2019-06-01' = [for account in storageAccounts: {
   name: account.name
   location: account.location
@@ -312,6 +318,7 @@ resource storageResources 'Microsoft.Storage/storageAccounts@2019-06-01' = [for 
 }]
 
 // storage account loop with index
+@sys.description('this is just a storage account loop with index')
 resource storageResourcesWithIndex 'Microsoft.Storage/storageAccounts@2019-06-01' = [for (account, i) in storageAccounts: {
   name: '${account.name}${i}'
   location: account.location
@@ -322,6 +329,7 @@ resource storageResourcesWithIndex 'Microsoft.Storage/storageAccounts@2019-06-01
 }]
 
 // basic nested loop
+@sys.description('this is just a basic nested loop')
 resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = [for i in range(0, 3): {
   name: 'vnet-${i}'
   properties: {

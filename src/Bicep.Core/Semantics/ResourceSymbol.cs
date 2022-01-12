@@ -15,7 +15,7 @@ namespace Bicep.Core.Semantics
         {
         }
 
-        public ResourceDeclarationSyntax DeclaringResource => (ResourceDeclarationSyntax) this.DeclaringSyntax;
+        public ResourceDeclarationSyntax DeclaringResource => (ResourceDeclarationSyntax)this.DeclaringSyntax;
 
         public override void Accept(SymbolVisitor visitor) => visitor.VisitResourceSymbol(this);
 
@@ -31,15 +31,7 @@ namespace Bicep.Core.Semantics
 
         public bool IsCollection => this.Type is ArrayType;
 
-        public ResourceType? TryGetResourceType() => this.Type switch
-        {
-            ResourceType resourceType => resourceType,
-            ArrayType { Item: ResourceType resourceType } => resourceType,
-            _ => null,
-        };
-
-        public ResourceTypeReference GetResourceTypeReference() =>
-            this.TryGetResourceTypeReference() ??  throw new ArgumentException($"Resource symbol does not have a valid type (found {this.Type.Name})");
+        public ResourceType? TryGetResourceType() => ResourceType.TryUnwrap(this.Type);
 
         public ResourceTypeReference? TryGetResourceTypeReference() => this.TryGetResourceType()?.TypeReference;
 

@@ -6,40 +6,40 @@ bad
 // incomplete #completionTest(9) -> empty
 resource 
 //@[9:9) [BCP017 (Error)] Expected a resource identifier at this location. (CodeDescription: none) ||
-//@[9:9) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
+//@[9:9) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
 resource foo
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
-//@[12:12) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
-//@[12:12) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
+//@[12:12) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
+//@[12:12) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
 resource fo/o
-//@[11:12) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |/|
-//@[11:13) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |/o|
+//@[11:12) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |/|
+//@[11:13) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |/o|
 //@[13:13) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 resource foo 'ddd'
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
-//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
+//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
 //@[18:18) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(23) -> resourceTypes
 resource trailingSpace  
-//@[24:24) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
-//@[24:24) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
+//@[24:24) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
+//@[24:24) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
 
 // #completionTest(19,20) -> resourceObject
 resource foo 'ddd'= 
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
-//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
+//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
 //@[20:20) [BCP118 (Error)] Expected the "{" character, the "[" character, or the "if" keyword at this location. (CodeDescription: none) ||
 
 // wrong resource type
 resource foo 'ddd'={
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
-//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
+//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
 }
 
 resource foo 'ddd'=if (1 + 1 == 2) {
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
-//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
+//@[13:18) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'ddd'|
 }
 
 // using string interpolation for the resource type
@@ -69,11 +69,12 @@ resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= if (name == 'value') {
 
 resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= if ({ 'a': b }.a == 'foo') {
 //@[9:12) [BCP028 (Error)] Identifier "foo" is declared multiple times. Remove or rename the duplicates. (CodeDescription: none) |foo|
+//@[9:12) [BCP035 (Error)] The specified "resource" declaration is missing the following required properties: "name". (CodeDescription: none) |foo|
 //@[13:50) [BCP081 (Warning)] Resource type "Microsoft.Foo/foos@2020-02-02-alpha" does not have types available. (CodeDescription: none) |'Microsoft.Foo/foos@2020-02-02-alpha'|
+//@[58:58) [BCP019 (Error)] Expected a new line character at this location. (CodeDescription: none) ||
 //@[63:64) [BCP057 (Error)] The name "b" does not exist in the current context. (CodeDescription: none) |b|
-//@[65:66) [BCP019 (Error)] Expected a new line character at this location. (CodeDescription: none) |}|
+//@[65:65) [BCP019 (Error)] Expected a new line character at this location. (CodeDescription: none) ||
 }
-//@[1:1) [BCP018 (Error)] Expected the ")" character at this location. (CodeDescription: none) ||
 
 // simulate typing if condition
 resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= if
@@ -419,7 +420,8 @@ resource runtimeInvalidRes9 'Microsoft.Advisor/recommendations/suppressions@2020
 
 resource runtimeInvalidRes10 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
   name: '${runtimeValidRes3.location}'
-//@[28:36) [BCP053 (Error)] The type "Microsoft.Advisor/recommendations/suppressions" does not contain property "location". Available properties include "apiVersion", "id", "name", "properties", "type". (CodeDescription: none) |location|
+//@[11:36) [BCP120 (Error)] This expression is being used in an assignment to the "name" property of the "Microsoft.Advisor/recommendations/suppressions" type, which requires a value that can be calculated at the start of the deployment. Properties of runtimeValidRes3 which can be calculated at the start include "apiVersion", "id", "name", "type". (CodeDescription: none) |runtimeValidRes3.location|
+//@[28:36) [BCP187 (Warning)] The property "location" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |location|
 }
 
 resource runtimeInvalidRes11 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
@@ -982,7 +984,7 @@ resource incorrectPropertiesKey 'Microsoft.Resources/deploymentScripts@2020-10-0
 
 var mock = incorrectPropertiesKey.p
 //@[4:8) [no-unused-vars (Warning)] Variable "mock" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |mock|
-//@[34:35) [BCP053 (Error)] The type "AzureCLI" does not contain property "p". Available properties include "apiVersion", "id", "identity", "kind", "location", "name", "properties", "systemData", "tags", "type". (CodeDescription: none) |p|
+//@[34:35) [BCP053 (Error)] The type "AzureCLI" does not contain property "p". Available properties include "apiVersion", "eTag", "extendedLocation", "id", "identity", "kind", "location", "managedBy", "managedByExtended", "name", "plan", "properties", "scale", "sku", "systemData", "tags", "type", "zones". (CodeDescription: none) |p|
 
 resource incorrectPropertiesKey2 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   kind: 'AzureCLI'
@@ -1011,7 +1013,7 @@ resource incorrectPropertiesKey2 'Microsoft.Resources/deploymentScripts@2020-10-
         // #completionTest(0,2,4,6,8) -> environmentVariableProperties
         
       }
-      // #completionTest(0,1,2,3,4,5,6) -> objectPlusSymbols
+      // #completionTest(0,1,2,3,4,5,6) -> objectPlusSymbolsWithRequiredProperties
       
     ]
   }
@@ -1019,18 +1021,18 @@ resource incorrectPropertiesKey2 'Microsoft.Resources/deploymentScripts@2020-10-
 
 // #completionTest(21) -> resourceTypes
 resource missingType 
-//@[21:21) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
-//@[21:21) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) ||
+//@[21:21) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
+//@[21:21) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) ||
 
 // #completionTest(37,38,39,40,41,42,43,44) -> resourceTypes
 resource startedTypingTypeWithQuotes 'virma'
-//@[37:44) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'virma'|
+//@[37:44) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'virma'|
 //@[44:44) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(40,41,42,43,44,45) -> resourceTypes
 resource startedTypingTypeWithoutQuotes virma
-//@[40:45) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |virma|
-//@[40:45) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |virma|
+//@[40:45) [BCP068 (Error)] Expected a resource type string. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |virma|
+//@[40:45) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |virma|
 //@[45:45) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 resource dashesInPropertyNames 'Microsoft.ContainerService/managedClusters@2020-09-01' = {
@@ -1039,7 +1041,7 @@ resource dashesInPropertyNames 'Microsoft.ContainerService/managedClusters@2020-
 // #completionTest(78) -> autoScalerPropertiesRequireEscaping
 var letsAccessTheDashes = dashesInPropertyNames.properties.autoScalerProfile.s
 //@[4:23) [no-unused-vars (Warning)] Variable "letsAccessTheDashes" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |letsAccessTheDashes|
-//@[77:78) [BCP053 (Warning)] The type "schemas:30_autoScalerProfile" does not contain property "s". Available properties include "balance-similar-node-groups", "expander", "max-empty-bulk-delete", "max-graceful-termination-sec", "max-total-unready-percentage", "new-pod-scale-up-delay", "ok-total-unready-count", "scale-down-delay-after-add", "scale-down-delay-after-delete", "scale-down-delay-after-failure", "scale-down-unneeded-time", "scale-down-unready-time", "scale-down-utilization-threshold", "scan-interval", "skip-nodes-with-local-storage", "skip-nodes-with-system-pods". (CodeDescription: none) |s|
+//@[77:78) [BCP053 (Warning)] The type "ManagedClusterPropertiesAutoScalerProfile" does not contain property "s". Available properties include "balance-similar-node-groups", "expander", "max-empty-bulk-delete", "max-graceful-termination-sec", "max-total-unready-percentage", "new-pod-scale-up-delay", "ok-total-unready-count", "scale-down-delay-after-add", "scale-down-delay-after-delete", "scale-down-delay-after-failure", "scale-down-unneeded-time", "scale-down-unready-time", "scale-down-utilization-threshold", "scan-interval", "skip-nodes-with-local-storage", "skip-nodes-with-system-pods". (CodeDescription: none) |s|
 // #completionTest(78) -> autoScalerPropertiesRequireEscaping
 var letsAccessTheDashes2 = dashesInPropertyNames.properties.autoScalerProfile.
 //@[4:24) [no-unused-vars (Warning)] Variable "letsAccessTheDashes2" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |letsAccessTheDashes2|
@@ -1543,7 +1545,7 @@ resource missingFewerRequiredProperties 'Microsoft.Storage/storageAccounts@2019-
   location: 'eastus42'
   properties: {
     wrong: 'test'
-//@[4:9) [BCP037 (Warning)] The property "wrong" is not allowed on objects of type "StorageAccountPropertiesCreateParameters". Permissible properties include "accessTier", "allowBlobPublicAccess", "allowSharedKeyAccess", "azureFilesIdentityBasedAuthentication", "customDomain", "encryption", "isHnsEnabled", "largeFileSharesState", "minimumTlsVersion", "networkAcls", "routingPreference", "supportsHttpsTrafficOnly". (CodeDescription: none) |wrong|
+//@[4:9) [BCP037 (Warning)] The property "wrong" is not allowed on objects of type "StorageAccountPropertiesCreateParameters". Permissible properties include "accessTier", "allowBlobPublicAccess", "allowSharedKeyAccess", "azureFilesIdentityBasedAuthentication", "customDomain", "encryption", "isHnsEnabled", "largeFileSharesState", "minimumTlsVersion", "networkAcls", "routingPreference", "supportsHttpsTrafficOnly". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |wrong|
   }
 }]
 
@@ -1553,7 +1555,7 @@ resource wrongPropertyInNestedLoop 'Microsoft.Network/virtualNetworks@2020-06-01
   properties: {
     subnets: [for j in range(0, 4): {
       doesNotExist: 'test'
-//@[6:18) [BCP037 (Warning)] The property "doesNotExist" is not allowed on objects of type "Subnet". Permissible properties include "id", "properties". (CodeDescription: none) |doesNotExist|
+//@[6:18) [BCP037 (Warning)] The property "doesNotExist" is not allowed on objects of type "Subnet". Permissible properties include "id", "properties". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |doesNotExist|
       name: 'subnet-${i}-${j}'
     }]
   }
@@ -1563,7 +1565,7 @@ resource wrongPropertyInNestedLoop2 'Microsoft.Network/virtualNetworks@2020-06-0
   properties: {
     subnets: [for j in range(0, 4): {
       doesNotExist: 'test'
-//@[6:18) [BCP037 (Warning)] The property "doesNotExist" is not allowed on objects of type "Subnet". Permissible properties include "id", "properties". (CodeDescription: none) |doesNotExist|
+//@[6:18) [BCP037 (Warning)] The property "doesNotExist" is not allowed on objects of type "Subnet". Permissible properties include "id", "properties". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |doesNotExist|
       name: 'subnet-${i}-${j}-${k}'
     }]
   }
@@ -1675,8 +1677,9 @@ resource stuffs 'Microsoft.Storage/storageAccounts@2019-06-01' = [for account in
 // using the same loop variable in a new language scope should be allowed
 resource premiumStorages 'Microsoft.Storage/storageAccounts@2019-06-01' = [for account in storageAccounts: {
 //@[90:105) [BCP057 (Error)] The name "storageAccounts" does not exist in the current context. (CodeDescription: none) |storageAccounts|
-  // #completionTest(7,8) -> symbolsPlusAccount2
+  // #completionTest(7) -> symbolsPlusAccount1
   name: account.name
+  // #completionTest(12) -> symbolsPlusAccount2
   location: account.location
   sku: {
     // #completionTest(9,10) -> storageSkuNamePlusSymbols
@@ -1730,7 +1733,7 @@ resource directRefViaSingleLoopResourceBodyWithExtraDependsOn 'Microsoft.Network
     subnets: premiumStorages
 //@[13:28) [BCP144 (Error)] Directly referencing a resource or module collection is not currently supported. Apply an array indexer to the expression. (CodeDescription: none) |premiumStorages|
     dependsOn: [
-//@[4:13) [BCP037 (Warning)] The property "dependsOn" is not allowed on objects of type "VirtualNetworkPropertiesFormat". Permissible properties include "addressSpace", "bgpCommunities", "ddosProtectionPlan", "dhcpOptions", "enableDdosProtection", "enableVmProtection", "ipAllocations", "virtualNetworkPeerings". (CodeDescription: none) |dependsOn|
+//@[4:13) [BCP037 (Warning)] The property "dependsOn" is not allowed on objects of type "VirtualNetworkPropertiesFormat". Permissible properties include "addressSpace", "bgpCommunities", "ddosProtectionPlan", "dhcpOptions", "enableDdosProtection", "enableVmProtection", "ipAllocations", "virtualNetworkPeerings". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |dependsOn|
       premiumStorages
 //@[6:21) [BCP144 (Error)] Directly referencing a resource or module collection is not currently supported. Apply an array indexer to the expression. (CodeDescription: none) |premiumStorages|
     ]
@@ -1805,7 +1808,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
 // parent property with 'existing' resource at different scope
 resource p1_res1 'Microsoft.Rp1/resource1@2020-06-01' existing = {
 //@[17:53) [BCP081 (Warning)] Resource type "Microsoft.Rp1/resource1@2020-06-01" does not have types available. (CodeDescription: none) |'Microsoft.Rp1/resource1@2020-06-01'|
-  scope: tenant()
+  scope: subscription()
   name: 'res1'
 }
 
@@ -1864,8 +1867,9 @@ resource p5_res1 'Microsoft.Rp1/resource1@2020-06-01' = {
 }
 
 resource p5_res2 'Microsoft.Rp2/resource2/child2@2020-06-01' = {
+//@[17:60) [BCP081 (Warning)] Resource type "Microsoft.Rp2/resource2/child2@2020-06-01" does not have types available. (CodeDescription: none) |'Microsoft.Rp2/resource2/child2@2020-06-01'|
   parent: p5_res1
-//@[10:17) [BCP171 (Error)] Resource type "Microsoft.Rp2/resource2/child2" is not a valid child resource of parent "Microsoft.Rp1/resource1". (CodeDescription: none) |p5_res1|
+//@[10:17) [BCP036 (Error)] The property "parent" expected a value of type "Microsoft.Rp2/resource2" but the provided value is of type "Microsoft.Rp1/resource1@2020-06-01". (CodeDescription: none) |p5_res1|
   name: 'res2'
 }
 
@@ -1876,8 +1880,9 @@ resource p6_res1 '${true}' = {
 }
 
 resource p6_res2 'Microsoft.Rp1/resource1/child2@2020-06-01' = {
+//@[17:60) [BCP081 (Warning)] Resource type "Microsoft.Rp1/resource1/child2@2020-06-01" does not have types available. (CodeDescription: none) |'Microsoft.Rp1/resource1/child2@2020-06-01'|
   parent: p6_res1
-//@[10:17) [BCP172 (Error)] The resource type cannot be validated due to an error in parent resource "p6_res1". (CodeDescription: none) |p6_res1|
+//@[10:17) [BCP062 (Error)] The referenced declaration with name "p6_res1" is not valid. (CodeDescription: none) |p6_res1|
   name: 'res2'
 }
 
@@ -1984,40 +1989,219 @@ resource tenantLevelResourceBlocked 'Microsoft.Management/managementGroups@2020-
 
 // #completionTest(15,36,37) -> resourceTypes
 resource comp1 'Microsoft.Resources/'
-//@[15:37) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/'|
+//@[15:37) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/'|
 //@[37:37) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(15,16,17) -> resourceTypes
 resource comp2 ''
-//@[15:17) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |''|
+//@[15:17) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |''|
 //@[17:17) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(38) -> resourceTypes
 resource comp3 'Microsoft.Resources/t'
-//@[15:38) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/t'|
+//@[15:38) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/t'|
 //@[38:38) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(40) -> resourceTypes
 resource comp4 'Microsoft.Resources/t/v'
-//@[15:40) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/t/v'|
+//@[15:40) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/t/v'|
 //@[40:40) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(49) -> resourceTypes
 resource comp5 'Microsoft.Storage/storageAccounts'
-//@[15:50) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Storage/storageAccounts'|
+//@[15:50) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Storage/storageAccounts'|
 //@[50:50) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(50) -> storageAccountsResourceTypes
 resource comp6 'Microsoft.Storage/storageAccounts@'
-//@[15:51) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Storage/storageAccounts@'|
+//@[15:51) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Storage/storageAccounts@'|
 //@[51:51) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(52) -> templateSpecsResourceTypes
 resource comp7 'Microsoft.Resources/templateSpecs@20'
-//@[15:53) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<provider>/<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/templateSpecs@20'|
+//@[15:53) [BCP029 (Error)] The resource type is not valid. Specify a valid resource type of format "<types>@<apiVersion>". (CodeDescription: none) |'Microsoft.Resources/templateSpecs@20'|
 //@[53:53) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
 
 // #completionTest(60,61) -> virtualNetworksResourceTypes
 resource comp8 'Microsoft.Network/virtualNetworks@2020-06-01'
 //@[61:61) [BCP018 (Error)] Expected the "=" character at this location. (CodeDescription: none) ||
+
+
+// issue #3000
+resource issue3000LogicApp1 'Microsoft.Logic/workflows@2019-05-01' = {
+  name: 'issue3000LogicApp1'
+  location: resourceGroup().location
+  properties: {
+    state: 'Enabled'
+    definition: ''
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+  extendedLocation: {}
+//@[2:18) [BCP187 (Warning)] The property "extendedLocation" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |extendedLocation|
+  sku: {}
+//@[2:5) [BCP187 (Warning)] The property "sku" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |sku|
+  kind: 'V1'
+//@[2:6) [BCP187 (Warning)] The property "kind" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |kind|
+  managedBy: 'string'
+//@[2:11) [BCP187 (Warning)] The property "managedBy" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |managedBy|
+  mangedByExtended: [
+//@[2:18) [BCP037 (Error)] The property "mangedByExtended" is not allowed on objects of type "Microsoft.Logic/workflows". Permissible properties include "dependsOn", "tags". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |mangedByExtended|
+   'str1'
+   'str2'
+  ]
+  zones: [
+//@[2:7) [BCP187 (Warning)] The property "zones" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |zones|
+   'str1'
+   'str2'
+  ]
+  plan: {}
+//@[2:6) [BCP187 (Warning)] The property "plan" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |plan|
+  eTag: ''
+//@[2:6) [BCP187 (Warning)] The property "eTag" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |eTag|
+  scale: {}  
+//@[2:7) [BCP187 (Warning)] The property "scale" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |scale|
+}
+
+resource issue3000LogicApp2 'Microsoft.Logic/workflows@2019-05-01' = {
+  name: 'issue3000LogicApp2'
+  location: resourceGroup().location
+  properties: {
+    state: 'Enabled'
+    definition: ''
+  }
+  identity: 'SystemAssigned'
+//@[12:28) [BCP036 (Error)] The property "identity" expected a value of type "ManagedServiceIdentity | null" but the provided value is of type "'SystemAssigned'". (CodeDescription: none) |'SystemAssigned'|
+  extendedLocation: 'eastus'
+//@[2:18) [BCP187 (Warning)] The property "extendedLocation" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |extendedLocation|
+//@[20:28) [BCP036 (Error)] The property "extendedLocation" expected a value of type "object" but the provided value is of type "'eastus'". (CodeDescription: none) |'eastus'|
+  sku: 'Basic'
+//@[2:5) [BCP187 (Warning)] The property "sku" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |sku|
+//@[7:14) [BCP036 (Error)] The property "sku" expected a value of type "object" but the provided value is of type "'Basic'". (CodeDescription: none) |'Basic'|
+  kind: {
+//@[2:6) [BCP187 (Warning)] The property "kind" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |kind|
+//@[8:30) [BCP036 (Error)] The property "kind" expected a value of type "string" but the provided value is of type "object". (CodeDescription: none) |{\r\n    name: 'V1'\r\n  }|
+    name: 'V1'
+  }
+  managedBy: {}
+//@[2:11) [BCP187 (Warning)] The property "managedBy" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |managedBy|
+//@[13:15) [BCP036 (Error)] The property "managedBy" expected a value of type "string" but the provided value is of type "object". (CodeDescription: none) |{}|
+  mangedByExtended: [
+//@[2:18) [BCP037 (Error)] The property "mangedByExtended" is not allowed on objects of type "Microsoft.Logic/workflows". Permissible properties include "dependsOn", "tags". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |mangedByExtended|
+   {}
+   {}
+  ]
+  zones: [
+//@[2:7) [BCP187 (Warning)] The property "zones" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |zones|
+   {}
+//@[3:5) [BCP034 (Error)] The enclosing array expected an item of type "string", but the provided item was of type "object". (CodeDescription: none) |{}|
+   {}
+//@[3:5) [BCP034 (Error)] The enclosing array expected an item of type "string", but the provided item was of type "object". (CodeDescription: none) |{}|
+  ]
+  plan: ''
+//@[2:6) [BCP187 (Warning)] The property "plan" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |plan|
+//@[8:10) [BCP036 (Error)] The property "plan" expected a value of type "object" but the provided value is of type "''". (CodeDescription: none) |''|
+  eTag: {}
+//@[2:6) [BCP187 (Warning)] The property "eTag" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |eTag|
+//@[8:10) [BCP036 (Error)] The property "eTag" expected a value of type "string" but the provided value is of type "object". (CodeDescription: none) |{}|
+  scale: [
+//@[2:7) [BCP187 (Warning)] The property "scale" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |scale|
+//@[9:21) [BCP036 (Error)] The property "scale" expected a value of type "object" but the provided value is of type "object[]". (CodeDescription: none) |[\r\n  {}\r\n  ]|
+  {}
+  ]  
+}
+
+resource issue3000stg 'Microsoft.Storage/storageAccounts@2021-04-01' = {
+  name: 'issue3000stg'
+  kind: 'StorageV2'
+  location: 'West US'
+  sku: {
+    name: 'Premium_LRS'    
+  }
+  madeUpProperty: {}
+//@[2:16) [BCP037 (Error)] The property "madeUpProperty" is not allowed on objects of type "Microsoft.Storage/storageAccounts". Permissible properties include "dependsOn", "extendedLocation", "identity", "properties", "tags". If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |madeUpProperty|
+  managedByExtended: []
+//@[2:19) [BCP187 (Warning)] The property "managedByExtended" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |managedByExtended|
+}
+
+var issue3000stgMadeUpProperty = issue3000stg.madeUpProperty
+//@[4:30) [no-unused-vars (Warning)] Variable "issue3000stgMadeUpProperty" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |issue3000stgMadeUpProperty|
+//@[46:60) [BCP053 (Error)] The type "Microsoft.Storage/storageAccounts" does not contain property "madeUpProperty". Available properties include "apiVersion", "eTag", "extendedLocation", "id", "identity", "kind", "location", "managedBy", "managedByExtended", "name", "plan", "properties", "scale", "sku", "tags", "type", "zones". (CodeDescription: none) |madeUpProperty|
+var issue3000stgManagedBy = issue3000stg.managedBy
+//@[4:25) [no-unused-vars (Warning)] Variable "issue3000stgManagedBy" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |issue3000stgManagedBy|
+//@[41:50) [BCP187 (Warning)] The property "managedBy" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |managedBy|
+var issue3000stgManagedByExtended = issue3000stg.managedByExtended
+//@[4:33) [no-unused-vars (Warning)] Variable "issue3000stgManagedByExtended" is declared but never used. (CodeDescription: bicep core(https://aka.ms/bicep/linter/no-unused-vars)) |issue3000stgManagedByExtended|
+//@[49:66) [BCP187 (Warning)] The property "managedByExtended" does not exist in the resource definition, although it might still be valid. If this is an inaccuracy in the documentation, please report it to the Bicep Team. (CodeDescription: bicep(https://aka.ms/bicep-type-issues)) |managedByExtended|
+
+param dataCollectionRule object
+param tags object
+
+var defaultLogAnalyticsWorkspace = {
+  subscriptionId: subscription().subscriptionId
+}
+
+resource logAnalyticsWorkspaces 'Microsoft.OperationalInsights/workspaces@2020-10-01' existing = [for logAnalyticsWorkspace in dataCollectionRule.destinations.logAnalyticsWorkspaces: {
+  name: logAnalyticsWorkspace.name
+  scope: resourceGroup( union( defaultLogAnalyticsWorkspace, logAnalyticsWorkspace ).subscriptionId, logAnalyticsWorkspace.resourceGroup )
+}]
+
+resource dataCollectionRuleRes 'Microsoft.Insights/dataCollectionRules@2021-04-01' = {
+  name: dataCollectionRule.name
+  location: dataCollectionRule.location
+  tags: tags
+  kind: dataCollectionRule.kind
+  properties: {
+    description: dataCollectionRule.description
+    destinations: union(empty(dataCollectionRule.destinations.azureMonitorMetrics.name) ? {} : {
+      azureMonitorMetrics: {
+        name: dataCollectionRule.destinations.azureMonitorMetrics.name
+      }
+    },{
+      logAnalytics: [for (logAnalyticsWorkspace, i) in dataCollectionRule.destinations.logAnalyticsWorkspaces: {
+//@[21:24) [BCP138 (Error)] For-expressions are not supported in this context. For-expressions may be used as values of resource, module, variable, and output declarations, or values of resource and module properties. (CodeDescription: none) |for|
+        name: logAnalyticsWorkspace.destinationName
+        workspaceResourceId: logAnalyticsWorkspaces[i].id
+      }]
+    })
+    dataSources: dataCollectionRule.dataSources
+    dataFlows: dataCollectionRule.dataFlows
+  }
+}
+
+resource dataCollectionRuleRes2 'Microsoft.Insights/dataCollectionRules@2021-04-01' = {
+  name: dataCollectionRule.name
+  location: dataCollectionRule.location
+  tags: tags
+  kind: dataCollectionRule.kind
+  properties: {
+    description: dataCollectionRule.description
+    destinations: empty([]) ? [for x in []: {}] : [for x in []: {}]
+//@[18:67) [BCP036 (Warning)] The property "destinations" expected a value of type "DataCollectionRuleDestinations | null" but the provided value is of type "object[] | object[]". (CodeDescription: none) |empty([]) ? [for x in []: {}] : [for x in []: {}]|
+//@[31:34) [BCP138 (Error)] For-expressions are not supported in this context. For-expressions may be used as values of resource, module, variable, and output declarations, or values of resource and module properties. (CodeDescription: none) |for|
+//@[51:54) [BCP138 (Error)] For-expressions are not supported in this context. For-expressions may be used as values of resource, module, variable, and output declarations, or values of resource and module properties. (CodeDescription: none) |for|
+    dataSources: dataCollectionRule.dataSources
+    dataFlows: dataCollectionRule.dataFlows
+  }
+}
+
+@description('The language of the Deployment Script. AzurePowerShell or AzureCLI.')
+@allowed([
+  'AzureCLI'
+  'AzurePowerShell'
+])
+param issue4668_kind string = 'AzureCLI'
+@description('The identity that will be used to execute the Deployment Script.')
+param issue4668_identity object
+@description('The properties of the Deployment Script.')
+param issue4668_properties object
+resource issue4668_mainResource 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'testscript'
+  location: 'westeurope'
+  kind: issue4668_kind
+//@[8:22) [BCP225 (Warning)] The discriminator property "kind" value cannot be determined at compilation time. Type checking for this object is disabled. (CodeDescription: none) |issue4668_kind|
+  identity: issue4668_identity
+  properties: issue4668_properties
+}
 

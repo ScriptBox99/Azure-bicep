@@ -1,18 +1,18 @@
 ﻿// VPN Virtual Network Connection
-resource ${1:vpnVnetConnection} 'Microsoft.Network/connections@2020-11-01' = {
-  name: ${2:'name'}
-  location: resourceGroup().location
+resource /*${1:vpnVnetConnection}*/vpnVnetConnection 'Microsoft.Network/connections@2020-11-01' = {
+  name: /*${2:'name'}*/'name'
+  location: /*${3:location}*/'location'
   properties: {
     virtualNetworkGateway1: {
-      id: resourceId('Microsoft.Network/virtualNetworkGateways', ${3:'vnetGateway'})
+      id: /*${4:'virtualNetworkGateways.id'}*/'virtualNetworkGateways.id'
       properties:{}
     }
     localNetworkGateway2: {
-      id: resourceId('Microsoft.Network/localNetworkGateways', ${4:'localGateway'})
+      id: /*${5:'localNetworkGateways.id'}*/'localNetworkGateways.id'
       properties:{}
     }
-    connectionType: '${5|IPsec,Vnet2Vnet,ExpressRoute,VPNClient|}'
-    routingWeight: ${6:0}
-    sharedKey: ${7:'sharedkey'}
+    connectionType: /*'${6|IPsec,Vnet2Vnet,ExpressRoute,VPNClient|}'*/'IPsec'
+    routingWeight: /*${7:0}*/0
+    sharedKey: /*${8:'sharedkey'}*/'sharedkey'
   }
 }

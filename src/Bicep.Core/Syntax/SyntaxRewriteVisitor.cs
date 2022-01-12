@@ -75,7 +75,7 @@ namespace Bicep.Core.Syntax
 
         private bool TryRewriteStrict<TSyntax, TOut>(TSyntax? syntax, [NotNullIfNotNull("syntax")] out TOut? newSyntax)
             where TSyntax : SyntaxBase
-            where TOut: SyntaxBase
+            where TOut : SyntaxBase
         {
             if (syntax is null)
             {
@@ -272,6 +272,24 @@ namespace Bicep.Core.Syntax
             return new OutputDeclarationSyntax(leadingNodes, keyword, name, type, assignment, value);
         }
         void ISyntaxVisitor.VisitOutputDeclarationSyntax(OutputDeclarationSyntax syntax) => ReplaceCurrent(syntax, ReplaceOutputDeclarationSyntax);
+
+        protected virtual SyntaxBase ReplaceImportDeclarationSyntax(ImportDeclarationSyntax syntax)
+        {
+            var hasChanges = TryRewrite(syntax.LeadingNodes, out var leadingNodes);
+            hasChanges |= TryRewriteStrict(syntax.Keyword, out var keyword);
+            hasChanges |= TryRewriteStrict(syntax.ProviderName, out var providerName);
+            hasChanges |= TryRewriteStrict(syntax.AsKeyword, out var asKeyword);
+            hasChanges |= TryRewriteStrict(syntax.AliasName, out var aliasName);
+            hasChanges |= TryRewrite(syntax.Config, out var config);
+
+            if (!hasChanges)
+            {
+                return syntax;
+            }
+
+            return new ImportDeclarationSyntax(leadingNodes, keyword, aliasName, asKeyword, providerName, config);
+        }
+        void ISyntaxVisitor.VisitImportDeclarationSyntax(ImportDeclarationSyntax syntax) => ReplaceCurrent(syntax, ReplaceImportDeclarationSyntax);
 
         protected virtual SyntaxBase ReplaceIdentifierSyntax(IdentifierSyntax syntax)
         {

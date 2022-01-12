@@ -6,6 +6,7 @@ using System.Linq;
 using Bicep.Core;
 using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
+using Bicep.Core.Workspaces;
 using Bicep.LanguageServer.Extensions;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -21,16 +22,16 @@ namespace Bicep.LanguageServer
             this.tokens = new List<(IPositionable, SemanticTokenType)>();
         }
 
-        public static void BuildSemanticTokens(SemanticTokensBuilder builder, SyntaxTree syntaxTree)
+        public static void BuildSemanticTokens(SemanticTokensBuilder builder, BicepFile bicepFile)
         {
             var visitor = new SemanticTokenVisitor();
 
-            visitor.Visit(syntaxTree.ProgramSyntax);
+            visitor.Visit(bicepFile.ProgramSyntax);
 
             // the builder is fussy about ordering. tokens are visited out of order, we need to call build after visiting everything
             foreach (var (positionable, tokenType) in visitor.tokens.OrderBy(t => t.positionable.Span.Position))
             {
-                var tokenRanges = positionable.ToRangeSpanningLines(syntaxTree.LineStarts);
+                var tokenRanges = positionable.ToRangeSpanningLines(bicepFile.LineStarts);
                 foreach (var tokenRange in tokenRanges)
                 {
                     builder.Push(tokenRange.Start.Line, tokenRange.Start.Character, tokenRange.End.Character - tokenRange.Start.Character, tokenType as SemanticTokenType?);
@@ -55,7 +56,7 @@ namespace Bicep.LanguageServer
         private void AddContextualKeyword(IPositionable positionable, string keyword)
         {
             // contextual keywords should only be highlighted as keywords if they are valid
-            if (positionable is Token {Type: TokenType.Identifier} token && string.Equals(token.Text, keyword, StringComparison.Ordinal))
+            if (positionable is Token { Type: TokenType.Identifier } token && string.Equals(token.Text, keyword, StringComparison.Ordinal))
             {
                 AddTokenType(positionable, SemanticTokenType.Keyword);
             }
@@ -189,13 +190,15 @@ namespace Bicep.LanguageServer
 
         private void AddStringToken(Token token)
         {
-            var endInterp = token.Type switch {
+            var endInterp = token.Type switch
+            {
                 TokenType.StringLeftPiece => LanguageConstants.StringHoleOpen,
                 TokenType.StringMiddlePiece => LanguageConstants.StringHoleOpen,
                 _ => ""
             };
 
-            var startInterp = token.Type switch {
+            var startInterp = token.Type switch
+            {
                 TokenType.StringMiddlePiece => LanguageConstants.StringHoleClose,
                 TokenType.StringRightPiece => LanguageConstants.StringHoleClose,
                 _ => ""
@@ -255,6 +258,9 @@ namespace Bicep.LanguageServer
                 case SyntaxTriviaType.MultiLineComment:
                     AddTokenType(syntaxTrivia, SemanticTokenType.Comment);
                     break;
+                case SyntaxTriviaType.DisableNextLineDiagnosticsDirective:
+                    AddTokenType(syntaxTrivia, SemanticTokenType.Macro);
+                    break;
             }
         }
 
@@ -287,6 +293,15 @@ namespace Bicep.LanguageServer
         {
             AddTokenType(syntax.Keyword, SemanticTokenType.Keyword);
             base.VisitTargetScopeSyntax(syntax);
+        }
+
+        public override void VisitImportDeclarationSyntax(ImportDeclarationSyntax syntax)
+        {
+            AddTokenType(syntax.Keyword, SemanticTokenType.Keyword);
+            AddTokenType(syntax.ProviderName, SemanticTokenType.Variable);
+            AddContextualKeyword(syntax.AsKeyword, LanguageConstants.AsKeyword);
+            AddTokenType(syntax.AliasName, SemanticTokenType.Variable);
+            base.VisitImportDeclarationSyntax(syntax);
         }
     }
 }

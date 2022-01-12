@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -17,6 +17,7 @@ namespace Bicep.LangServer.UnitTests.Completions
                 SymbolKind.Resource => CompletionItemKind.Interface,
                 SymbolKind.Output => CompletionItemKind.Value,
                 SymbolKind.Namespace => CompletionItemKind.Reference,
+                SymbolKind.ImportedNamespace => CompletionItemKind.Reference,
                 SymbolKind.Function => CompletionItemKind.Function,
                 SymbolKind.Module => CompletionItemKind.Module,
                 _ => throw new AssertFailedException($"Unexpected symbol kind '{symbolKind}'.")

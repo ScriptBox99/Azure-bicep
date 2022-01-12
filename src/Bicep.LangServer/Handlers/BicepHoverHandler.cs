@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +17,9 @@ namespace Bicep.LanguageServer.Handlers
     {
         private readonly ISymbolResolver symbolResolver;
 
+        private const int MaxHoverMarkdownCodeBlockLength = 90000;
+        //actual limit for hover in VS code is 100,000 characters.
+
         public BicepHoverHandler(ISymbolResolver symbolResolver)
         {
             this.symbolResolver = symbolResolver;
@@ -31,7 +33,7 @@ namespace Bicep.LanguageServer.Handlers
                 return Task.FromResult<Hover?>(null);
             }
 
-            var markdown = GetMarkdown(result);
+            var markdown = GetMarkdown(request, result);
             if (markdown == null)
             {
                 return Task.FromResult<Hover?>(null);
@@ -48,88 +50,101 @@ namespace Bicep.LanguageServer.Handlers
             });
         }
 
-        private static string? GetMarkdown(SymbolResolutionResult result)
+        private static string? GetMarkdown(HoverParams request, SymbolResolutionResult result)
         {
             // all of the generated markdown includes the language id to avoid VS code rendering 
             // with multiple borders
             switch (result.Symbol)
             {
+                case ImportedNamespaceSymbol import:
+                    return CodeBlockWithDescription(
+                        $"import {import.Name}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), import.DeclaringImport));
+
                 case ParameterSymbol parameter:
-                    return $"```bicep\nparam {parameter.Name}: {parameter.Type}\n```";
+                    return CodeBlockWithDescription(
+                        $"param {parameter.Name}: {parameter.Type}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), parameter.DeclaringParameter));
 
                 case VariableSymbol variable:
-                    return $"```bicep\nvar {variable.Name}: {variable.Type}\n```";
+                    return CodeBlockWithDescription($"var {variable.Name}: {variable.Type}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), variable.DeclaringVariable));
 
                 case ResourceSymbol resource:
-                    return $"```bicep\nresource {resource.Name}\n{resource.Type}\n```";
+                    return CodeBlockWithDescription(
+                        $"resource {resource.Name}\n{resource.Type}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), resource.DeclaringResource));
 
                 case ModuleSymbol module:
                     var filePath = SyntaxHelper.TryGetModulePath(module.DeclaringModule, out _);
                     if (filePath != null)
                     {
-                        return $"```bicep\nmodule {module.Name}\n{filePath}\n```";
+                        return CodeBlockWithDescription($"module {module.Name}\n'{filePath}'", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), module.DeclaringModule));
                     }
 
-                    return $"```bicep\nmodule {module.Name}\n```";
+                    return CodeBlockWithDescription($"module {module.Name}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), module.DeclaringModule));
 
                 case OutputSymbol output:
-                    return $"```bicep\noutput {output.Name}: {output.Type}\n```";
+                    return CodeBlockWithDescription(
+                        $"output {output.Name}: {output.Type}", SemanticModelHelper.TryGetDescription(result.Context.Compilation.GetEntrypointSemanticModel(), output.DeclaringOutput));
 
-                case NamespaceSymbol namespaceSymbol:
-                    return $"```bicep\n{namespaceSymbol.Name} namespace\n```";
+                case BuiltInNamespaceSymbol builtInNamespace:
+                    return CodeBlock($"{builtInNamespace.Name} namespace");
 
-                case FunctionSymbol function when result.Origin is FunctionCallSyntax functionCall:
+                case FunctionSymbol function when result.Origin is FunctionCallSyntaxBase functionCall:
                     // it's not possible for a non-function call syntax to resolve to a function symbol
                     // but this simplifies the checks
-                    return GetFunctionMarkdown(function, functionCall.Arguments, result.Origin, result.Context.Compilation.GetEntrypointSemanticModel());
+                    return GetFunctionMarkdown(function, functionCall, result.Context.Compilation.GetEntrypointSemanticModel());
 
                 case PropertySymbol property:
-                    var markdown =  $"```bicep\n{property.Name}: {property.Type}\n```\n";
-                    if (property.Description is not null)
-                    {
-                        markdown += $"{property.Description}\n";
-                    }
-
-                    return markdown;
-
-                case FunctionSymbol function when result.Origin is InstanceFunctionCallSyntax functionCall:
-                    return GetFunctionMarkdown(function, functionCall.Arguments, result.Origin, result.Context.Compilation.GetEntrypointSemanticModel());
+                    return CodeBlockWithDescription($"{property.Name}: {property.Type}", property.Description);
 
                 case LocalVariableSymbol local:
-                    return $"```bicep\n{local.Name}: {local.Type}\n```";
+                    return CodeBlock($"{local.Name}: {local.Type}");
 
                 default:
                     return null;
             }
         }
 
-        private static string GetFunctionMarkdown(FunctionSymbol function, ImmutableArray<FunctionArgumentSyntax> arguments, SyntaxBase functionCall, SemanticModel model)
+
+        //we need to check for overflow due to using code blocks.
+        //if we reach limit in a code block vscode will truncate it automatically, the block will not be terminated so the hover will not be properly formatted
+        //therefore we need to check for the limit ourselves and truncate text inside code block, making sure it's terminated properly.
+        private static string CodeBlock(string content) =>
+        $"```bicep\n{(content.Length > MaxHoverMarkdownCodeBlockLength ? content.Substring(0, MaxHoverMarkdownCodeBlockLength) : content)}\n```\n";
+
+        // Markdown needs two leading whitespaces before newline to insert a line break
+        private static string CodeBlockWithDescription(string content, string? description) => CodeBlock(content) + (description is not null ? $"{description.Replace("\n", "  \n")}\n" : string.Empty);
+
+        private static string GetFunctionMarkdown(FunctionSymbol function, FunctionCallSyntaxBase functionCall, SemanticModel model)
         {
             var buffer = new StringBuilder();
-            buffer.Append($"```bicep\nfunction ");
+            buffer.Append($"function ");
             buffer.Append(function.Name);
             buffer.Append('(');
 
             const string argumentSeparator = ", ";
-            foreach (FunctionArgumentSyntax argumentSyntax in arguments)
+            foreach (FunctionArgumentSyntax argumentSyntax in functionCall.Arguments)
             {
                 var argumentType = model.GetTypeInfo(argumentSyntax);
                 buffer.Append(argumentType);
-                
+
                 buffer.Append(argumentSeparator);
             }
 
             // remove trailing argument separator (if any)
-            if (arguments.Length > 0)
+            if (functionCall.Arguments.Length > 0)
             {
                 buffer.Remove(buffer.Length - argumentSeparator.Length, argumentSeparator.Length);
             }
 
             buffer.Append("): ");
             buffer.Append(model.GetTypeInfo(functionCall));
-            buffer.Append("\n```");
 
-            return buffer.ToString();
+            if (model.TypeManager.GetMatchedFunctionOverload(functionCall) is { } matchedOverload)
+            {
+                return CodeBlockWithDescription(buffer.ToString(), matchedOverload.Description);
+            }
+
+            // TODO fall back to displaying a more generic description if unable to resolve a particular overload, once https://github.com/Azure/bicep/issues/4588 has been implemented.
+            return CodeBlock(buffer.ToString());
         }
 
         protected override HoverRegistrationOptions CreateRegistrationOptions(HoverCapability capability, ClientCapabilities clientCapabilities) => new()
