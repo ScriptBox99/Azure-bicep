@@ -12,7 +12,9 @@ using Bicep.Core.Modules;
 using Bicep.Core.Parsing;
 using Bicep.Core.Registry;
 using System;
+using System.Data.Common;
 using System.IO;
+using System.IO.Abstractions;
 using System.Threading.Tasks;
 
 namespace Bicep.Cli.Commands
@@ -24,27 +26,41 @@ namespace Bicep.Cli.Commands
         private readonly CompilationWriter compilationWriter;
         private readonly IModuleDispatcher moduleDispatcher;
         private readonly IConfigurationManager configurationManager;
+        private readonly IFileSystem fileSystem;
 
         public PublishCommand(
             IDiagnosticLogger diagnosticLogger,
             CompilationService compilationService,
             CompilationWriter compilationWriter,
             IModuleDispatcher moduleDispatcher,
-            IConfigurationManager configurationManager)
+            IConfigurationManager configurationManager,
+            IFileSystem fileSystem)
         {
             this.diagnosticLogger = diagnosticLogger;
             this.compilationService = compilationService;
             this.compilationWriter = compilationWriter;
             this.moduleDispatcher = moduleDispatcher;
             this.configurationManager = configurationManager;
+            this.fileSystem = fileSystem;
         }
 
         public async Task<int> RunAsync(PublishArguments args)
         {
             var inputPath = PathHelper.ResolvePath(args.InputFile);
             var inputUri = PathHelper.FilePathToFileUrl(inputPath);
-            var configuration = this.configurationManager.GetConfiguration(inputUri);
-            var moduleReference = ValidateReference(args.TargetModuleReference, configuration);
+            var documentationUri = args.DocumentationUri;
+            var moduleReference = ValidateReference(args.TargetModuleReference, inputUri);
+            var overwriteIfExists = args.Force;
+
+            if (PathHelper.HasArmTemplateLikeExtension(inputUri))
+            {
+                // Publishing an ARM template file.
+                using var armTemplateStream = this.fileSystem.FileStream.New(inputPath, FileMode.Open, FileAccess.Read);
+                await this.PublishModuleAsync(moduleReference, armTemplateStream, documentationUri, overwriteIfExists);
+
+                return 0;
+            }
+
             var compilation = await compilationService.CompileAsync(inputPath, args.NoRestore);
 
             if (diagnosticLogger.ErrorCount > 0)
@@ -57,20 +73,34 @@ namespace Bicep.Cli.Commands
             compilationWriter.ToStream(compilation, stream);
 
             stream.Position = 0;
-            await this.moduleDispatcher.PublishModule(compilation.Configuration, moduleReference, stream);
+            await this.PublishModuleAsync(moduleReference, stream, documentationUri, overwriteIfExists);
 
             return 0;
         }
 
-        private ModuleReference ValidateReference(string targetModuleReference, RootConfiguration configuration)
+        private async Task PublishModuleAsync(ModuleReference target, Stream stream, string? documentationUri, bool overwriteIfExists)
         {
-            var moduleReference = this.moduleDispatcher.TryGetModuleReference(targetModuleReference, configuration, out var failureBuilder);
-            if (moduleReference is null)
+            try
             {
-                failureBuilder = failureBuilder ?? throw new InvalidOperationException($"{nameof(moduleDispatcher.TryGetModuleReference)} did not provide an error.");
+                // If we don't want to overwrite, ensure module doesn't exist
+                if (!overwriteIfExists && await this.moduleDispatcher.CheckModuleExists(target))
+                {
+                    throw new BicepException($"The module \"{target.FullyQualifiedReference}\" already exists in registry. Use --force to overwrite the existing module.");
+                }
+                await this.moduleDispatcher.PublishModule(target, stream, documentationUri);
+            }
+            catch (ExternalModuleException exception)
+            {
+                throw new BicepException($"Unable to publish module \"{target.FullyQualifiedReference}\": {exception.Message}");
+            }
+        }
 
+        private ModuleReference ValidateReference(string targetModuleReference, Uri targetModuleUri)
+        {
+            if (!this.moduleDispatcher.TryGetModuleReference(targetModuleReference, targetModuleUri, out var moduleReference, out var failureBuilder))
+            {
                 // TODO: We should probably clean up the dispatcher contract so this sort of thing isn't necessary (unless we change how target module is set in this command)
-                var message = failureBuilder(new DiagnosticBuilder.DiagnosticBuilderInternal(new TextSpan(0, 0))).Message;
+                var message = failureBuilder(DiagnosticBuilder.ForDocumentStart()).Message;
 
                 throw new BicepException(message);
             }

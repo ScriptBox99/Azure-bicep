@@ -24,25 +24,27 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             docUri: new Uri($"https://aka.ms/bicep/linter/{Code}"))
         { }
 
-        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model)
+        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model, DiagnosticLevel diagnosticLevel)
         {
-            var visitor = new Visitor(this, model);
+            var visitor = new Visitor(this, model, diagnosticLevel);
             visitor.Visit(model.SourceFile.ProgramSyntax);
             return visitor.diagnostics;
         }
 
-        private class Visitor : SyntaxVisitor
+        private class Visitor : AstVisitor
         {
-            public List<IDiagnostic> diagnostics = new List<IDiagnostic>();
+            public List<IDiagnostic> diagnostics = new();
 
             private const string concatFunction = "concat";
             private readonly PreferInterpolationRule parent;
             private readonly SemanticModel model;
+            private readonly DiagnosticLevel diagnosticLevel;
 
-            public Visitor(PreferInterpolationRule parent, SemanticModel model)
+            public Visitor(PreferInterpolationRule parent, SemanticModel model, DiagnosticLevel diagnosticLevel)
             {
                 this.parent = parent;
                 this.model = model;
+                this.diagnosticLevel = diagnosticLevel;
             }
 
             public override void VisitFunctionCallSyntax(FunctionCallSyntax syntax)
@@ -50,7 +52,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 // must have more than 1 argument to use interpolation
                 if (syntax.NameEquals(concatFunction)
                    && syntax.Arguments.Length > 1
-                   && !syntax.GetParseDiagnostics().Any())
+                   && !this.model.HasParsingError(syntax))
                 {
                     // We should only suggest rewriting concat() calls that result in a string (concat can also operate on and
                     // return arrays)
@@ -59,7 +61,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                     {
                         if (CreateFix(syntax) is CodeFix fix)
                         {
-                            this.diagnostics.Add(parent.CreateFixableDiagnosticForSpan(syntax.Span, fix));
+                            this.diagnostics.Add(parent.CreateFixableDiagnosticForSpan(diagnosticLevel, syntax.Span, fix));
 
                             // Only report on the top-most string-valued concat call
                             return;
@@ -75,7 +77,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 if (GetCodeReplacement(functionCallSyntax) is CodeReplacement cr)
                 {
                     string title = string.Format(CoreResources.InterpolateNotConcatFixTitle, cr.Text);
-                    return new CodeFix(title, true, cr);
+                    return new CodeFix(title, true, CodeFixKind.QuickFix, cr);
                 }
                 return null;
             }
@@ -127,7 +129,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 var segments = new List<string>();
 
                 SyntaxBase? prevArg = default;
-                var argList = argExpressions.Select((arg, i) => new { arg = arg, argindex = i });
+                var argList = argExpressions.Select((arg, i) => new { arg, argindex = i });
 
                 void addStringSyntax(StringSyntax stringSyntax)
                 {
@@ -170,7 +172,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 }
 
                 // build tokens from segment list
-                var last = segments.Count() - 1;
+                var last = segments.Count - 1;
                 var index = 0;
                 segments.ForEach(segment =>
                 {

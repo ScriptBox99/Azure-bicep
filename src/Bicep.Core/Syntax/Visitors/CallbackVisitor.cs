@@ -7,13 +7,25 @@ namespace Bicep.Core.Syntax.Visitors
     /// <summary>
     /// Visitor that executes a callback before visiting a tree node.
     /// </summary>
-    public class CallbackVisitor : SyntaxVisitor
+    public class CallbackVisitor : AstVisitor
     {
         private readonly Func<SyntaxBase, bool> callback;
 
         public static void Visit(SyntaxBase syntax, Func<SyntaxBase, bool> callback)
         {
             var visitor = new CallbackVisitor(callback);
+
+            visitor.Visit(syntax);
+        }
+
+        public static void Visit(SyntaxBase syntax, Action<SyntaxBase> callback)
+        {
+            var visitor = new CallbackVisitor(syntax =>
+            {
+                callback(syntax);
+
+                return true;
+            });
 
             visitor.Visit(syntax);
         }

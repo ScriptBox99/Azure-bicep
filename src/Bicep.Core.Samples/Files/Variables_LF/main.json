@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "15538951648763968076"
+      "templateHash": "15138089025540421016"
     }
   },
   "parameters": {
@@ -28,6 +28,36 @@
         "name": "incrementingNumbers",
         "count": "[length(range(0, 10))]",
         "input": "[range(0, 10)[copyIndex('incrementingNumbers')]]"
+      },
+      {
+        "name": "printToSingleLine1",
+        "count": "[length(range(0, 20))]",
+        "input": "[range(0, 20)[copyIndex('printToSingleLine1')]]"
+      },
+      {
+        "name": "printToSingleLine2",
+        "count": "[length(range(0, 20))]",
+        "input": "[range(0, 20)[copyIndex('printToSingleLine2')]]"
+      },
+      {
+        "name": "printToSingleLine3",
+        "count": "[length(range(0, 20))]",
+        "input": "[range(0, 20)[copyIndex('printToSingleLine3')]]"
+      },
+      {
+        "name": "forceLineBreaks1",
+        "count": "[length(range(0, 30))]",
+        "input": "[range(0, 30)[copyIndex('forceLineBreaks1')]]"
+      },
+      {
+        "name": "forceLineBreaks2",
+        "count": "[length(range(0, 30))]",
+        "input": "[range(0, 30)[copyIndex('forceLineBreaks2')]]"
+      },
+      {
+        "name": "forceLineBreaks3",
+        "count": "[length(range(0, 30))]",
+        "input": "[range(0, 30)[copyIndex('forceLineBreaks3')]]"
       },
       {
         "name": "arrayOfStringsViaLoop",
@@ -138,6 +168,7 @@
     "expressionIndexOnAny": "[createObject()[resourceGroup().location]]",
     "anyIndexOnAny": "[true()[false()]]",
     "deploymentName": "[deployment().name]",
+    "templateContentVersion": "[deployment().properties.template.contentVersion]",
     "templateLinkUri": "[deployment().properties.templateLink.uri]",
     "templateLinkId": "[deployment().properties.templateLink.id]",
     "portalEndpoint": "[environment().portal]",
@@ -145,8 +176,6 @@
     "namedPropertyIndexer": "[createObject('foo', 's').foo]",
     "intIndexer": "[createArray('s')[0]]",
     "functionOnIndexer1": "[concat(createArray('s')[0], 's')]",
-    "functionOnIndexer2": "[concat(createArray()[0], 's')]",
-    "functionOnIndexer3": "[concat(createArray()[0], 's')]",
     "singleQuote": "'",
     "myPropertyName": "[format('{0}foo{1}', variables('singleQuote'), variables('singleQuote'))]",
     "previousEmitLimit": [
@@ -217,8 +246,8 @@
     "isFalse": "[not(variables('isTrue'))]",
     "someText": "[if(variables('isTrue'), concat('a', concat('b', 'c')), 'someText')]",
     "scopesWithoutArmRepresentation": {
-      "subscription": "[createObject()]",
-      "resourceGroup": "[createObject()]"
+      "subscription": {},
+      "resourceGroup": {}
     },
     "scopesWithArmRepresentation": {
       "tenant": "[tenant()]",
@@ -242,7 +271,21 @@
     "multilineExtraQuotesNewlines": "'\nabc\n'",
     "multilineSingleLine": "hello!",
     "multilineFormatted": "[format('Hello,\nmy\nname is\n{0}\n', 'Anthony')]",
-    "multilineJavaScript": "// NOT RECOMMENDED PATTERN\nconst fs = require('fs');\n\nmodule.exports = function (context) {\n    fs.readFile('./hello.txt', (err, data) => {\n        if (err) {\n            context.log.error('ERROR', err);\n            // BUG #1: This will result in an uncaught exception that crashes the entire process\n            throw err;\n        }\n        context.log(`Data from file: ${data}`);\n        // context.done() should be called here\n    });\n    // BUG #2: Data is not guaranteed to be read before the Azure Function's invocation ends\n    context.done();\n}\n"
+    "multilineJavaScript": "// NOT RECOMMENDED PATTERN\nconst fs = require('fs');\n\nmodule.exports = function (context) {\n    fs.readFile('./hello.txt', (err, data) => {\n        if (err) {\n            context.log.error('ERROR', err);\n            // BUG #1: This will result in an uncaught exception that crashes the entire process\n            throw err;\n        }\n        context.log(`Data from file: ${data}`);\n        // context.done() should be called here\n    });\n    // BUG #2: Data is not guaranteed to be read before the Azure Function's invocation ends\n    context.done();\n}\n",
+    "providersTest": "[providers('Microsoft.Resources').namespace]",
+    "providersTest2": "[providers('Microsoft.Resources', 'deployments').locations]",
+    "copyBlockInObject": {
+      "[string('copy')]": [
+        {
+          "name": "blah",
+          "count": "[[notAFunction()]",
+          "input": {}
+        }
+      ]
+    },
+    "joinedString": "[join(createArray('I', 'love', 'Bicep!'), ' ')]",
+    "prefix": "[take('food', 3)]",
+    "isPrefixed": "[startsWith('food', 'foo')]"
   },
   "resources": []
 }

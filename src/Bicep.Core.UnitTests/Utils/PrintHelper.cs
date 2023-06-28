@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Bicep.Core.Diagnostics;
 using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
@@ -26,10 +27,10 @@ namespace Bicep.Core.UnitTests.Utils
 
         public static string PrintAndCheckForParseErrors(ProgramSyntax programSyntax)
         {
-            var asString = PrettyPrinter.PrintProgram(programSyntax, DefaultOptions);
+            var asString = PrettyPrinter.PrintProgram(programSyntax, DefaultOptions, EmptyDiagnosticLookup.Instance, EmptyDiagnosticLookup.Instance);
 
-            var parsed = ParserHelper.Parse(asString);
-            parsed.GetParseDiagnostics().Should().BeEmpty();
+            ParserHelper.Parse(asString, out var syntaxErrors);
+            syntaxErrors.Should().BeEmpty();
 
             return asString;
         }
@@ -47,19 +48,19 @@ namespace Bicep.Core.UnitTests.Utils
             public string Message { get; }
         }
 
-        private static string[] GetProgramTextLines(BicepFile bicepFile)
+        private static string[] GetProgramTextLines(BicepSourceFile bicepFile)
         {
             var programText = bicepFile.ProgramSyntax.ToTextPreserveFormatting();
 
             return StringUtils.ReplaceNewlines(programText, "\n").Split("\n");
         }
 
-        public static string PrintFullSource(BicepFile bicepFile, int context, bool includeLineNumbers)
+        public static string PrintFullSource(BicepSourceFile bicepFile, int context, bool includeLineNumbers)
         {
             return string.Join("\n", GetProgramTextLines(bicepFile).ToArray());
         }
 
-        public static string PrintWithAnnotations(BicepFile bicepFile, IEnumerable<Annotation> annotations, int context, bool includeLineNumbers)
+        public static string PrintWithAnnotations(BicepSourceFile bicepFile, IEnumerable<Annotation> annotations, int context, bool includeLineNumbers)
         {
             if (!annotations.Any())
             {

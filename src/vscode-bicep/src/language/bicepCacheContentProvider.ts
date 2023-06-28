@@ -5,7 +5,7 @@ import {
   LanguageClient,
   TextDocumentIdentifier,
 } from "vscode-languageclient/node";
-import { Disposable } from "../utils";
+import { Disposable } from "../utils/disposable";
 import { bicepCacheRequestType } from "./protocol";
 
 export class BicepCacheContentProvider
@@ -44,9 +44,8 @@ export class BicepCacheContentProvider
   }
 
   private getBicepCacheRequest(uri: vscode.Uri) {
-    // The URIs have the format of bicep-cache:///<uri-encoded bicep file path>#<uri-encoded bicep module reference>.
-    // The path of a URI will also have a leading slash that needs to be removed.
-    const path = decodeURIComponent(uri.path.substring(1));
+    // The URIs have the format of bicep-cache:<uri-encoded bicep file path>#<uri-encoded bicep module reference>.
+    const path = decodeURIComponent(uri.path);
     const target = decodeURIComponent(uri.fragment);
 
     return { textDocument: TextDocumentIdentifier.create(path), target };
@@ -65,7 +64,7 @@ export class BicepCacheContentProvider
     return moduleReferenceWithLeadingSeparator.substring(1, colonIndex);
   }
 
-  private tryFixCacheContentLanguage(document: vscode.TextDocument) {
+  private tryFixCacheContentLanguage(document: vscode.TextDocument): void {
     if (
       document.uri.scheme === "bicep-cache" &&
       document.languageId === "plaintext"
@@ -73,7 +72,8 @@ export class BicepCacheContentProvider
       // the file is showing content from the bicep cache and the language is still set to plain text
       // we should try to correct it
       const scheme = this.getModuleReferenceScheme(document);
-      vscode.languages.setTextDocumentLanguage(
+      // Not necessary to wait for this to finish
+      void vscode.languages.setTextDocumentLanguage(
         document,
         this.getLanguageId(scheme)
       );

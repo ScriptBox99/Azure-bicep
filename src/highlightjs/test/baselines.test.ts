@@ -22,6 +22,10 @@ async function writeBaseline(filePath: string) {
   hljs.registerLanguage('bicep', bicepLanguage);
   const result = hljs.highlight(bicepFile, { language: 'bicep' });
   const diffAfter = `
+<!--
+  Preview this file by prepending http://htmlpreview.github.io/? to its URL
+  e.g. http://htmlpreview.github.io/?https://raw.githubusercontent.com/Azure/bicep/main/src/highlightjs/test/baselines/${baselineBaseName}.html
+-->
 <html>
   <head>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/default.min.css">
@@ -47,7 +51,7 @@ ${result.value}
 const baselinesDir = `${__dirname}/baselines`;
 
 const baselineFiles = readdirSync(baselinesDir)
-  .filter(p => extname(p) === '.bicep')
+  .filter(p => extname(p) === '.bicep' || extname(p) === '.bicepparam')
   .map(p => path.join(baselinesDir, p));
 
 for (const filePath of baselineFiles) {
@@ -62,7 +66,7 @@ for (const filePath of baselineFiles) {
       result = await writeBaseline(filePath);
     });
 
-    if (!basename(filePath).startsWith('bad_')) {
+    if (!basename(filePath).startsWith('invalid_')) {
       // skip the invalid files - we don't expect them to compile
 
       it('can be compiled', async () => {
@@ -72,8 +76,12 @@ for (const filePath of baselineFiles) {
           fail(`Unable to find '${cliCsproj}'`);
           return;
         }
-
-        const result = spawnSync(`dotnet`, ['run', '-p', cliCsproj, 'build', '--stdout', filePath], { encoding: 'utf-8' });
+        
+        const subCommand = extname(filePath) === '.bicepparam' ? 'build-params' : 'build';
+        const result = spawnSync(`dotnet`, ['run', '-p', cliCsproj, subCommand, '--stdout', filePath], {
+          encoding: 'utf-8',
+          env,
+        });
 
         // NOTE - if stderr or status are null, this indicates we were unable to invoke the exe (missing file, or hasn't had 'chmod +x' run)
         expect(result.error).toBeUndefined();

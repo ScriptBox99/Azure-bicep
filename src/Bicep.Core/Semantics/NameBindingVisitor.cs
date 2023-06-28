@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
-using Azure.Deployments.Core.Extensions;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
 using Bicep.Core.Semantics.Namespaces;
@@ -15,11 +14,9 @@ using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core.Semantics
 {
-    public sealed class NameBindingVisitor : SyntaxVisitor
+    public sealed class NameBindingVisitor : AstVisitor
     {
         private FunctionFlags allowedFlags;
-
-        private readonly IReadOnlyDictionary<string, DeclaredSymbol> declarations;
 
         private readonly IDictionary<SyntaxBase, Symbol> bindings;
 
@@ -30,12 +27,10 @@ namespace Bicep.Core.Semantics
         private readonly Stack<LocalScope> activeScopes;
 
         private NameBindingVisitor(
-            IReadOnlyDictionary<string, DeclaredSymbol> declarations,
             IDictionary<SyntaxBase, Symbol> bindings,
             NamespaceResolver namespaceResolver,
             ImmutableDictionary<SyntaxBase, LocalScope> allLocalScopes)
         {
-            this.declarations = declarations;
             this.bindings = bindings;
             this.namespaceResolver = namespaceResolver;
             this.allLocalScopes = allLocalScopes;
@@ -44,14 +39,13 @@ namespace Bicep.Core.Semantics
 
         public static ImmutableDictionary<SyntaxBase, Symbol> GetBindings(
             ProgramSyntax programSyntax,
-            IReadOnlyDictionary<string, DeclaredSymbol> outermostDeclarations,
             NamespaceResolver namespaceResolver,
-            ImmutableArray<LocalScope> childScopes)
+            LocalScope fileScope)
         {
             // bind identifiers to declarations
             var bindings = new Dictionary<SyntaxBase, Symbol>();
-            var allLocalScopes = ScopeCollectorVisitor.Build(childScopes);
-            var binder = new NameBindingVisitor(outermostDeclarations, bindings, namespaceResolver, allLocalScopes);
+            var allLocalScopes = ScopeCollectorVisitor.Build(ImmutableArray.Create(fileScope));
+            var binder = new NameBindingVisitor(bindings, namespaceResolver, allLocalScopes);
             binder.Visit(programSyntax);
 
             return bindings.ToImmutableDictionary();
@@ -60,14 +54,6 @@ namespace Bicep.Core.Semantics
         public override void VisitProgramSyntax(ProgramSyntax syntax)
         {
             base.VisitProgramSyntax(syntax);
-
-            // create bindings for all of the declarations to their corresponding symbol
-            // this is needed to make find all references work correctly
-            // (doing this here to avoid side-effects in the constructor)
-            foreach (DeclaredSymbol declaredSymbol in this.declarations.Values)
-            {
-                this.bindings.Add(declaredSymbol.DeclaringSyntax, declaredSymbol);
-            }
 
             // include all the locals in the symbol table as well
             // since we only allow lookups by object and not by name,
@@ -180,6 +166,17 @@ namespace Bicep.Core.Semantics
             allowedFlags = FunctionFlags.Default;
         }
 
+        public override void VisitMetadataDeclarationSyntax(MetadataDeclarationSyntax syntax)
+        {
+            allowedFlags = FunctionFlags.MetadataDecorator;
+            this.VisitNodes(syntax.LeadingNodes);
+            this.Visit(syntax.Keyword);
+            this.Visit(syntax.Name);
+            this.Visit(syntax.Assignment);
+            this.Visit(syntax.Value);
+            allowedFlags = FunctionFlags.Default;
+        }
+
         public override void VisitVariableDeclarationSyntax(VariableDeclarationSyntax syntax)
         {
             allowedFlags = FunctionFlags.VariableDecorator;
@@ -192,13 +189,26 @@ namespace Bicep.Core.Semantics
             allowedFlags = FunctionFlags.Default;
         }
 
+        public override void VisitFunctionDeclarationSyntax(FunctionDeclarationSyntax syntax)
+        {
+            allowedFlags = FunctionFlags.FunctionDecorator;
+            this.VisitNodes(syntax.LeadingNodes);
+            this.Visit(syntax.Keyword);
+            this.Visit(syntax.Name);
+            allowedFlags = FunctionFlags.RequiresInlining;
+            this.Visit(syntax.Lambda);
+            allowedFlags = FunctionFlags.Default;
+        }
+
         public override void VisitOutputDeclarationSyntax(OutputDeclarationSyntax syntax)
         {
             allowedFlags = FunctionFlags.OutputDecorator;
             this.VisitNodes(syntax.LeadingNodes);
             this.Visit(syntax.Keyword);
             this.Visit(syntax.Name);
+            allowedFlags = FunctionFlags.TypeDecorator;
             this.Visit(syntax.Type);
+            allowedFlags = FunctionFlags.OutputDecorator;
             this.Visit(syntax.Assignment);
             allowedFlags = FunctionFlags.RequiresInlining;
             this.Visit(syntax.Value);
@@ -210,10 +220,9 @@ namespace Bicep.Core.Semantics
             allowedFlags = FunctionFlags.ImportDecorator;
             this.VisitNodes(syntax.LeadingNodes);
             this.Visit(syntax.Keyword);
-            this.Visit(syntax.ProviderName);
-            this.Visit(syntax.AsKeyword);
-            this.Visit(syntax.AliasName);
-            this.Visit(syntax.Config);
+            this.Visit(syntax.SpecificationString);
+            this.Visit(syntax.WithClause);
+            this.Visit(syntax.AsClause);
             allowedFlags = FunctionFlags.Default;
         }
 
@@ -223,20 +232,26 @@ namespace Bicep.Core.Semantics
             this.VisitNodes(syntax.LeadingNodes);
             this.Visit(syntax.Keyword);
             this.Visit(syntax.Name);
+            allowedFlags = FunctionFlags.TypeDecorator;
             this.Visit(syntax.Type);
             allowedFlags = FunctionFlags.ParamDefaultsOnly;
             this.Visit(syntax.Modifier);
             allowedFlags = FunctionFlags.Default;
         }
 
+        public override void VisitTypeDeclarationSyntax(TypeDeclarationSyntax syntax)
+        {
+            allowedFlags = FunctionFlags.TypeDecorator;
+            this.VisitNodes(syntax.LeadingNodes);
+            this.Visit(syntax.Keyword);
+            this.Visit(syntax.Name);
+            this.Visit(syntax.Value);
+            allowedFlags = FunctionFlags.Default;
+        }
+
         public override void VisitMissingDeclarationSyntax(MissingDeclarationSyntax syntax)
         {
-            allowedFlags = FunctionFlags.ParameterDecorator |
-                FunctionFlags.VariableDecorator |
-                FunctionFlags.ResourceDecorator |
-                FunctionFlags.ModuleDecorator |
-                FunctionFlags.OutputDecorator |
-                FunctionFlags.ImportDecorator;
+            allowedFlags = FunctionFlags.AnyDecorator;
             base.VisitMissingDeclarationSyntax(syntax);
             allowedFlags = FunctionFlags.Default;
         }
@@ -247,7 +262,7 @@ namespace Bicep.Core.Semantics
             this.Visit(syntax.Name);
             this.Visit(syntax.OpenParen);
             allowedFlags = allowedFlags.HasAnyDecoratorFlag() ? FunctionFlags.Default : allowedFlags;
-            this.VisitNodes(syntax.Arguments);
+            this.VisitNodes(syntax.Children);
             this.Visit(syntax.CloseParen);
             allowedFlags = currentFlags;
 
@@ -297,12 +312,6 @@ namespace Bicep.Core.Semantics
 
         private Symbol? LookupLocalSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall)
         {
-            if (isFunctionCall)
-            {
-                // functions can't be local symbols
-                return null;
-            }
-
             // iterating over a stack gives you the items in the same
             // order as if you popped each one but without modifying the stack
             foreach (var scope in activeScopes)
@@ -315,6 +324,12 @@ namespace Bicep.Core.Semantics
                     // found a symbol - return it
                     return symbol;
                 }
+
+                if (scope.ScopeResolution == ScopeResolution.GlobalsOnly)
+                {
+                    // don't inherit outer scope variables
+                    break;
+                }
             }
 
             return null;
@@ -326,15 +341,22 @@ namespace Bicep.Core.Semantics
             // loops currently are the only source of local symbols
             // as a result a local scope can contain between 1 to 2 local symbols
             // linear search should be fine, but this should be revisited if the above is no longer holds true
-            scope.Declarations.FirstOrDefault(symbol => string.Equals(identifierSyntax.IdentifierName, symbol.Name, LanguageConstants.IdentifierComparison));
+            scope.Declarations
+                .Where(decl => decl.CanBeReferenced())
+                .FirstOrDefault(symbol => identifierSyntax.NameEquals(symbol.Name));
 
         private static ResourceSymbol? LookupResourceSymbolByName(ILanguageScope scope, IdentifierSyntax identifierSyntax) =>
             scope.Declarations
                 .OfType<ResourceSymbol>()
-                .FirstOrDefault(symbol => string.Equals(identifierSyntax.IdentifierName, symbol.Name, LanguageConstants.IdentifierComparison));
+                .FirstOrDefault(symbol => identifierSyntax.NameEquals(symbol.Name));
 
         private Symbol LookupGlobalSymbolByName(IdentifierSyntax identifierSyntax, bool isFunctionCall)
         {
+            // declarations must not have a namespace value, namespaces are used to fully qualify a function access.
+            // There might be instances where a variable declaration for example uses the same name as one of the imported
+            // functions, in this case to differentiate a variable declaration vs a function access we check the namespace value,
+            // the former case must have an empty namespace value whereas the latter will have a namespace value.
+
             // attempt to find name in the built in namespaces. imported namespaces will be present in the declarations list as they create declared symbols.
             if (this.namespaceResolver.BuiltIns.TryGetValue(identifierSyntax.IdentifierName) is { } namespaceSymbol)
             {
@@ -342,31 +364,39 @@ namespace Bicep.Core.Semantics
                 return namespaceSymbol;
             }
 
-            // declarations must not have a namespace value, namespaces are used to fully qualify a function access.
-            // There might be instances where a variable declaration for example uses the same name as one of the imported
-            // functions, in this case to differentiate a variable declaration vs a function access we check the namespace value,
-            // the former case must have an empty namespace value whereas the latter will have a namespace value.
-            if (this.declarations.TryGetValue(identifierSyntax.IdentifierName, out var globalSymbol))
+            if (!isFunctionCall)
             {
-                // we found the symbol in the global namespace
-                return globalSymbol;
+                var foundTypes = namespaceResolver.ResolveUnqualifiedTypeSymbol(identifierSyntax);
+                if (foundTypes.Count() > 1)
+                {
+                    return AmbiguousSymbol(identifierSyntax, foundTypes, x => x.DeclaringNamespace.Name);
+                }
+
+                // if no types were found, fall back to checking against imported functions to show a more relevant error message if a function name is used as an uninvoked symbol
+                var foundType = foundTypes.FirstOrDefault() ?? FindFunctionMatchesInAllNamespaces(identifierSyntax).FirstOrDefault();
+                return SymbolValidator.ResolveUnqualifiedSymbol(foundType, identifierSyntax, namespaceResolver);
             }
 
             // attempt to find function in all imported namespaces
             var foundSymbols = namespaceResolver.ResolveUnqualifiedFunction(identifierSyntax, includeDecorators: allowedFlags.HasAnyDecoratorFlag());
             if (foundSymbols.Count() > 1)
             {
-                var ambiguousNamespaces = foundSymbols.OfType<FunctionSymbol>().Select(x => x.DeclaringObject.Name);
-
-                // ambiguous symbol
-                return new ErrorSymbol(DiagnosticBuilder.ForPosition(identifierSyntax).AmbiguousSymbolReference(identifierSyntax.IdentifierName, ambiguousNamespaces.ToImmutableSortedSet(StringComparer.Ordinal)));
+                return AmbiguousSymbol(identifierSyntax, foundSymbols.OfType<FunctionSymbol>(), x => x.DeclaringObject.Name);
             }
 
-            var foundSymbol = foundSymbols.FirstOrDefault();
-            return isFunctionCall ?
-                SymbolValidator.ResolveUnqualifiedFunction(allowedFlags, foundSymbol, identifierSyntax, namespaceResolver) :
-                SymbolValidator.ResolveUnqualifiedSymbol(foundSymbol, identifierSyntax, namespaceResolver, declarations.Keys);
+            return SymbolValidator.ResolveUnqualifiedFunction(allowedFlags, foundSymbols.FirstOrDefault(), identifierSyntax, namespaceResolver);
         }
+
+        private ErrorSymbol AmbiguousSymbol<S>(IdentifierSyntax signifier, IEnumerable<S> foundSymbols, Func<S, string> namespaceSelector)
+        {
+            var ambiguousNamespaces = foundSymbols.Select(namespaceSelector);
+
+            // ambiguous symbol
+            return new ErrorSymbol(DiagnosticBuilder.ForPosition(signifier).AmbiguousSymbolReference(signifier.IdentifierName, ambiguousNamespaces.ToImmutableSortedSet(StringComparer.Ordinal)));
+        }
+
+        private IEnumerable<Symbol> FindFunctionMatchesInAllNamespaces(IdentifierSyntax identifierSyntax)
+            => namespaceResolver.ResolveUnqualifiedFunction(identifierSyntax, includeDecorators: allowedFlags.HasAnyDecoratorFlag());
 
         private class ScopeCollectorVisitor : SymbolVisitor
         {

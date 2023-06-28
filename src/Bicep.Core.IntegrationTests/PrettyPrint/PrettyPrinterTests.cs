@@ -4,10 +4,8 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using Bicep.Core.Navigation;
-using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
 using Bicep.Core.PrettyPrint.Options;
 using Bicep.Core.Samples;
@@ -30,10 +28,10 @@ namespace Bicep.Core.IntegrationTests.PrettyPrint
         [TestCategory(BaselineHelper.BaselineTestCategory)]
         public void PrintProgram_AnyProgram_ShouldProduceExpectedOutput(DataSet dataSet)
         {
-            var program = ParserHelper.Parse(dataSet.Bicep);
+            var program = ParserHelper.Parse(dataSet.Bicep, out var lexingErrorLookup, out var parsingErrorLookup);
             var options = new PrettyPrintOptions(NewlineOption.Auto, IndentKindOption.Space, 2, true);
 
-            var formattedOutput = PrettyPrinter.PrintProgram(program, options);
+            var formattedOutput = PrettyPrinter.PrintProgram(program, options, lexingErrorLookup, parsingErrorLookup);
             formattedOutput.Should().NotBeNull();
 
             var resultsFile = FileHelper.SaveResultFile(this.TestContext, Path.Combine(dataSet.Name, DataSet.TestFileMainFormatted), formattedOutput!);
@@ -46,23 +44,37 @@ namespace Bicep.Core.IntegrationTests.PrettyPrint
         }
 
         [DataTestMethod]
-        [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
-        public void PrintProgram_AnyProgram_ShouldRoundTrip(DataSet dataSet)
+        [BaselineData_Bicepparam.TestData()]
+        [TestCategory(BaselineHelper.BaselineTestCategory)]
+        public void PrintProgram_ParamsFile_ShouldProduceExpectedOutput(BaselineData_Bicepparam baselineData)
         {
-            var program = ParserHelper.Parse(dataSet.Bicep);
-            var diagnostics = program.GetParseDiagnostics();
-            var diagnosticMessages = diagnostics.Select(d => d.Message);
+            var data = baselineData.GetData(TestContext);
+            var program = ParserHelper.ParamsParse(data.Parameters.EmbeddedFile.Contents, out var lexingErrorLookup, out var parsingErrorLookup);
+            var options = new PrettyPrintOptions(NewlineOption.Auto, IndentKindOption.Space, 2, true);
+
+            var formattedOutput = PrettyPrinter.PrintProgram(program, options, lexingErrorLookup, parsingErrorLookup);
+            formattedOutput.Should().NotBeNull();
+
+            data.Formatted.WriteToOutputFolder(formattedOutput);
+            data.Formatted.ShouldHaveExpectedValue();
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
+        public void PrintProgram_PrintTwice_ReturnsConsistentResults(DataSet dataSet)
+        {
+            var program = ParserHelper.Parse(dataSet.Bicep, out var lexingErrorLookup, out var parsingErrorLookup);
+            var syntaxErrors = lexingErrorLookup.Concat(parsingErrorLookup);
+            var syntaxErrroMessages = syntaxErrors.Select(d => d.Message);
 
             var options = new PrettyPrintOptions(NewlineOption.Auto, IndentKindOption.Space, 2, true);
-            var formattedOutput = PrettyPrinter.PrintProgram(program, options);
-            var formattedProgram = ParserHelper.Parse(formattedOutput!);
-
-            var newDiagnostics = formattedProgram.GetParseDiagnostics();
-            var newDiagnosticMessages = newDiagnostics.Select(d => d.Message);
+            var formattedOutput = PrettyPrinter.PrintProgram(program, options, lexingErrorLookup, parsingErrorLookup);
+            var formattedProgram = ParserHelper.Parse(formattedOutput!, out var newLexingErrorLookup, out var newParsingErrorLookup);
+            var newSyntaxErrors = newLexingErrorLookup.Concat(newParsingErrorLookup);
+            var newSyntaxErrorMessages = newSyntaxErrors.Select(d => d.Message);
 
             // Diagnostic messages should remain the same after formatting.
-            newDiagnostics.Should().HaveSameCount(diagnostics);
-            newDiagnosticMessages.Should().BeEquivalentTo(diagnosticMessages);
+            newSyntaxErrorMessages.Should().BeEquivalentTo(syntaxErrroMessages);
 
             // Normalize formatting
             var regex = new Regex("[\\r\\n\\s]+");

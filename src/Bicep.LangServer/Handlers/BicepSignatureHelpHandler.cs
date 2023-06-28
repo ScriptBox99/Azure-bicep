@@ -8,7 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Deployments.Core.Extensions;
 using Bicep.Core;
 using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
@@ -20,6 +19,7 @@ using Bicep.LanguageServer.Utils;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
 
 namespace Bicep.LanguageServer.Handlers
 {
@@ -56,7 +56,7 @@ namespace Bicep.LanguageServer.Handlers
 
             var semanticModel = context.Compilation.GetEntrypointSemanticModel();
             var symbol = semanticModel.GetSymbolInfo(functionCall);
-            if (symbol is not FunctionSymbol functionSymbol)
+            if (symbol is not IFunctionSymbol functionSymbol)
             {
                 // no symbol or symbol is not a function
                 return NoHelp();
@@ -64,7 +64,8 @@ namespace Bicep.LanguageServer.Handlers
 
             // suppress ErrorType in arguments because the code is being written
             // this prevents function signature mismatches due to errors
-            var normalizedArgumentTypes = NormalizeArgumentTypes(functionCall.Arguments, semanticModel);
+            var arguments = functionCall.Arguments.ToImmutableArray();
+            var normalizedArgumentTypes = NormalizeArgumentTypes(arguments, semanticModel);
 
             // do not include return type in signatures for decorator functions
             // because the return type on decorators is currently an internal implementation detail
@@ -72,7 +73,7 @@ namespace Bicep.LanguageServer.Handlers
             // (can revisit if we add decorator extensibility in the future)
             var includeReturnType = semanticModel.Binder.GetParent(functionCall) is not DecoratorSyntax;
 
-            var signatureHelp = CreateSignatureHelp(functionCall.Arguments, normalizedArgumentTypes, functionSymbol, offset, includeReturnType);
+            var signatureHelp = CreateSignatureHelp(arguments, normalizedArgumentTypes, functionSymbol, offset, includeReturnType);
             signatureHelp = TryReuseActiveSignature(request.Context, signatureHelp);
 
             return Task.FromResult<SignatureHelp?>(signatureHelp);
@@ -148,7 +149,7 @@ namespace Bicep.LanguageServer.Handlers
                 .ToList();
         }
 
-        private static SignatureHelp CreateSignatureHelp(ImmutableArray<FunctionArgumentSyntax> arguments, List<TypeSymbol> normalizedArgumentTypes, FunctionSymbol symbol, int offset, bool includeReturnType)
+        private static SignatureHelp CreateSignatureHelp(ImmutableArray<FunctionArgumentSyntax> arguments, List<TypeSymbol> normalizedArgumentTypes, IFunctionSymbol symbol, int offset, bool includeReturnType)
         {
             // exclude overloads where the specified arguments have exceeded the maximum
             // allow count mismatches because the user may not have started typing the arguments yet
@@ -262,7 +263,7 @@ namespace Bicep.LanguageServer.Handlers
 
         protected override SignatureHelpRegistrationOptions CreateRegistrationOptions(SignatureHelpCapability capability, ClientCapabilities clientCapabilities) => new()
         {
-            DocumentSelector = DocumentSelectorFactory.Create(),
+            DocumentSelector = DocumentSelectorFactory.CreateForBicepAndParams(),
             /*
              * ( - triggers sig. help when starting function arguments
              * , - separates function arguments

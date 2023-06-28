@@ -7,6 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
 using Bicep.Core.FileSystem;
+using Bicep.Core.UnitTests;
+using Bicep.Core.UnitTests.FileSystem;
 using Bicep.Core.UnitTests.Utils;
 using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Handlers;
@@ -30,12 +32,6 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var diagnosticsListener = new MultipleMessageListener<PublishDiagnosticsParams>();
             var fileSystemDict = new Dictionary<Uri, string>();
-
-            using var helper = await LanguageServerHelper.StartServerWithClientConnectionAsync(
-                this.TestContext,
-                options => options.OnPublishDiagnostics(diagnosticsParams => diagnosticsListener.AddMessage(diagnosticsParams)),
-                new LanguageServer.Server.CreationOptions(NamespaceProvider: BuiltInTestTypes.Create(), FileResolver: new InMemoryFileResolver(fileSystemDict)));
-            var client = helper.Client;
 
             var mainUri = DocumentUri.FromFileSystemPath("/main.bicep");
             fileSystemDict[mainUri.ToUri()] = @"
@@ -95,6 +91,12 @@ resource res5 'Test.Rp/basicTests@2020-01-01' = {
 }
 ";
 
+            using var helper = await LanguageServerHelper.StartServer(
+                this.TestContext,
+                options => options.OnPublishDiagnostics(diagnosticsListener.AddMessage),
+                services => services.WithNamespaceProvider(BuiltInTestTypes.Create()).WithFileResolver(new InMemoryFileResolver(fileSystemDict)));
+            var client = helper.Client;
+
             client.TextDocument.DidOpenTextDocument(TextDocumentParamHelper.CreateDidOpenDocumentParams(mainUri, fileSystemDict[mainUri.ToUri()], 1));
             await diagnosticsListener.WaitNext();
 
@@ -114,7 +116,7 @@ resource res5 'Test.Rp/basicTests@2020-01-01' = {
             deploymentGraph!.Edges.Should().Equal(
                 new BicepDeploymentGraphEdge("mod2::nestedMod", "mod2::res4"),
                 new BicepDeploymentGraphEdge("res2", "mod1"));
-            deploymentGraph!.ErrorCount.Should().Be(7);
+            deploymentGraph!.ErrorCount.Should().Be(6);
         }
 
         private static TextRange CreateTextRange(int startLine, int startCharacter, int endLine, int endCharacter) =>

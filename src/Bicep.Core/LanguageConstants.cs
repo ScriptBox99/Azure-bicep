@@ -3,11 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Bicep.Core.Parsing;
-using Bicep.Core.Resources;
 using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core
@@ -17,6 +17,15 @@ namespace Bicep.Core
         public const string LanguageId = "bicep";
         public const string LanguageFileExtension = ".bicep";
 
+        public static bool IsBicepLanguage(string? languageId) => string.Equals(LanguageId, languageId, StringComparison.OrdinalIgnoreCase);
+
+        public const string ParamsLanguageId = "bicep-params";
+        public const string ParamsFileExtension = ".bicepparam";
+
+        public static bool IsParamsLanguage(string? languageId) => string.Equals(ParamsLanguageId, languageId, StringComparison.OrdinalIgnoreCase);
+
+        public static bool IsBicepOrParamsLanguage([NotNullWhen(true)] string? languageId) => IsBicepLanguage(languageId) || IsParamsLanguage(languageId);
+
         public const string JsonLanguageId = "json";
         public const string JsoncLanguageId = "jsonc";
         public const string ArmTemplateLanguageId = "arm-template"; // Provided by the ARM Tools VSCode extension.
@@ -25,33 +34,47 @@ namespace Bicep.Core
         public const string JsoncFileExtension = ".jsonc";
         public const string ArmTemplateFileExtension = ".arm";
 
-        public const string Build = "build";
-
         public const int MaxParameterCount = 256;
         public const int MaxIdentifierLength = 255;
         public const int MaxLiteralCharacterLimit = 131072;
+        public const int MaxJsonFileCharacterLimit = 1048576; // arbitrary value of 1024*1024 characters.
+                                                              // since max ARM template size is 4MB, and it's encoded in UTF that each character can be 1-4 bytes,
+                                                              // we can limit maximum size of JSON file loaded to not exceed 1M characters.
+                                                              // even though loading files near this limit will make user eventually hit the 4MB limit
+                                                              // but it will not be hard to exceed the limit just by loading a single file.
+
 
         public const string ErrorName = "<error>";
         public const string MissingName = "<missing>";
 
         public const string TargetScopeKeyword = "targetScope";
+        public const string MetadataKeyword = "metadata";
+        public const string TypeKeyword = "type";
         public const string ParameterKeyword = "param";
+        public const string UsingKeyword = "using";
         public const string OutputKeyword = "output";
         public const string VariableKeyword = "var";
         public const string ResourceKeyword = "resource";
         public const string ModuleKeyword = "module";
+        public const string FunctionKeyword = "func";
         public const string ExistingKeyword = "existing";
         public const string ImportKeyword = "import";
+        public const string WithKeyword = "with";
         public const string AsKeyword = "as";
 
         public const string IfKeyword = "if";
         public const string ForKeyword = "for";
         public const string InKeyword = "in";
 
+        public const string ArrayType = "array";
+        public const string ObjectType = "object";
+
         public const string TargetScopeTypeTenant = "tenant";
         public const string TargetScopeTypeManagementGroup = "managementGroup";
         public const string TargetScopeTypeSubscription = "subscription";
         public const string TargetScopeTypeResourceGroup = "resourceGroup";
+
+        public const string CopyLoopIdentifier = "copy";
 
         public const string BicepConfigurationFileName = "bicepconfig.json";
 
@@ -59,7 +82,19 @@ namespace Bicep.Core
 
         public static readonly Regex ArmTemplateSchemaRegex = new(@"https?:\/\/schema\.management\.azure\.com\/schemas\/([^""\/]+\/[a-zA-Z]*[dD]eploymentTemplate\.json)#?");
 
-        public static readonly ImmutableSortedSet<string> DeclarationKeywords = new[] { ParameterKeyword, VariableKeyword, ResourceKeyword, OutputKeyword, ModuleKeyword }.ToImmutableSortedSet(StringComparer.Ordinal);
+        public static readonly ImmutableSortedSet<string> DeclarationKeywords = ImmutableSortedSet.Create(
+            StringComparer.Ordinal,
+            new[]
+            {
+                ImportKeyword,
+                MetadataKeyword,
+                ParameterKeyword,
+                VariableKeyword,
+                ResourceKeyword,
+                OutputKeyword,
+                ModuleKeyword,
+                TypeKeyword
+            });
 
         public static readonly ImmutableSortedSet<string> ContextualKeywords = DeclarationKeywords
             .Add(TargetScopeKeyword)
@@ -71,11 +106,20 @@ namespace Bicep.Core
         public const string FalseKeyword = "false";
         public const string NullKeyword = "null";
 
+        public const string ListFunctionPrefix = "list";
+
+        public const string McrRegistry = "mcr.microsoft.com";
+        public const string McrRepositoryPrefix = "bicep/";
+        public const string OciOpenContainerImageDocumentationAnnotation = "org.opencontainers.image.documentation";
+        public const string OciOpenContainerImageDescriptionAnnotation = "org.opencontainers.image.description";
+
         public static readonly ImmutableDictionary<string, TokenType> Keywords = new Dictionary<string, TokenType>(StringComparer.Ordinal)
         {
             [TrueKeyword] = TokenType.TrueKeyword,
             [FalseKeyword] = TokenType.FalseKeyword,
-            [NullKeyword] = TokenType.NullKeyword
+            [NullKeyword] = TokenType.NullKeyword,
+            [WithKeyword] = TokenType.WithKeyword,
+            [AsKeyword] = TokenType.AsKeyword,
         }.ToImmutableDictionary();
 
         // Decorators
@@ -86,7 +130,9 @@ namespace Bicep.Core
         public const string ParameterMinLengthPropertyName = "minLength";
         public const string ParameterMaxLengthPropertyName = "maxLength";
         public const string ParameterMetadataPropertyName = "metadata";
+        public const string ParameterSealedPropertyName = "sealed";
         public const string MetadataDescriptionPropertyName = "description";
+        public const string MetadataResourceTypePropertyName = "resourceType";
         public const string BatchSizePropertyName = "batchSize";
 
         // module properties
@@ -98,10 +144,13 @@ namespace Bicep.Core
         public const string ResourceScopePropertyName = "scope";
         public const string ResourceParentPropertyName = "parent";
         public const string ResourceDependsOnPropertyName = "dependsOn";
+        public const string ResourceLocationPropertyName = "location";
         public const string ResourcePropertiesPropertyName = "properties";
 
         // types
         public const string TypeNameString = "string";
+        public const string TypeNameBool = "bool";
+        public const string TypeNameInt = "int";
         public const string TypeNameModule = "module";
 
         public static readonly StringComparer IdentifierComparer = StringComparer.Ordinal;
@@ -129,28 +178,40 @@ namespace Bicep.Core
         // the type of the dependsOn property in module and resource bodies
         public static readonly TypeSymbol ResourceOrResourceCollectionRefArray = new TypedArrayType(ResourceOrResourceCollectionRefItem, TypeSymbolValidationFlags.Default);
 
-        public static readonly TypeSymbol String = new PrimitiveType(TypeNameString, TypeSymbolValidationFlags.Default);
+        public static readonly TypeSymbol String = TypeFactory.CreateStringType();
         // LooseString should be regarded as equal to the 'string' type, but with different validation behavior
-        public static readonly TypeSymbol LooseString = new PrimitiveType(TypeNameString, TypeSymbolValidationFlags.AllowLooseStringAssignment);
+        public static readonly TypeSymbol LooseString = TypeFactory.CreateStringType(validationFlags: TypeSymbolValidationFlags.AllowLooseAssignment);
         // SecureString should be regarded as equal to the 'string' type, but with different validation behavior
-        public static readonly TypeSymbol SecureString = new PrimitiveType(TypeNameString, TypeSymbolValidationFlags.AllowLooseStringAssignment | TypeSymbolValidationFlags.IsSecure);
-        public static readonly TypeSymbol Object = new ObjectType("object", TypeSymbolValidationFlags.Default, Enumerable.Empty<TypeProperty>(), LanguageConstants.Any);
-        public static readonly TypeSymbol SecureObject = new ObjectType("object", TypeSymbolValidationFlags.Default | TypeSymbolValidationFlags.IsSecure, Enumerable.Empty<TypeProperty>(), LanguageConstants.Any);
-        public static readonly TypeSymbol Int = new PrimitiveType("int", TypeSymbolValidationFlags.Default);
-        public static readonly TypeSymbol Bool = new PrimitiveType("bool", TypeSymbolValidationFlags.Default);
-        public static readonly TypeSymbol Null = new PrimitiveType(NullKeyword, TypeSymbolValidationFlags.Default);
-        public static readonly TypeSymbol Array = new ArrayType("array");
+        public static readonly TypeSymbol SecureString = TypeFactory.CreateStringType(validationFlags: TypeSymbolValidationFlags.AllowLooseAssignment | TypeSymbolValidationFlags.IsSecure);
+        public static readonly TypeSymbol Object = new ObjectType(ObjectType, TypeSymbolValidationFlags.Default, Enumerable.Empty<TypeProperty>(), LanguageConstants.Any);
+        public static readonly TypeSymbol SecureObject = new ObjectType(ObjectType, TypeSymbolValidationFlags.Default | TypeSymbolValidationFlags.IsSecure, Enumerable.Empty<TypeProperty>(), LanguageConstants.Any);
+        public static readonly TypeSymbol Int = TypeFactory.CreateIntegerType();
+        // LooseInt should be regarded as equal to the 'int' type, but with different validation behavior
+        public static readonly TypeSymbol LooseInt = TypeFactory.CreateIntegerType(validationFlags: TypeSymbolValidationFlags.AllowLooseAssignment);
+        public static readonly TypeSymbol Bool = TypeFactory.CreateBooleanType();
+        // LooseBool should be regarded as equal to the 'bool' type, but with different validation behavior
+        public static readonly TypeSymbol LooseBool = TypeFactory.CreateBooleanType(TypeSymbolValidationFlags.AllowLooseAssignment);
+        public static readonly TypeSymbol True = TypeFactory.CreateBooleanLiteralType(true);
+        public static readonly TypeSymbol False = TypeFactory.CreateBooleanLiteralType(false);
+        public static readonly TypeSymbol Null = new NullType();
+        public static readonly TypeSymbol Array = TypeFactory.CreateArrayType();
+
+        public static readonly TypeSymbol StringFilePath = TypeFactory.CreateStringType(validationFlags: TypeSymbolValidationFlags.IsStringFilePath);
+        public static readonly TypeSymbol StringJsonFilePath = TypeFactory.CreateStringType(validationFlags: TypeSymbolValidationFlags.IsStringFilePath | TypeSymbolValidationFlags.IsStringJsonFilePath);
+        public static readonly TypeSymbol StringYamlFilePath = TypeFactory.CreateStringType(validationFlags: TypeSymbolValidationFlags.IsStringFilePath | TypeSymbolValidationFlags.IsStringYamlFilePath);
+
         //Type for available loadTextContent encoding
 
-        public static readonly ImmutableArray<(string name, Encoding encoding)> SupportedEncodings = new[]{
-            ("us-ascii", Encoding.ASCII),
-            ("iso-8859-1", Encoding.GetEncoding("iso-8859-1")),
-            ("utf-8", Encoding.UTF8),
-            ("utf-16BE", Encoding.BigEndianUnicode),
-            ("utf-16", Encoding.Unicode)
-        }.ToImmutableArray();
+        public static readonly ImmutableSortedDictionary<string, Encoding> SupportedEncodings = new SortedDictionary<string, Encoding>(IdentifierComparer)
+        {
+            ["us-ascii"] = Encoding.ASCII,
+            ["iso-8859-1"] = Encoding.GetEncoding("iso-8859-1"),
+            ["utf-8"] = Encoding.UTF8,
+            ["utf-16BE"] = Encoding.BigEndianUnicode,
+            ["utf-16"] = Encoding.Unicode,
+        }.ToImmutableSortedDictionary(IdentifierComparer);
 
-        public static readonly TypeSymbol LoadTextContentEncodings = TypeHelper.CreateTypeUnion(SupportedEncodings.Select(s => new StringLiteralType(s.name)));
+        public static readonly TypeSymbol LoadTextContentEncodings = TypeHelper.CreateTypeUnion(SupportedEncodings.Keys.Select(s => TypeFactory.CreateStringLiteralType(s)));
 
         // declares the description property but also allows any other property of any type
         public static readonly TypeSymbol ParameterModifierMetadata = new ObjectType(nameof(ParameterModifierMetadata), TypeSymbolValidationFlags.Default, CreateParameterModifierMetadataProperties(), Any, TypePropertyFlags.Constant);
@@ -158,15 +219,7 @@ namespace Bicep.Core
         // types allowed to use in output and parameter declarations
         public static readonly ImmutableSortedDictionary<string, TypeSymbol> DeclarationTypes = new[] { String, Object, Int, Bool, Array }.ToImmutableSortedDictionary(type => type.Name, type => type, StringComparer.Ordinal);
 
-        public static TypeSymbol? TryGetDeclarationType(string? typeName)
-        {
-            if (typeName != null && DeclarationTypes.TryGetValue(typeName, out var primitiveType))
-            {
-                return primitiveType;
-            }
-
-            return null;
-        }
+        public static readonly ImmutableHashSet<string> ReservedTypeNames = ImmutableHashSet.Create<string>(IdentifierComparer, ResourceKeyword);
 
         private static IEnumerable<TypeProperty> CreateParameterModifierMetadataProperties()
         {
@@ -221,7 +274,7 @@ namespace Bicep.Core
 
             var outputsType = new ObjectType(ModuleOutputsPropertyName, TypeSymbolValidationFlags.Default, outputProperties, null);
 
-            var scopePropertyFlags = TypePropertyFlags.WriteOnly | TypePropertyFlags.DeployTimeConstant | TypePropertyFlags.DisallowAny | TypePropertyFlags.LoopVariant;
+            var scopePropertyFlags = TypePropertyFlags.WriteOnly | TypePropertyFlags.DeployTimeConstant | TypePropertyFlags.ReadableAtDeployTime | TypePropertyFlags.DisallowAny | TypePropertyFlags.LoopVariant;
             if (moduleScope != containingScope)
             {
                 // If the module scope matches the parent scope, we can safely omit the scope property

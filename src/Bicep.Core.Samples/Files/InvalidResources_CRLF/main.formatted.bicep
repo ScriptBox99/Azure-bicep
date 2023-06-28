@@ -28,8 +28,7 @@ resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = {}
 
 resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = if (name == 'value') {}
 
-resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= if ({ 'a': b }.a == 'foo') {
-}
+resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = if ({ 'a': b }.a == 'foo') {}
 
 // simulate typing if condition
 resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= if
@@ -71,19 +70,19 @@ resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = if (listKeys('foo', '2020-0
 }
 
 // duplicate property at the top level
-resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= {
+resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   name: 'foo'
   name: true
 }
 
 // duplicate property at the top level with string literal syntax
-resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= {
+resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   name: 'foo'
   'name': true
 }
 
 // duplicate property inside
-resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= {
+resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   name: 'foo'
   properties: {
     foo: 'a'
@@ -92,7 +91,7 @@ resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= {
 }
 
 // duplicate property inside with string literal syntax
-resource foo 'Microsoft.Foo/foos@2020-02-02-alpha'= {
+resource foo 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   name: 'foo'
   properties: {
     foo: 'a'
@@ -144,6 +143,21 @@ resource baz 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   id: 2
   type: 'hello'
   apiVersion: true
+}
+
+resource readOnlyPropertyAssignment 'Microsoft.Network/virtualNetworks@2020-06-01' = {
+  name: 'vnet-bicep'
+  location: 'westeurope'
+  etag: 'assigning-to-read-only-value'
+  properties: {
+    resourceGuid: 'assigning-to-read-only-value'
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: []
+  }
 }
 
 resource badDepends 'Microsoft.Foo/foos@2020-02-02-alpha' = {
@@ -260,12 +274,6 @@ resource runtimeInvalidRes8 'Microsoft.Advisor/recommendations/suppressions@2020
   name: runtimeValidRes2['${magicString1}']
 }
 
-// note: this should be fine, but we block string interpolation all together if there's a potential runtime property usage for name.
-var magicString2 = 'name'
-resource runtimeInvalidRes9 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
-  name: runtimeValidRes2['${magicString2}']
-}
-
 resource runtimeInvalidRes10 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
   name: '${runtimeValidRes3.location}'
 }
@@ -341,6 +349,11 @@ resource runtimeValidRes9 'Microsoft.Advisor/recommendations/suppressions@2020-0
   name: runtimeValid.foo4
 }
 
+var magicString2 = 'name'
+resource runtimeValidRes10 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
+  name: runtimeValidRes2['${magicString2}']
+}
+
 resource loopForRuntimeCheck 'Microsoft.Network/dnsZones@2018-05-01' = [for thing in []: {
   name: 'test'
   location: 'test'
@@ -373,6 +386,7 @@ resource loopForRuntimeCheck4 'Microsoft.Network/dnsZones@2018-05-01' = [for oth
 
 resource missingTopLevelProperties 'Microsoft.Storage/storageAccounts@2020-08-01-preview' = {
   // #completionTest(0, 1, 2) -> topLevelProperties
+
 }
 
 resource missingTopLevelPropertiesExceptName 'Microsoft.Storage/storageAccounts@2020-08-01-preview' = {
@@ -380,6 +394,7 @@ resource missingTopLevelPropertiesExceptName 'Microsoft.Storage/storageAccounts@
   name: 'me'
   // do not remove whitespace before the closing curly
   // #completionTest(0, 1, 2) -> topLevelPropertiesMinusName
+
 }
 
 // #completionTest(24,25,26,49,65,69,70) -> virtualNetworksResourceTypes
@@ -396,6 +411,7 @@ resource unfinishedVnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
           delegations: [
             {
               // #completionTest(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14) -> delegationProperties
+
             }
           ]
         }
@@ -409,6 +425,7 @@ Discriminator key missing
 */
 resource discriminatorKeyMissing 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   // #completionTest(0,1,2) -> discriminatorProperty
+
 }
 
 /*
@@ -416,6 +433,7 @@ Discriminator key missing (conditional)
 */
 resource discriminatorKeyMissing_if 'Microsoft.Resources/deploymentScripts@2020-10-01' = if (true) {
   // #completionTest(0,1,2) -> discriminatorProperty
+
 }
 
 /*
@@ -423,6 +441,7 @@ Discriminator key missing (loop)
 */
 resource discriminatorKeyMissing_for 'Microsoft.Resources/deploymentScripts@2020-10-01' = [for thing in []: {
   // #completionTest(0,1,2) -> discriminatorProperty
+
 }]
 
 /*
@@ -430,6 +449,7 @@ Discriminator key missing (filtered loop)
 */
 resource discriminatorKeyMissing_for_if 'Microsoft.Resources/deploymentScripts@2020-10-01' = [for thing in []: if (true) {
   // #completionTest(0,1,2) -> discriminatorProperty
+
 }]
 
 /*
@@ -509,6 +529,7 @@ resource discriminatorKeySetOne 'Microsoft.Resources/deploymentScripts@2020-10-0
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptCliProperties
+
   }
 }
 // #completionTest(75) -> cliPropertyAccess
@@ -528,6 +549,7 @@ resource discriminatorKeySetOne_if 'Microsoft.Resources/deploymentScripts@2020-1
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptCliProperties
+
   }
 }
 // #completionTest(81) -> cliPropertyAccess
@@ -547,6 +569,7 @@ resource discriminatorKeySetOne_for 'Microsoft.Resources/deploymentScripts@2020-
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptCliProperties
+
   }
 }]
 // #completionTest(86) -> cliPropertyAccess
@@ -566,6 +589,7 @@ resource discriminatorKeySetOne_for_if 'Microsoft.Resources/deploymentScripts@20
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptCliProperties
+
   }
 }]
 // #completionTest(92) -> cliPropertyAccess
@@ -585,6 +609,7 @@ resource discriminatorKeySetTwo 'Microsoft.Resources/deploymentScripts@2020-10-0
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptPSProperties
+
   }
 }
 // #completionTest(75) -> powershellPropertyAccess
@@ -606,6 +631,7 @@ resource discriminatorKeySetTwo_if 'Microsoft.Resources/deploymentScripts@2020-1
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptPSProperties
+
   }
 }
 // #completionTest(81) -> powershellPropertyAccess
@@ -627,6 +653,7 @@ resource discriminatorKeySetTwo_for 'Microsoft.Resources/deploymentScripts@2020-
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptPSProperties
+
   }
 }]
 // #completionTest(86) -> powershellPropertyAccess
@@ -648,6 +675,7 @@ resource discriminatorKeySetTwo_for_if 'Microsoft.Resources/deploymentScripts@20
 
   properties: {
     // #completionTest(0,1,2,3,4) -> deploymentScriptPSProperties
+
   }
 }]
 // #completionTest(92) -> powershellPropertyAccess
@@ -721,6 +749,7 @@ resource nestedDiscriminatorMissingKey 'Microsoft.DocumentDB/databaseAccounts@20
   location: 'l'
   properties: {
     //createMode: 'Default'
+
   }
 }
 // #completionTest(90) -> createMode
@@ -739,6 +768,7 @@ resource nestedDiscriminatorMissingKey_if 'Microsoft.DocumentDB/databaseAccounts
   location: 'l'
   properties: {
     //createMode: 'Default'
+
   }
 }
 // #completionTest(96) -> createMode
@@ -757,6 +787,7 @@ resource nestedDiscriminatorMissingKey_for 'Microsoft.DocumentDB/databaseAccount
   location: 'l'
   properties: {
     //createMode: 'Default'
+
   }
 }]
 // #completionTest(101) -> createMode
@@ -775,6 +806,7 @@ resource nestedDiscriminatorMissingKey_for_if 'Microsoft.DocumentDB/databaseAcco
   location: 'l'
   properties: {
     //createMode: 'Default'
+
   }
 }]
 // #completionTest(107) -> createMode
@@ -793,6 +825,7 @@ resource nestedDiscriminator 'Microsoft.DocumentDB/databaseAccounts@2020-06-01-p
   location: 'l'
   properties: {
     createMode: 'Default'
+
   }
 }
 // #completionTest(69) -> defaultCreateModeProperties
@@ -815,6 +848,7 @@ resource nestedDiscriminator_if 'Microsoft.DocumentDB/databaseAccounts@2020-06-0
   location: 'l'
   properties: {
     createMode: 'Default'
+
   }
 }
 // #completionTest(75) -> defaultCreateModeProperties
@@ -837,6 +871,7 @@ resource nestedDiscriminator_for 'Microsoft.DocumentDB/databaseAccounts@2020-06-
   location: 'l'
   properties: {
     createMode: 'Default'
+
   }
 }]
 // #completionTest(80) -> defaultCreateModeProperties
@@ -859,6 +894,7 @@ resource nestedDiscriminator_for_if 'Microsoft.DocumentDB/databaseAccounts@2020-
   location: 'l'
   properties: {
     createMode: 'Default'
+
   }
 }]
 // #completionTest(86) -> defaultCreateModeProperties
@@ -878,7 +914,9 @@ resource nestedPropertyAccessOnConditional 'Microsoft.Compute/virtualMachines@20
   location: 'test'
   name: 'test'
   properties: {
-    additionalCapabilities: {}
+    additionalCapabilities: {
+
+    }
   }
 }
 // this validates that we can get nested property access completions on a conditional resource
@@ -1076,6 +1114,7 @@ resource propertyLoopsCannotNest 'Microsoft.Storage/storageAccounts@2019-06-01' 
   }
   kind: 'StorageV2'
   properties: {
+
     networkAcls: {
       virtualNetworkRules: [for rule in []: {
         id: '${account.name}-${account.location}'
@@ -1092,6 +1131,7 @@ resource propertyLoopsCannotNest2 'Microsoft.Storage/storageAccounts@2019-06-01'
   }
   kind: 'StorageV2'
   properties: {
+
     networkAcls: {
       virtualNetworkRules: [for (rule, j) in []: {
         id: '${account.name}-${account.location}'
@@ -1189,7 +1229,9 @@ resource directRefViaSingleLoopResourceBodyWithExtraDependsOn 'Microsoft.Network
       premiumStorages
     ]
   }
-  dependsOn: []
+  dependsOn: [
+
+  ]
 }]
 
 var expressionInPropertyLoopVar = true
@@ -1487,15 +1529,15 @@ resource dataCollectionRuleRes 'Microsoft.Insights/dataCollectionRules@2021-04-0
   properties: {
     description: dataCollectionRule.description
     destinations: union(empty(dataCollectionRule.destinations.azureMonitorMetrics.name) ? {} : {
-      azureMonitorMetrics: {
-        name: dataCollectionRule.destinations.azureMonitorMetrics.name
-      }
-    }, {
-      logAnalytics: [for (logAnalyticsWorkspace, i) in dataCollectionRule.destinations.logAnalyticsWorkspaces: {
-        name: logAnalyticsWorkspace.destinationName
-        workspaceResourceId: logAnalyticsWorkspaces[i].id
-      }]
-    })
+        azureMonitorMetrics: {
+          name: dataCollectionRule.destinations.azureMonitorMetrics.name
+        }
+      }, {
+        logAnalytics: [for (logAnalyticsWorkspace, i) in dataCollectionRule.destinations.logAnalyticsWorkspaces: {
+          name: logAnalyticsWorkspace.destinationName
+          workspaceResourceId: logAnalyticsWorkspaces[i].id
+        }]
+      })
     dataSources: dataCollectionRule.dataSources
     dataFlows: dataCollectionRule.dataFlows
   }
@@ -1530,4 +1572,11 @@ resource issue4668_mainResource 'Microsoft.Resources/deploymentScripts@2020-10-0
   kind: issue4668_kind
   identity: issue4668_identity
   properties: issue4668_properties
+}
+
+// https://github.com/Azure/bicep/issues/8516
+resource storage 'Microsoft.Storage/storageAccounts@2022-05-01' existing = {
+  resource blobServices 'blobServices' existing = {
+    name: $account
+  }
 }

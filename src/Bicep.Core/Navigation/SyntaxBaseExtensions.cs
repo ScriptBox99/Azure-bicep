@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Bicep.Core.Diagnostics;
 using Bicep.Core.Parsing;
 using Bicep.Core.PrettyPrint;
 using Bicep.Core.Syntax;
@@ -25,7 +26,7 @@ namespace Bicep.Core.Navigation
             return visitor.Result;
         }
 
-        private sealed class NavigationSearchVisitor : SyntaxVisitor
+        private sealed class NavigationSearchVisitor : CstVisitor
         {
             private readonly int offset;
             private readonly Func<SyntaxBase, bool> predicate;
@@ -69,15 +70,12 @@ namespace Bicep.Core.Navigation
         /// <summary>
         /// Generate a string that represents this Syntax element
         /// </summary>
-        /// <param name="syntax"></param>
-        /// <param name="indent"></param>
-        /// <returns></returns>
-        public static string ToText(this SyntaxBase syntax, string indent = "")
+        public static string ToText(this SyntaxBase syntax, string indent = "", string? newLineSequence = null)
         {
             var sb = new StringBuilder();
             var documentBuildVisitor = new DocumentBuildVisitor();
             var document = documentBuildVisitor.BuildDocument(syntax);
-            document.Layout(sb, indent, System.Environment.NewLine);
+            document.Layout(sb, indent, newLineSequence ?? Environment.NewLine);
             return sb.ToString();
         }
 
@@ -92,7 +90,7 @@ namespace Bicep.Core.Navigation
             return sb.ToString();
         }
 
-        private class PrintVisitor : SyntaxVisitor
+        private class PrintVisitor : CstVisitor
         {
             private readonly StringBuilder buffer;
 

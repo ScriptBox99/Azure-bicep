@@ -21,10 +21,12 @@ namespace Bicep.Core.Samples
     {
         public const string TestFileMain = "main.bicep";
         public const string TestFileMainDiagnostics = "main.diagnostics.bicep";
+        public const string TestFileMainIr = "main.ir.bicep";
         public const string TestFileMainTokens = "main.tokens.bicep";
         public const string TestFileMainSymbols = "main.symbols.bicep";
         public const string TestFileMainSyntax = "main.syntax.bicep";
         public const string TestFileMainFormatted = "main.formatted.bicep";
+        public const string TestFileMainSourceMap = "main.sourcemap.bicep";
         public const string TestFileMainCompiled = "main.json";
         public const string TestFileMainCompiledWithSymbolicNames = "main.symbolicnames.json";
         public const string TestCompletionsDirectory = "Completions";
@@ -40,13 +42,15 @@ namespace Bicep.Core.Samples
 
         public record ExternalModuleMetadata(string Target);
 
-        public static readonly string Prefix = typeof(DataSet).Namespace == null ? string.Empty : typeof(DataSet).Namespace + '/';
+        public static readonly string Prefix = "Files/";
 
         private readonly Lazy<string> lazyBicep;
 
         private readonly Lazy<string> lazyTokens;
 
         private readonly Lazy<string> lazyDiagnostics;
+
+        private readonly Lazy<string>? lazyIr;
 
         private readonly Lazy<string>? lazyCompiled;
 
@@ -57,6 +61,8 @@ namespace Bicep.Core.Samples
         private readonly Lazy<string> lazySymbols;
 
         private readonly Lazy<string> lazyFormatted;
+
+        private readonly Lazy<string>? lazySourceMap;
 
         private readonly Lazy<ImmutableDictionary<string, string>> lazyCompletions;
 
@@ -71,11 +77,13 @@ namespace Bicep.Core.Samples
             this.lazyBicep = this.CreateRequired(TestFileMain);
             this.lazyTokens = this.CreateRequired(TestFileMainTokens);
             this.lazyDiagnostics = this.CreateRequired(TestFileMainDiagnostics);
+            this.lazyIr = this.CreateIffValid(TestFileMainIr);
             this.lazyCompiled = this.CreateIffValid(TestFileMainCompiled);
             this.lazyCompiledWithSymbolicNames = this.CreateIffValid(TestFileMainCompiledWithSymbolicNames);
             this.lazySymbols = this.CreateRequired(TestFileMainSymbols);
             this.lazySyntax = this.CreateRequired(TestFileMainSyntax);
             this.lazyFormatted = this.CreateRequired(TestFileMainFormatted);
+            this.lazySourceMap = this.CreateIffValid(TestFileMainSourceMap);
             this.lazyCompletions = new(() => ReadDataSetDictionary(GetStreamName(TestCompletionsPrefix)), LazyThreadSafetyMode.PublicationOnly);
             this.lazyModulesToPublish = new(() => ReadPublishData(GetStreamName(TestPublishPrefix)), LazyThreadSafetyMode.PublicationOnly);
             this.lazyTemplateSpecs = new(() => ReadTemplateSpecsData(GetStreamName(TestTemplateSpecsPrefix)), LazyThreadSafetyMode.PublicationOnly);
@@ -91,6 +99,8 @@ namespace Bicep.Core.Samples
 
         public string Diagnostics => this.lazyDiagnostics.Value;
 
+        public string? Ir => this.lazyIr?.Value;
+
         public string? Compiled => this.lazyCompiled?.Value;
 
         public string? CompiledWithSymbolicNames => this.lazyCompiledWithSymbolicNames?.Value;
@@ -100,6 +110,8 @@ namespace Bicep.Core.Samples
         public string Syntax => this.lazySyntax.Value;
 
         public string Formatted => this.lazyFormatted.Value;
+
+        public string? SourceMap => this.lazySourceMap?.Value;
 
         public ImmutableDictionary<string, string> Completions => this.lazyCompletions.Value;
 
@@ -128,38 +140,17 @@ namespace Bicep.Core.Samples
 
         public static string GetDisplayName(MethodInfo info, object[] data) => $"{info.Name}_{((DataSet)data[0]).Name}";
 
-        private string ReadDataSetFile(string fileName) => ReadFile(GetStreamName(fileName));
+        public string ReadDataSetFile(string fileName) => ReadFile(GetStreamName(fileName));
 
         private string GetStreamName(string fileName) => $"{GetStreamPrefix()}/{fileName}";
 
         public string GetStreamPrefix() => $"{Prefix}{this.Name}";
 
         public static string ReadFile(string streamName)
-        {
-            using Stream? stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(streamName);
-            stream.Should().NotBeNull($"because stream '{streamName}' should exist");
-
-            using var reader = new StreamReader(stream ?? Stream.Null);
-
-            return reader.ReadToEnd();
-        }
+            => FileHelper.ReadEmbeddedFile(Assembly.GetExecutingAssembly(), streamName);
 
         public static ImmutableDictionary<string, string> ReadDataSetDictionary(string streamNamePrefix)
-        {
-            var matches = Assembly.GetExecutingAssembly()
-                .GetManifestResourceNames()
-                .Where(streamName => streamName.StartsWith(streamNamePrefix, StringComparison.Ordinal))
-                .Select(streamName => (streamName, key: streamName.Substring(streamNamePrefix.Length)));
-
-            var builder = ImmutableDictionary.CreateBuilder<string, string>();
-
-            foreach (var (streamName, key) in matches)
-            {
-                builder.Add(key, ReadFile(streamName));
-            }
-
-            return builder.ToImmutable();
-        }
+            => FileHelper.BuildEmbeddedFileDictionary(Assembly.GetExecutingAssembly(), streamNamePrefix);
 
         public static string AddDiagsToSourceText<T>(DataSet dataSet, IEnumerable<T> items, Func<T, TextSpan> getSpanFunc, Func<T, string> diagsFunc)
             => OutputHelper.AddDiagsToSourceText<T>(dataSet.Bicep, dataSet.HasCrLfNewlines() ? "\r\n" : "\n", items, getSpanFunc, diagsFunc);

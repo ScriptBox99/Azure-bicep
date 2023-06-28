@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
@@ -17,14 +16,8 @@ namespace Bicep.Core.Analyzers.Linter.Rules
     {
         public new const string Code = "no-hardcoded-env-urls";
 
-        private ImmutableArray<string> disallowedHosts;
-        public ImmutableArray<string> DisallowedHosts => disallowedHosts;
-
-        private ImmutableArray<string> excludedHosts;
-        public ImmutableArray<string> ExcludedHosts => excludedHosts;
-
-        private int minimumHostLength;
-        private bool HasHosts;
+        public readonly string DisallowedHostsKey = "disallowedHosts";
+        public readonly string ExcludedHostsKey = "excludedHosts";
 
         public NoHardcodedEnvironmentUrlsRule() : base(
             code: Code,
@@ -33,28 +26,20 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         {
         }
 
-        public override void Configure(AnalyzersConfiguration config)
-        {
-            base.Configure(config);
-
-            this.disallowedHosts = this.GetConfigurationValue(nameof(DisallowedHosts).ToLowerInvariant(), Array.Empty<string>()).ToImmutableArray();
-            this.excludedHosts = this.GetConfigurationValue(nameof(ExcludedHosts).ToLowerInvariant(), Array.Empty<string>()).ToImmutableArray();
-
-            this.minimumHostLength = this.disallowedHosts.Any() ? this.disallowedHosts.Min(h => h.Length) : 0;
-            this.HasHosts = this.disallowedHosts.Any();
-        }
-
         public override string FormatMessage(params object[] values)
             => string.Format("{0} Found this disallowed host: \"{1}\"", this.Description, values.First());
 
-        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model)
+        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model, DiagnosticLevel diagnosticLevel)
         {
-            if (HasHosts)
+            var disallowedHosts = GetConfigurationValue(model.Configuration.Analyzers, DisallowedHostsKey.ToLowerInvariant(), Array.Empty<string>()).ToImmutableArray();
+            var excludedHosts = GetConfigurationValue(model.Configuration.Analyzers, ExcludedHostsKey.ToLowerInvariant(), Array.Empty<string>()).ToImmutableArray();
+
+            if (disallowedHosts.Any())
             {
-                var visitor = new Visitor(this.DisallowedHosts, this.minimumHostLength, this.ExcludedHosts);
+                var visitor = new Visitor(disallowedHosts, disallowedHosts.Min(h => h.Length), excludedHosts);
                 visitor.Visit(model.SourceFile.ProgramSyntax);
 
-                return visitor.DisallowedHostSpans.Select(entry => CreateDiagnosticForSpan(entry.Key, entry.Value));
+                return visitor.DisallowedHostSpans.Select(entry => CreateDiagnosticForSpan(diagnosticLevel, entry.Key, entry.Value));
             }
 
             return Enumerable.Empty<IDiagnostic>();
@@ -87,7 +72,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 yield break;
             }
 
-            var matchIndex = -1;
+            int matchIndex;
             for (var startIndex = 0; startIndex <= srcText.Length - hostname.Length; startIndex = matchIndex + hostname.Length)
             {
                 matchIndex = srcText.IndexOf(hostname, startIndex, StringComparison.OrdinalIgnoreCase);
@@ -106,9 +91,9 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             }
         }
 
-        private sealed class Visitor : SyntaxVisitor
+        private sealed class Visitor : AstVisitor
         {
-            public readonly Dictionary<TextSpan, string> DisallowedHostSpans = new Dictionary<TextSpan, string>();
+            public readonly Dictionary<TextSpan, string> DisallowedHostSpans = new();
             private readonly ImmutableArray<string> disallowedHosts;
             private readonly int minHostLen;
             private readonly ImmutableArray<string> excludedHosts;
@@ -120,7 +105,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                 this.excludedHosts = excludedHosts;
             }
 
-            public IEnumerable<(TextSpan RelativeSpan, string Value)> RemoveOverlapping(IEnumerable<(TextSpan RelativeSpan, string Value)> matches)
+            public static IEnumerable<(TextSpan RelativeSpan, string Value)> RemoveOverlapping(IEnumerable<(TextSpan RelativeSpan, string Value)> matches)
             {
                 TextSpan? prevSpan = null;
                 foreach (var match in matches.OrderBy(x => x.RelativeSpan.Position).ThenByDescending(x => x.RelativeSpan.Length))
@@ -159,17 +144,17 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                                 .SelectMany(host => FindHostnameMatches(host, token.Text))
                                 .ToImmutableArray();
 
-                            foreach (var match in RemoveOverlapping(disallowedMatches))
+                            foreach (var (RelativeSpan, Value) in RemoveOverlapping(disallowedMatches))
                             {
                                 // exclusion is found containing the host match
                                 var hasExclusion = exclusionMatches.Any(exclusionMatch =>
-                                    TextSpan.AreOverlapping(exclusionMatch.RelativeSpan, match.RelativeSpan));
+                                    TextSpan.AreOverlapping(exclusionMatch.RelativeSpan, RelativeSpan));
 
                                 if (!hasExclusion)
                                 {
                                     // create a span for the specific identified instance
                                     // to allow for multiple instances in a single syntax
-                                    this.DisallowedHostSpans[new TextSpan(token.Span.Position + match.RelativeSpan.Position, match.RelativeSpan.Length)] = match.Value;
+                                    this.DisallowedHostSpans[new TextSpan(token.Span.Position + RelativeSpan.Position, RelativeSpan.Length)] = Value;
                                 }
                             }
                         }

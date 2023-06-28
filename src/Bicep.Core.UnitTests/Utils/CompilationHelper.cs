@@ -6,12 +6,13 @@ using System.IO;
 using System.Linq;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Emit;
-using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Semantics;
-using Bicep.Core.Semantics.Namespaces;
+using Bicep.Core.Syntax;
+using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests.FileSystem;
 using Bicep.Core.Workspaces;
 using FluentAssertions;
 using Newtonsoft.Json.Linq;
@@ -25,75 +26,98 @@ namespace Bicep.Core.UnitTests.Utils
             IEnumerable<IDiagnostic> Diagnostics,
             Compilation Compilation)
         {
-            public BicepFile BicepFile => Compilation.SourceFileGrouping.EntryPoint;
+            public BicepFile BicepFile => (BicepFile)Compilation.SourceFileGrouping.EntryPoint;
         }
 
-        public record CompilationHelperContext(
-            IAzResourceTypeLoader? AzResourceTypeLoader = null,
-            IFeatureProvider? Features = null,
-            EmitterSettings? EmitterSettings = null,
-            INamespaceProvider? NamespaceProvider = null)
+        public record ParamsCompilationResult(
+            JToken? Parameters,
+            IEnumerable<IDiagnostic> Diagnostics,
+            Compilation Compilation)
         {
-            // TODO: can we use IoC here instead of DIY-ing it?
-
-            public IAzResourceTypeLoader GetAzResourceTypeLoader()
-                => AzResourceTypeLoader ?? BicepTestConstants.AzResourceTypeLoader;
-
-            public INamespaceProvider GetNamespaceProvider()
-                => NamespaceProvider ?? new DefaultNamespaceProvider(GetAzResourceTypeLoader(), GetFeatures());
-
-            public IFeatureProvider GetFeatures()
-                => Features ?? BicepTestConstants.Features;
-
-            public EmitterSettings GetEmitterSettings()
-                => EmitterSettings ?? new EmitterSettings(GetFeatures());
+            public BicepParamFile ParamsFile => (BicepParamFile)Compilation.SourceFileGrouping.EntryPoint;
         }
 
-        public static CompilationResult Compile(CompilationHelperContext context, params (string fileName, string fileContents)[] files)
+        public record CursorLookupResult(
+            SyntaxBase Node,
+            Symbol Symbol,
+            TypeSymbol Type);
+
+        public static CompilationResult Compile(ServiceBuilder services, params (string fileName, string fileContents)[] files)
         {
-            var bicepFiles = files.Where(x => x.fileName.EndsWith(".bicep", StringComparison.InvariantCultureIgnoreCase));
-            bicepFiles.Select(x => x.fileName).Should().Contain("main.bicep");
+            files.Select(x => x.fileName).Should().Contain("main.bicep");
 
-            var systemFiles = files.Where(x => !x.fileName.EndsWith(".bicep", StringComparison.InvariantCultureIgnoreCase));
+            var (uriDictionary, entryUri) = CreateFileDictionary(files, "main.bicep");
+            var fileResolver = new InMemoryFileResolver(uriDictionary);
 
-            var (uriDictionary, entryUri) = CreateFileDictionary(bicepFiles);
-            var fileResolver = new InMemoryFileResolver(CreateFileDictionary(systemFiles).files);
+            return Compile(services, fileResolver, uriDictionary.Keys, entryUri);
+        }
 
-            var configuration = BicepTestConstants.BuiltInConfiguration;
-            var sourceFileGrouping = SourceFileGroupingFactory.CreateForFiles(uriDictionary, entryUri, fileResolver, configuration, context.GetFeatures());
+        public static CompilationResult Compile(ServiceBuilder services, IFileResolver fileResolver, IEnumerable<Uri> sourceFiles, Uri entryUri)
+        {
+            services = services.WithFileResolver(fileResolver);
+            var sourceFileDict = sourceFiles
+                .Where(x => PathHelper.HasBicepExtension(x) || PathHelper.HasArmTemplateLikeExtension(x))
+                .ToDictionary(x => x, x => fileResolver.TryRead(x, out var fileContents, out _) ? fileContents : throw new InvalidOperationException($"Failed to find file {x}"));
 
-            return Compile(context, new Compilation(context.GetNamespaceProvider(), sourceFileGrouping, configuration, BicepTestConstants.LinterAnalyzer));
+            return Compile(services.BuildCompilation(sourceFileDict, entryUri));
         }
 
         public static CompilationResult Compile(IAzResourceTypeLoader resourceTypeLoader, params (string fileName, string fileContents)[] files)
-            => Compile(new CompilationHelperContext(AzResourceTypeLoader: resourceTypeLoader), files);
+            => Compile(new ServiceBuilder().WithFeatureOverrides(BicepTestConstants.FeatureOverrides).WithAzResourceTypeLoader(resourceTypeLoader), files);
 
         public static CompilationResult Compile(params (string fileName, string fileContents)[] files)
-            => Compile(new CompilationHelperContext(), files);
+            => Compile(new ServiceBuilder().WithFeatureOverrides(BicepTestConstants.FeatureOverrides), files);
 
         public static CompilationResult Compile(string fileContents)
             => Compile(("main.bicep", fileContents));
 
-        public static CompilationResult Compile(CompilationHelperContext context, string fileContents)
-            => Compile(context, ("main.bicep", fileContents));
+        public static CompilationResult Compile(ServiceBuilder services, string fileContents)
+            => Compile(services, ("main.bicep", fileContents));
 
-        private static (IReadOnlyDictionary<Uri, string> files, Uri entryFileUri) CreateFileDictionary(IEnumerable<(string fileName, string fileContents)> files)
+
+        public static ParamsCompilationResult CompileParams(params (string fileName, string fileContents)[] files)
+        {
+            return CompileParams(new ServiceBuilder(), files);
+        }
+
+        public static ParamsCompilationResult CompileParams(ServiceBuilder services, params (string fileName, string fileContents)[] files)
+        {
+            var configuration = BicepTestConstants.BuiltInConfiguration;
+            services = services.WithConfigurationPatch(c => configuration);
+
+            files.Select(x => x.fileName).Should().Contain("parameters.bicepparam");
+
+            var (uriDictionary, entryUri) = CreateFileDictionary(files, "parameters.bicepparam");
+            var fileResolver = new InMemoryFileResolver(uriDictionary);
+            services = services.WithFileResolver(fileResolver);
+
+            var sourceFiles = uriDictionary
+                .Where(x => PathHelper.HasBicepparamsExension(x.Key) || PathHelper.HasBicepExtension(x.Key) || PathHelper.HasArmTemplateLikeExtension(x.Key))
+                .ToDictionary(x => x.Key, x => x.Value);
+
+            var compilation = services.BuildCompilation(sourceFiles, entryUri);
+
+            return CompileParams(compilation);
+        }
+
+        public static (IReadOnlyDictionary<Uri, string> files, Uri entryFileUri) CreateFileDictionary(IEnumerable<(string fileName, string fileContents)> files, string entryFileName)
         {
             var uriDictionary = files.ToDictionary(
-                x => new Uri($"file:///path/to/{x.fileName}"),
+                x => InMemoryFileResolver.GetFileUri($"/path/to/{x.fileName}"),
                 x => x.fileContents);
-            var entryUri = new Uri($"file:///path/to/main.bicep");
+            var entryUri = InMemoryFileResolver.GetFileUri($"/path/to/{entryFileName}");
             return (uriDictionary, entryUri);
         }
 
-        private static CompilationResult Compile(CompilationHelperContext context, Compilation compilation)
+        public static CompilationResult Compile(Compilation compilation)
         {
-            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel(), context.GetEmitterSettings());
+            SemanticModel semanticModel = compilation.GetEntrypointSemanticModel();
+            var emitter = new TemplateEmitter(compilation.GetEntrypointSemanticModel());
 
-            var diagnostics = compilation.GetEntrypointSemanticModel().GetAllDiagnostics();
+            var diagnostics = semanticModel.GetAllDiagnostics();
 
             JToken? template = null;
-            if (!compilation.GetEntrypointSemanticModel().HasErrors())
+            if (!semanticModel.HasErrors())
             {
                 using var stream = new MemoryStream();
                 var emitResult = emitter.Emit(stream);
@@ -108,6 +132,31 @@ namespace Bicep.Core.UnitTests.Utils
             }
 
             return new(template, diagnostics, compilation);
+        }
+
+        private static ParamsCompilationResult CompileParams(Compilation compilation)
+        {
+            var semanticModel = compilation.GetEntrypointSemanticModel();
+            var emitter = new ParametersEmitter(semanticModel);
+
+            var diagnostics = semanticModel.GetAllDiagnostics();
+
+            JToken? parameters = null;
+            if (!semanticModel.HasErrors())
+            {
+                using var stream = new MemoryStream();
+                var emitResult = emitter.Emit(stream);
+
+                if (emitResult.Status != EmitStatus.Failed)
+                {
+                    stream.Position = 0;
+                    var jsonOutput = new StreamReader(stream).ReadToEnd();
+
+                    parameters = JToken.Parse(jsonOutput);
+                }
+            }
+
+            return new(parameters, diagnostics, compilation);
         }
     }
 }

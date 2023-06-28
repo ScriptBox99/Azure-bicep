@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System.Collections.Generic;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.Syntax;
 using Bicep.Core.TypeSystem;
+using System.Collections.Immutable;
+using System.Linq;
 
 namespace Bicep.Core.Semantics
 {
@@ -21,9 +23,21 @@ namespace Bicep.Core.Semantics
             this.CollectDiagnostics(symbol);
         }
 
+        public override void VisitMetadataSymbol(MetadataSymbol symbol)
+        {
+            base.VisitMetadataSymbol(symbol);
+            this.CollectDiagnostics(symbol);
+        }
+
         public override void VisitParameterSymbol(ParameterSymbol symbol)
         {
             base.VisitParameterSymbol(symbol);
+            this.CollectDiagnostics(symbol);
+        }
+
+        public override void VisitTypeAliasSymbol(TypeAliasSymbol symbol)
+        {
+            base.VisitTypeAliasSymbol(symbol);
             this.CollectDiagnostics(symbol);
         }
 
@@ -31,11 +45,39 @@ namespace Bicep.Core.Semantics
         {
             base.VisitFileSymbol(symbol);
             this.CollectDiagnostics(symbol);
+
+            // find duplicate target scope declarations
+            var targetScopeSyntaxes = symbol.Syntax.Children.OfType<TargetScopeSyntax>().ToImmutableArray();
+
+            if (targetScopeSyntaxes.Length > 1)
+            {
+                foreach (var targetScope in targetScopeSyntaxes)
+                {
+                    this.diagnosticWriter.Write(targetScope.Keyword, x => x.TargetScopeMultipleDeclarations());
+                }
+            }
+
+            // find duplicate using declarations
+            var usingSyntaxes = symbol.Syntax.Children.OfType<UsingDeclarationSyntax>().ToImmutableArray();
+
+            if (usingSyntaxes.Length > 1)
+            {
+                foreach (var declaration in usingSyntaxes)
+                {
+                    this.diagnosticWriter.Write(declaration.Keyword, x => x.MoreThanOneUsingDeclarationSpecified());
+                }
+            }
         }
 
         public override void VisitVariableSymbol(VariableSymbol symbol)
         {
             base.VisitVariableSymbol(symbol);
+            this.CollectDiagnostics(symbol);
+        }
+
+        public override void VisitDeclaredFunctionSymbol(DeclaredFunctionSymbol symbol)
+        {
+            base.VisitDeclaredFunctionSymbol(symbol);
             this.CollectDiagnostics(symbol);
         }
 

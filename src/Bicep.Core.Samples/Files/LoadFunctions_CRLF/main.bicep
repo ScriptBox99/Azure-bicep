@@ -74,3 +74,47 @@ var testJsonInt = testJson.int
 var testJsonArrayVal = testJson.array[0]
 var testJsonObject = testJson.object
 var testJsonNestedString = testJson.object.nestedString
+
+var testJson2 = loadJsonContent('./Assets/test.json.txt')
+var testJsonString2 = testJson.string
+var testJsonString2_1 = loadJsonContent('./Assets/test.json.txt', '.string')
+var testJsonInt2 = testJson.int
+var testJsonInt2_1 = loadJsonContent('./Assets/test.json.txt', '.int')
+var testJsonArrayVal2 = testJson.array[0]
+var testJsonArrayVal2_1 = loadJsonContent('./Assets/test.json.txt', '.array[0]')
+var testJsonObject2 = testJson.object
+var testJsonObject2_1 = loadJsonContent('./Assets/test.json.txt', '.object')
+var testJsonNestedString2 = testJson.object.nestedString
+var testJsonNestedString2_1 = testJsonObject2_1.nestedString
+var testJsonNestedString2_2 = loadJsonContent('./Assets/test.json.txt', '.object.nestedString')
+
+var testJsonTokensAsArray = loadJsonContent('./Assets/test2.json.txt', '.products[?(@.price > 3)].name')
+
+var testYaml = loadYamlContent('./Assets/test.yaml.txt')
+var testYamlString = testYaml.string
+var testYamlInt = testYaml.int
+var testYamlBool = testYaml.bool
+var testYamlArrayInt = testYaml.arrayInt
+var testYamlArrayIntVal = testYaml.arrayInt[0]
+var testYamlArrayString = testYaml.arrayString
+var testYamlArrayStringVal = testYaml.arrayString[0]
+var testYamlArrayBool = testYaml.arrayBool
+var testYamlArrayBoolVal = testYaml.arrayBool[0]
+var testYamlObject = testYaml.object
+var testYamlObjectNestedString = testYaml.object.nestedString
+var testYamlObjectNestedInt = testYaml.object.nestedInt
+var testYamlObjectNestedBool = testYaml.object.nestedBool
+
+output testYamlString string = testYamlString
+output testYamlInt int = testYamlInt
+output testYamlBool bool = testYamlBool
+output testYamlArrayInt array = testYamlArrayInt
+output testYamlArrayIntVal int = testYamlArrayIntVal
+output testYamlArrayString array = testYamlArrayString
+output testYamlArrayStringVal string = testYamlArrayStringVal
+output testYamlArrayBool array = testYamlArrayBool
+output testYamlArrayBoolVal bool = testYamlArrayBoolVal
+output testYamlObject object = testYamlObject
+output testYamlObjectNestedString string = testYamlObjectNestedString
+output testYamlObjectNestedInt int = testYamlObjectNestedInt
+output testYamlObjectNestedBool bool = testYamlObjectNestedBool

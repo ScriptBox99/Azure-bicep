@@ -1,15 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
-using Bicep.Core.Parsing;
 using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
-using Bicep.Core.Text;
 
 namespace Bicep.Core.TypeSystem
 {
@@ -72,7 +69,7 @@ namespace Bicep.Core.TypeSystem
             return null;
         }
 
-        private FunctionSymbol? TryGetFunctionSymbol(string name)
+        public FunctionSymbol? TryGetFunctionSymbol(string name)
         {
             // symbol comparison relies on object equality; use of this cache ensures that different symbols with the same name are not returned.
             // we also cache negative lookups (null) so that we don't slow down when looking up references to a missing symbol
@@ -89,7 +86,7 @@ namespace Bicep.Core.TypeSystem
         }
 
         public static IEnumerable<FunctionOverload> GetMatches(
-            FunctionSymbol function,
+            IFunctionSymbol function,
             IList<TypeSymbol> argumentTypes,
             out IList<ArgumentCountMismatch> argumentCountMismatches,
             out IList<ArgumentTypeMismatch> argumentTypeMismatches)

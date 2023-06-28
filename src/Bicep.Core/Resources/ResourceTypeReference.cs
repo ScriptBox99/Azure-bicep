@@ -1,14 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Bicep.Core.Extensions;
-using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core.Resources
 {
@@ -83,5 +79,24 @@ namespace Bicep.Core.Resources
 
         public static bool HasResourceTypePrefix(string segment)
             => ResourceTypePrefixPattern.Match(segment).Success;
+
+        public override string ToString()
+            => this.FormatName();
+
+        public override bool Equals(object? other)
+        {
+            if (other is not ResourceTypeReference otherReference)
+            {
+                return false;
+            }
+
+            return Enumerable.SequenceEqual(this.TypeSegments, otherReference.TypeSegments, LanguageConstants.ResourceTypeComparer) &&
+                LanguageConstants.ResourceTypeComparer.Equals(this.ApiVersion, otherReference.ApiVersion);
+        }
+
+        public override int GetHashCode()
+            => HashCode.Combine(
+                Enumerable.Select(this.TypeSegments, x => LanguageConstants.ResourceTypeComparer.GetHashCode(x)).Aggregate((a, b) => a ^ b),
+                (this.ApiVersion is null ? 0 : LanguageConstants.ResourceTypeComparer.GetHashCode(this.ApiVersion)));
     }
 }

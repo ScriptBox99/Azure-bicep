@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using Bicep.Core.Diagnostics;
 using Bicep.Core.Extensions;
@@ -20,7 +19,6 @@ namespace Bicep.Core.Syntax
         {
             AssertKeyword(keyword, nameof(keyword), LanguageConstants.ParameterKeyword);
             AssertSyntaxType(name, nameof(name), typeof(IdentifierSyntax));
-            AssertSyntaxType(type, nameof(type), typeof(TypeSyntax), typeof(SkippedTriviaSyntax));
             AssertSyntaxType(modifier, nameof(modifier), typeof(ParameterDefaultValueSyntax), typeof(SkippedTriviaSyntax));
 
             this.Keyword = keyword;
@@ -48,24 +46,14 @@ namespace Bicep.Core.Syntax
         /// </summary>
         public TypeSyntax? ParameterType => this.Type as TypeSyntax;
 
-        public TypeSymbol GetDeclaredType()
-        {
-            // assume "any" type when the parameter has parse errors (either missing or was skipped)
-            var declaredType = this.ParameterType == null
-                ? LanguageConstants.Any
-                : LanguageConstants.TryGetDeclarationType(this.ParameterType.TypeName);
-
-            if (declaredType == null)
-            {
-                return ErrorType.Create(DiagnosticBuilder.ForPosition(this.Type).InvalidParameterType());
-            }
-
-            return declaredType;
-        }
-
         public TypeSymbol GetAssignedType(ITypeManager typeManager, ArraySyntax? allowedSyntax)
         {
-            var assignedType = this.GetDeclaredType();
+            var assignedType = typeManager.GetDeclaredType(this);
+            if (assignedType is null)
+            {
+                // We don't expect this to happen for a parameter.
+                return ErrorType.Empty();
+            }
 
             // TODO: remove SyntaxHelper.TryGetAllowedSyntax when we drop parameter modifiers support.
             if (allowedSyntax is not null && !allowedSyntax.Items.Any())
@@ -75,27 +63,43 @@ namespace Bicep.Core.Syntax
 
             var allowedItemTypes = allowedSyntax?.Items.Select(typeManager.GetTypeInfo);
 
-            if (ReferenceEquals(assignedType, LanguageConstants.String))
+            if (TypeValidator.AreTypesAssignable(assignedType, LanguageConstants.String))
             {
-                if (allowedItemTypes?.All(itemType => itemType is StringLiteralType) == true)
+                assignedType = UnionIfLiterals<StringLiteralType>(assignedType, assignedType, allowedItemTypes);
+            } else if (TypeValidator.AreTypesAssignable(assignedType, LanguageConstants.Int))
+            {
+                assignedType = UnionIfLiterals<IntegerLiteralType>(assignedType, assignedType, allowedItemTypes);
+            } else if (TypeValidator.AreTypesAssignable(assignedType, LanguageConstants.Bool))
+            {
+                assignedType = UnionIfLiterals<BooleanLiteralType>(assignedType, assignedType, allowedItemTypes);
+            } else if (TypeValidator.AreTypesAssignable(assignedType, LanguageConstants.Array) && allowedItemTypes is not null && allowedItemTypes.All(TypeHelper.IsLiteralType))
+            {
+                // @allowed has special semantics when applied to an array if none of the allowed values are themselves arrays (ARM will permit any array containing
+                // a subset of the allowed values). If any of the allowed item types is a tuple, treat @allowed([...]) as supplying a list of allowed values;
+                // otherwise, treat it as supplying a list of allowed *item* values.
+                if (allowedItemTypes.Any(t => t is TupleType))
                 {
-                    assignedType = TypeHelper.CreateTypeUnion(allowedItemTypes);
+                    assignedType = UnionIfLiterals<TupleType>(assignedType, assignedType, allowedItemTypes);
                 }
                 else
                 {
-                    // In order to support assignment for a generic string to enum-typed properties (which generally is forbidden),
-                    // we need to relax the validation for string parameters without 'allowed' values specified.
-                    assignedType = LanguageConstants.LooseString;
+                    assignedType = new TypedArrayType(TypeHelper.CreateTypeUnion(allowedItemTypes), assignedType.ValidationFlags);
                 }
             }
 
-            if (ReferenceEquals(assignedType, LanguageConstants.Array) &&
-                allowedItemTypes?.All(itemType => itemType is StringLiteralType) == true)
+            return assignedType;
+        }
+
+        private static TypeSymbol UnionIfLiterals<T>(TypeSymbol assignedType, TypeSymbol looseType, IEnumerable<TypeSymbol>? allowedItemTypes)
+        {
+            if (allowedItemTypes?.All(itemType => itemType is T) is true)
             {
-                assignedType = new TypedArrayType(TypeHelper.CreateTypeUnion(allowedItemTypes), TypeSymbolValidationFlags.Default);
+                return TypeHelper.CreateTypeUnion(allowedItemTypes);
             }
 
-            return assignedType;
+            // In order to support assignment for a generic string/bool/int to enum-typed properties (which generally is forbidden),
+            // we need to relax the validation for string/bool/int parameters without 'allowed' values specified.
+            return looseType;
         }
     }
 }

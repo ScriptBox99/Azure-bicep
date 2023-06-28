@@ -1,14 +1,16 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System.Collections.Generic;
+using Bicep.Core.Features;
 using Bicep.Core.TypeSystem;
+using Bicep.Core.Workspaces;
 
-namespace Bicep.Core.Semantics.Namespaces
+namespace Bicep.Core.Semantics.Namespaces;
+
+public interface INamespaceProvider
 {
-    public interface INamespaceProvider
-    {
-        NamespaceType? TryGetNamespace(string providerName, string aliasName, ResourceScope resourceScope);
+    NamespaceType? TryGetNamespace(string providerName, string aliasName, ResourceScope resourceScope, IFeatureProvider features, BicepSourceFileKind sourceFileKind);
 
-        bool AllowImportStatements { get; }
-    }
+    IEnumerable<string> AvailableNamespaces { get; }
 }

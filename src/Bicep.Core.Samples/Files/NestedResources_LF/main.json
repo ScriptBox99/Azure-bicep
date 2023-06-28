@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "dev",
-      "templateHash": "17608560117045014269"
+      "templateHash": "15295876813466684932"
     }
   },
   "parameters": {
@@ -31,12 +31,11 @@
       "apiVersion": "2020-12-01",
       "name": "[format('{0}/{1}/{2}', 'basicParent', 'basicChild', 'basicGrandchild')]",
       "properties": {
-        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent')).size]",
-        "style": "[reference(resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild')).style]"
+        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent'), '2020-12-01').size]",
+        "style": "[reference(resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild'), '2020-12-01').style]"
       },
       "dependsOn": [
-        "[resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild')]",
-        "[resourceId('My.Rp/parentType', 'basicParent')]"
+        "[resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild')]"
       ]
     },
     {
@@ -44,7 +43,7 @@
       "apiVersion": "2020-12-01",
       "name": "[format('{0}/{1}', 'basicParent', 'basicChild')]",
       "properties": {
-        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent')).large]",
+        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent'), '2020-12-01').large]",
         "style": "cool"
       },
       "dependsOn": [
@@ -56,8 +55,8 @@
       "apiVersion": "2020-12-01",
       "name": "[format('{0}/{1}', 'basicParent', 'basicSibling')]",
       "properties": {
-        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent')).size]",
-        "style": "[reference(resourceId('My.Rp/parentType/childType/grandchildType', 'basicParent', 'basicChild', 'basicGrandchild')).style]"
+        "size": "[reference(resourceId('My.Rp/parentType', 'basicParent'), '2020-12-01').size]",
+        "style": "[reference(resourceId('My.Rp/parentType/childType/grandchildType', 'basicParent', 'basicChild', 'basicGrandchild'), '2020-12-01').style]"
       },
       "dependsOn": [
         "[resourceId('My.Rp/parentType/childType/grandchildType', 'basicParent', 'basicChild', 'basicGrandchild')]",
@@ -79,12 +78,11 @@
       "apiVersion": "2020-12-01",
       "name": "[format('{0}/{1}/{2}', 'conditionParent', 'conditionChild', 'conditionGrandchild')]",
       "properties": {
-        "size": "[reference(resourceId('My.Rp/parentType', 'conditionParent')).size]",
-        "style": "[reference(resourceId('My.Rp/parentType/childType', 'conditionParent', 'conditionChild')).style]"
+        "size": "[reference(resourceId('My.Rp/parentType', 'conditionParent'), '2020-12-01').size]",
+        "style": "[reference(resourceId('My.Rp/parentType/childType', 'conditionParent', 'conditionChild'), '2020-12-01').style]"
       },
       "dependsOn": [
-        "[resourceId('My.Rp/parentType/childType', 'conditionParent', 'conditionChild')]",
-        "[resourceId('My.Rp/parentType', 'conditionParent')]"
+        "[resourceId('My.Rp/parentType/childType', 'conditionParent', 'conditionChild')]"
       ]
     },
     {
@@ -131,11 +129,11 @@
   "outputs": {
     "referenceBasicChild": {
       "type": "string",
-      "value": "[reference(resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild')).size]"
+      "value": "[reference(resourceId('My.Rp/parentType/childType', 'basicParent', 'basicChild'), '2020-12-01').size]"
     },
     "referenceBasicGrandchild": {
       "type": "string",
-      "value": "[reference(resourceId('My.Rp/parentType/childType/grandchildType', 'basicParent', 'basicChild', 'basicGrandchild')).style]"
+      "value": "[reference(resourceId('My.Rp/parentType/childType/grandchildType', 'basicParent', 'basicChild', 'basicGrandchild'), '2020-12-01').style]"
     },
     "loopChildOutput": {
       "type": "string",

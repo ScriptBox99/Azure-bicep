@@ -1,7 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using Bicep.RegistryModuleTool.Exceptions;
+using Bicep.RegistryModuleTool.Extensions;
 using Bicep.RegistryModuleTool.ModuleFiles;
+using Bicep.RegistryModuleTool.ModuleValidators;
 using Bicep.RegistryModuleTool.Proxies;
 using Microsoft.Extensions.Logging;
 using System;
@@ -31,15 +34,26 @@ namespace Bicep.RegistryModuleTool.Commands
                 this.processProxy = processProxy;
             }
 
-            protected override int Invoke(InvocationContext context)
+            protected override int InvokeInternal(InvocationContext context)
             {
+                try
+                {
+                    ModulePathValidator.ValidateModulePath(this.FileSystem);
+                }
+                catch (InvalidModuleException exception)
+                {
+                    context.Console.WriteError(exception.Message);
+
+                    return 1;
+                }
+
                 // Read or create main Bicep file.
-                this.Logger.LogInformation("Ensure {MainBicepFile} exists...", "main Bicep file");
+                this.Logger.LogInformation("Ensuring {MainBicepFile} exists...", "main Bicep file");
                 var mainBicepFile = MainBicepFile.EnsureInFileSystem(this.FileSystem);
 
-                // Read or create metadata file.
-                this.Logger.LogInformation("Ensure {MetadataFile} exists...", "metadata file");
-                var metadataFile = MetadataFile.EnsureInFileSystem(this.FileSystem);
+                // Create main Bicep test file if it doesn't exist.
+                this.Logger.LogInformation("Ensuring {MainBicepTestFile} exists...", "main Bicep test file");
+                MainBicepTestFile.EnsureInFileSystem(this.FileSystem);
 
                 // Generate main ARM template file.
                 var bicepCliProxy = new BicepCliProxy(this.environmentProxy, this.processProxy, this.FileSystem, this.Logger, context.Console);
@@ -47,10 +61,9 @@ namespace Bicep.RegistryModuleTool.Commands
                     .Generate(this.FileSystem, bicepCliProxy, mainBicepFile)
                     .WriteToFileSystem(FileSystem));
 
-                // Generate main ARM template parameters file.
-                var mainArmTemplateParametersFile = this.GenerateFileAndLogInformation("main ARM template parameters file", () => MainArmTemplateParametersFile
-                    .Generate(this.FileSystem, mainArmTemplateFile)
-                    .WriteToFileSystem(this.FileSystem));
+                // Read or create metadata file.
+                this.Logger.LogInformation("Ensuring {MetadataFile} exists...", "metadata file");
+                var metadataFile = MetadataFile.EnsureInFileSystem(this.FileSystem);
 
                 // Generate README file.
                 this.GenerateFileAndLogInformation("README file", () => ReadmeFile

@@ -1,5 +1,23 @@
 [
   {
+    "label": "../",
+    "kind": "folder",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_../",
+    "filterText": "'./'",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "'./$0'"
+    },
+    "command": {
+      "title": "file path completion",
+      "command": "editor.action.triggerSuggest"
+    }
+  },
+  {
     "label": "empty.bicep",
     "kind": "file",
     "deprecated": false,
@@ -27,6 +45,7 @@
       "newText": "'./ChildModules/folder with space/$0'"
     },
     "command": {
+      "title": "file path completion",
       "command": "editor.action.triggerSuggest"
     }
   },

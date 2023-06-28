@@ -1,12 +1,20 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Bicep.Core;
 using Bicep.Core.Configuration;
 using Bicep.Core.FileSystem;
 using Bicep.Core.Registry;
 using Bicep.Core.Samples;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
+using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.Mock;
 using Bicep.Core.UnitTests.Registry;
 using Bicep.Core.UnitTests.Utils;
@@ -15,12 +23,6 @@ using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Bicep.Cli.IntegrationTests
 {
@@ -45,19 +47,32 @@ namespace Bicep.Cli.IntegrationTests
             }
         }
 
-        // TODO: handle variant linter messaging for each data test
+        [TestMethod]
+        public async Task Build_NonBicepFiles_ShouldFail_WithExpectedErrorMessage()
+        {
+            var (output, error, result) = await Bicep("build", "/dev/zero");
+
+            using (new AssertionScope())
+            {
+                result.Should().Be(1);
+                output.Should().BeEmpty();
+
+                error.Should().NotBeEmpty();
+                error.Should().Contain($@"The specified input ""/dev/zero"" was not recognized as a Bicep file. Bicep files must use the {LanguageConstants.LanguageFileExtension} extension.");
+            }
+        }
+
         [DataTestMethod]
         [DynamicData(nameof(GetValidDataSets), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
-        public async Task Build_Valid_SingleFile_ShouldSucceed(DataSet dataSet)
+        public async Task Build_Valid_SingleFile_WithTemplateSpecReference_ShouldSucceed(DataSet dataSet)
         {
-            var clientFactory = dataSet.CreateMockRegistryClients(TestContext);
-            var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory, TestContext);
-
+            var clientFactory = dataSet.CreateMockRegistryClients().Object;
+            var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
+            await dataSet.PublishModulesToRegistryAsync(clientFactory);
             var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
-            var settings = new InvocationSettings(BicepTestConstants.CreateFeaturesProvider(TestContext, registryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
             var (output, error, result) = await Bicep(settings, "build", bicepFilePath);
 
             using (new AssertionScope())
@@ -70,8 +85,9 @@ namespace Bicep.Cli.IntegrationTests
             if (dataSet.HasExternalModules)
             {
                 // ensure something got restored
-                Directory.Exists(settings.Features.CacheRootDirectory).Should().BeTrue();
-                Directory.EnumerateFiles(settings.Features.CacheRootDirectory, "*.json", SearchOption.AllDirectories).Should().NotBeEmpty();
+
+                Directory.Exists(settings.FeatureOverrides.CacheRootDirectory).Should().BeTrue();
+                Directory.EnumerateFiles(settings.FeatureOverrides.CacheRootDirectory!, "*.json", SearchOption.AllDirectories).Should().NotBeEmpty();
             }
 
             var compiledFilePath = Path.Combine(outputDirectory, DataSet.TestFileMainCompiled);
@@ -88,15 +104,15 @@ namespace Bicep.Cli.IntegrationTests
 
         [DataTestMethod]
         [DynamicData(nameof(GetValidDataSets), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
-        public async Task Build_Valid_SingleFile_ToStdOut_ShouldSucceed(DataSet dataSet)
+        public async Task Build_Valid_SingleFile_WithTemplateSpecReference_ToStdOut_ShouldSucceed(DataSet dataSet)
         {
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            var clientFactory = dataSet.CreateMockRegistryClients(TestContext);
+            var clientFactory = dataSet.CreateMockRegistryClients().Object;
             var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory, TestContext);
+            await dataSet.PublishModulesToRegistryAsync(clientFactory);
             var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
-            var settings = new InvocationSettings(BicepTestConstants.CreateFeaturesProvider(TestContext, registryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
 
             var (output, error, result) = await Bicep(settings, "build", "--stdout", bicepFilePath);
 
@@ -109,7 +125,7 @@ namespace Bicep.Cli.IntegrationTests
 
             if (dataSet.HasExternalModules)
             {
-                settings.Features.Should().HaveValidModules();
+                settings.FeatureOverrides.Should().HaveValidModules();
             }
 
             var compiledFilePath = Path.Combine(outputDirectory, DataSet.TestFileMainCompiled);
@@ -129,12 +145,12 @@ namespace Bicep.Cli.IntegrationTests
         public async Task Build_Valid_SingleFile_After_Restore_Should_Succeed(DataSet dataSet)
         {
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
-            var clientFactory = dataSet.CreateMockRegistryClients(TestContext);
+            var clientFactory = dataSet.CreateMockRegistryClients().Object;
             var templateSpecRepositoryFactory = dataSet.CreateMockTemplateSpecRepositoryFactory(TestContext);
-            await dataSet.PublishModulesToRegistryAsync(clientFactory, TestContext);
+            await dataSet.PublishModulesToRegistryAsync(clientFactory);
             var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
 
-            var settings = new InvocationSettings(BicepTestConstants.CreateFeaturesProvider(TestContext, registryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
+            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: dataSet.HasExternalModules), clientFactory, templateSpecRepositoryFactory);
 
             var (restoreOutput, restoreError, restoreResult) = await Bicep(settings, "restore", bicepFilePath);
             using (new AssertionScope())
@@ -176,11 +192,11 @@ namespace Bicep.Cli.IntegrationTests
             var client = new MockRegistryBlobClient();
 
             var clientFactory = StrictMock.Of<IContainerRegistryClientFactory>();
-            clientFactory.Setup(m => m.CreateBlobClient(It.IsAny<RootConfiguration>(), registryUri, repository)).Returns(client);
+            clientFactory.Setup(m => m.CreateAuthenticatedBlobClient(It.IsAny<RootConfiguration>(), registryUri, repository)).Returns(client);
 
             var templateSpecRepositoryFactory = BicepTestConstants.TemplateSpecRepositoryFactory;
 
-            var settings = new InvocationSettings(BicepTestConstants.CreateFeaturesProvider(TestContext, registryEnabled: true), clientFactory.Object, BicepTestConstants.TemplateSpecRepositoryFactory);
+            var settings = new InvocationSettings(new(TestContext, RegistryEnabled: true), clientFactory.Object, BicepTestConstants.TemplateSpecRepositoryFactory);
 
             var tempDirectory = FileHelper.GetUniqueTestOutputPath(TestContext);
             Directory.CreateDirectory(tempDirectory);
@@ -227,7 +243,7 @@ module empty 'br:{registry}/{repository}@{digest}' = {{
             var outputDirectory = dataSet.SaveFilesToTestDirectory(TestContext);
             var bicepFilePath = Path.Combine(outputDirectory, DataSet.TestFileMain);
             var defaultSettings = CreateDefaultSettings();
-            var diagnostics = GetAllDiagnostics(bicepFilePath, defaultSettings.ClientFactory, defaultSettings.TemplateSpecRepositoryFactory);
+            var diagnostics = await GetAllDiagnostics(bicepFilePath, defaultSettings.ClientFactory, defaultSettings.TemplateSpecRepositoryFactory);
 
             var (output, error, result) = await Bicep("build", bicepFilePath);
 
@@ -252,7 +268,7 @@ module empty 'br:{registry}/{repository}@{digest}' = {{
             output.Should().BeEmpty();
 
             var defaultSettings = CreateDefaultSettings();
-            var diagnostics = GetAllDiagnostics(bicepFilePath, defaultSettings.ClientFactory, defaultSettings.TemplateSpecRepositoryFactory);
+            var diagnostics = await GetAllDiagnostics(bicepFilePath, defaultSettings.ClientFactory, defaultSettings.TemplateSpecRepositoryFactory);
             error.Should().ContainAll(diagnostics);
         }
 
@@ -289,8 +305,11 @@ output myOutput string = 'hello!'
             error.Should().MatchRegex(@"The specified output directory "".*outputdir"" does not exist");
         }
 
-        [TestMethod]
-        public async Task Build_WithOutDir_ShouldSucceed()
+        [DataRow(new string[] {})]
+        [DataRow(new[] { "--diagnostics-format", "defAULt"})]
+        [DataRow(new[] { "--diagnostics-format", "sArif"})]
+        [DataTestMethod]
+        public async Task Build_WithOutDir_ShouldSucceed(string[] args)
         {
             var bicepPath = FileHelper.SaveResultFile(TestContext, "input.bicep", @"
 output myOutput string = 'hello!'
@@ -301,11 +320,40 @@ output myOutput string = 'hello!'
             var expectedOutputFile = Path.Combine(outputFileDir, "input.json");
 
             File.Exists(expectedOutputFile).Should().BeFalse();
-            var (output, error, result) = await Bicep("build", "--outdir", outputFileDir, bicepPath);
+            var (output, error, result) = await Bicep(new[] { "build", "--outdir", outputFileDir, bicepPath}.Concat(args).ToArray());
 
             File.Exists(expectedOutputFile).Should().BeTrue();
             output.Should().BeEmpty();
-            error.Should().BeEmpty();
+            if (Array.Exists(args, x => x.Equals("sarif", StringComparison.OrdinalIgnoreCase)))
+            {
+                var errorJToken = JToken.Parse(error);
+                var expectedErrorJToken = JToken.Parse(@"{
+  ""$schema"": ""https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.6.json"",
+  ""version"": ""2.1.0"",
+  ""runs"": [
+    {
+      ""tool"": {
+        ""driver"": {
+          ""name"": ""bicep""
+        }
+      },
+      ""results"": [],
+      ""columnKind"": ""utf16CodeUnits""
+    }
+  ]
+}");
+                errorJToken.Should().EqualWithJsonDiffOutput(
+                TestContext,
+                expectedErrorJToken,
+                "",
+                "",
+                validateLocation: false);
+            }
+            else
+            {
+                error.Should().BeEmpty();
+            }
+
             result.Should().Be(0);
         }
 
@@ -346,7 +394,7 @@ output myOutput string = 'hello!'
         [TestMethod]
         public async Task Build_WithEmptyBicepConfig_ShouldProduceConfigurationError()
         {
-            string testOutputPath = Path.Combine(TestContext.ResultsDirectory, Guid.NewGuid().ToString());
+            string testOutputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
             var inputFile = FileHelper.SaveResultFile(this.TestContext, "main.bicep", DataSets.Empty.Bicep, testOutputPath);
             var configurationPath = FileHelper.SaveResultFile(this.TestContext, "bicepconfig.json", string.Empty, testOutputPath);
 
@@ -354,13 +402,13 @@ output myOutput string = 'hello!'
 
             result.Should().Be(1);
             output.Should().BeEmpty();
-            error.Should().StartWith($"Failed to parse the contents of the Bicep configuration file \"{configurationPath}\" as valid JSON: \"The input does not contain any JSON tokens. Expected the input to start with a valid JSON token, when isFinalBlock is true. LineNumber: 0 | BytePositionInLine: 0.\".");
+            error.Should().StartWith($"{inputFile}(1,1) : Error BCP271: Failed to parse the contents of the Bicep configuration file \"{configurationPath}\" as valid JSON: \"The input does not contain any JSON tokens. Expected the input to start with a valid JSON token, when isFinalBlock is true. LineNumber: 0 | BytePositionInLine: 0.\".");
         }
 
         [TestMethod]
         public async Task Build_WithInvalidBicepConfig_ShouldProduceConfigurationError()
         {
-            string testOutputPath = Path.Combine(TestContext.ResultsDirectory, Guid.NewGuid().ToString());
+            string testOutputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
             var inputFile = FileHelper.SaveResultFile(this.TestContext, "main.bicep", DataSets.Empty.Bicep, testOutputPath);
             var configurationPath = FileHelper.SaveResultFile(this.TestContext, "bicepconfig.json", @"{
   ""analyzers"": {
@@ -376,13 +424,45 @@ output myOutput string = 'hello!'
 
             result.Should().Be(1);
             output.Should().BeEmpty();
-            error.Should().StartWith($"Failed to parse the contents of the Bicep configuration file \"{configurationPath}\" as valid JSON: \"Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. LineNumber: 8 | BytePositionInLine: 0.\".");
+            error.Should().StartWith($"{inputFile}(1,1) : Error BCP271: Failed to parse the contents of the Bicep configuration file \"{configurationPath}\" as valid JSON: \"Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. LineNumber: 8 | BytePositionInLine: 0.\".");
+        }
+
+        [DataRow(new string[] {})]
+        [DataRow(new[] { "--diagnostics-format", "defAULt"})]
+        [DataTestMethod]
+        public async Task Build_WithValidBicepConfig_ShouldProduceOutputFileAndExpectedError(string[] args)
+        {
+            string testOutputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
+            var inputFile = FileHelper.SaveResultFile(this.TestContext, "main.bicep", @"param storageAccountName string = 'test'", testOutputPath);
+            FileHelper.SaveResultFile(this.TestContext, "bicepconfig.json", @"{
+  ""analyzers"": {
+    ""core"": {
+      ""verbose"": false,
+      ""enabled"": true,
+      ""rules"": {
+        ""no-unused-params"": {
+          ""level"": ""warning""
+        }
+      }
+    }
+  }
+}", testOutputPath);
+
+            var expectedOutputFile = Path.Combine(testOutputPath, "main.json");
+
+            File.Exists(expectedOutputFile).Should().BeFalse();
+            var (output, error, result) = await Bicep(new[] { "build", "--outdir", testOutputPath, inputFile}.Concat(args).ToArray());
+
+            File.Exists(expectedOutputFile).Should().BeTrue();
+            result.Should().Be(0);
+            output.Should().BeEmpty();
+            error.Should().Contain(@"main.bicep(1,7) : Warning no-unused-params: Parameter ""storageAccountName"" is declared but never used. [https://aka.ms/bicep/linter/no-unused-params]");
         }
 
         [TestMethod]
-        public async Task Build_WithValidBicepConfig_ShouldProduceOutputFileAndExpectedError()
+        public async Task Build_WithValidBicepConfig_ShouldProduceOutputFileAndExpectedErrorInSarifFormat()
         {
-            string testOutputPath = Path.Combine(TestContext.ResultsDirectory, Guid.NewGuid().ToString());
+            string testOutputPath = FileHelper.GetUniqueTestOutputPath(TestContext);
             var inputFile = FileHelper.SaveResultFile(this.TestContext, "main.bicep", @"param storageAccountName string = 'test'", testOutputPath);
             FileHelper.SaveResultFile(this.TestContext, "bicepconfig.json", @"{
   ""analyzers"": {
@@ -402,12 +482,58 @@ output myOutput string = 'hello!'
 
             File.Exists(expectedOutputFile).Should().BeFalse();
 
-            var (output, error, result) = await Bicep("build", "--outdir", testOutputPath, inputFile);
+            var (output, error, result) = await Bicep("build", "--outdir", testOutputPath, inputFile, "--diagnostics-format", "saRif");
 
             File.Exists(expectedOutputFile).Should().BeTrue();
             result.Should().Be(0);
             output.Should().BeEmpty();
-            error.Should().Contain(@"main.bicep(1,7) : Warning no-unused-params: Parameter ""storageAccountName"" is declared but never used. [https://aka.ms/bicep/linter/no-unused-params]");
+            var errorJToken = JToken.Parse(error);
+            var expectedErrorJToken = JToken.Parse(@"{
+  ""$schema"": ""https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.6.json"",
+  ""version"": ""2.1.0"",
+  ""runs"": [
+    {
+      ""tool"": {
+        ""driver"": {
+          ""name"": ""bicep""
+        }
+      },
+      ""results"": [
+        {
+          ""ruleId"": ""no-unused-params"",
+          ""message"": {
+            ""text"": ""Parameter \""storageAccountName\"" is declared but never used. [https://aka.ms/bicep/linter/no-unused-params]""
+          },
+          ""locations"": [
+            {
+              ""physicalLocation"": {
+                ""artifactLocation"": {
+                  ""uri"": ""main.bicep""
+                },
+                ""region"": {
+                  ""startLine"": 1,
+                  ""charOffset"": 7
+                }
+              }
+            }
+          ]
+        }
+      ],
+      ""columnKind"": ""utf16CodeUnits""
+    }
+  ]
+}");
+        var selectedPath = errorJToken.SelectToken("$.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri");
+        selectedPath.Should().NotBeNull();
+        selectedPath?.Value<string>().Should().Contain("file://");
+        selectedPath?.Value<string>().Should().Contain("main.bicep");
+        selectedPath?.Replace("main.bicep");
+        errorJToken.Should().EqualWithJsonDiffOutput(
+                TestContext,
+                expectedErrorJToken,
+                "",
+                "",
+                validateLocation: false);
         }
 
         private static IEnumerable<object[]> GetValidDataSets() => DataSets
@@ -426,4 +552,3 @@ output myOutput string = 'hello!'
             .ToDynamicTestData();
     }
 }
-

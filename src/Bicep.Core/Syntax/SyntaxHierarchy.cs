@@ -8,16 +8,20 @@ namespace Bicep.Core.Syntax
 {
     public class SyntaxHierarchy : ISyntaxHierarchy
     {
-        private readonly Dictionary<SyntaxBase, SyntaxBase?> parentMap = new Dictionary<SyntaxBase, SyntaxBase?>();
+        private readonly ImmutableDictionary<SyntaxBase, SyntaxBase?> parentMap;
 
-        /// <summary>
-        /// Adds a root node and indexes the parents for all child nodes recursively.
-        /// </summary>
-        /// <param name="root">The root node.</param>
-        public void AddRoot(SyntaxBase root)
+        private SyntaxHierarchy(ImmutableDictionary<SyntaxBase, SyntaxBase?> parentMap)
         {
-            var visitor = new ParentTrackingVisitor(this.parentMap);
+            this.parentMap = parentMap;
+        }
+
+        public static ISyntaxHierarchy Build(SyntaxBase root)
+        {
+            var parentMap = new Dictionary<SyntaxBase, SyntaxBase?>();
+            var visitor = new ParentTrackingVisitor(parentMap);
             visitor.Visit(root);
+
+            return new SyntaxHierarchy(parentMap.ToImmutableDictionary());
         }
 
         /// <summary>
@@ -49,32 +53,10 @@ namespace Bicep.Core.Syntax
             return false;
         }
 
-        /// <summary>
-        /// Gets all ancestor nodes assignable to <typeparamref name="TSyntax" /> in descending order
-        /// from the top of the tree.
-        /// </summary>
-        /// <param name="syntax">The syntax node.</param>
-        /// <typeparam name="TSyntax">The type of node to query.</typeparam>
-        /// <returns>The list of ancestors.</returns>
-        public ImmutableArray<TSyntax> GetAllAncestors<TSyntax>(SyntaxBase syntax) where TSyntax : SyntaxBase =>
-            // Use default implementation
-            ((ISyntaxHierarchy)this).GetAllAncestors<TSyntax>(syntax);
-
-        /// <summary>
-        /// Gets the nearest ancestor assignable to <typeparamref name="TSyntax" /> above <paramref name="syntax" />
-        /// in an ascending walk towards the root of the syntax tree.
-        /// </summary>
-        /// <param name="syntax">The syntax node.</param>
-        /// <typeparam name="TSyntax">The type of node to query.</typeparam>
-        /// <returns>The nearest ancestor or <c>null</c>.</returns>
-        public TSyntax? GetNearestAncestor<TSyntax>(SyntaxBase syntax) where TSyntax : SyntaxBase =>
-            // Use default implementation
-            ((ISyntaxHierarchy)this).GetNearestAncestor<TSyntax>(syntax);
-
-        private sealed class ParentTrackingVisitor : SyntaxVisitor
+        private sealed class ParentTrackingVisitor : CstVisitor
         {
             private readonly Dictionary<SyntaxBase, SyntaxBase?> parentMap;
-            private readonly Stack<SyntaxBase> currentParents = new Stack<SyntaxBase>();
+            private readonly Stack<SyntaxBase> currentParents = new();
 
             public ParentTrackingVisitor(Dictionary<SyntaxBase, SyntaxBase?> parentMap)
             {

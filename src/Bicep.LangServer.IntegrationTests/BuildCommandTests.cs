@@ -4,17 +4,14 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
-using Bicep.Core.Features;
 using Bicep.Core.UnitTests.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Workspace;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using Newtonsoft.Json.Linq;
 using Bicep.Core.UnitTests;
 using Bicep.LangServer.IntegrationTests.Helpers;
-using OmniSharp.Extensions.LanguageServer.Protocol;
 using FluentAssertions;
 using Bicep.Core.Samples;
 using Bicep.Core.UnitTests.Assertions;
@@ -31,22 +28,17 @@ namespace Bicep.LangServer.IntegrationTests
         public async Task Build_command_should_generate_template()
         {
             var diagnosticsListener = new MultipleMessageListener<PublishDiagnosticsParams>();
-            var features = BicepTestConstants.CreateFeaturesProvider(
-                TestContext,
-                assemblyFileVersion: BicepTestConstants.DevAssemblyFileVersion);
 
-            using var helper = await LanguageServerHelper.StartServerWithClientConnectionAsync(
+            using var helper = await LanguageServerHelper.StartServer(
                 this.TestContext,
-                options => options.OnPublishDiagnostics(diagnosticsParams => diagnosticsListener.AddMessage(diagnosticsParams)),
-                new LanguageServer.Server.CreationOptions(
-                    NamespaceProvider: BuiltInTestTypes.Create(),
-                    Features: features));
+                options => options.OnPublishDiagnostics(diagnosticsListener.AddMessage),
+                services => services.WithNamespaceProvider(BuiltInTestTypes.Create()).WithFeatureOverrides(new(TestContext)));
             var client = helper.Client;
 
             var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(
                 TestContext,
-                typeof(ExamplesTests).Assembly,
-                "Bicep.Core.Samples/Resources_CRLF");
+                typeof(DataSet).Assembly,
+                "Files/Resources_CRLF");
 
             var bicepFilePath = Path.Combine(outputDirectory, "main.bicep");
             var expectedJson = File.ReadAllText(Path.Combine(outputDirectory, "main.json"));
@@ -70,23 +62,17 @@ namespace Bicep.LangServer.IntegrationTests
         public async Task Build_command_should_generate_template_with_symbolic_names_if_enabled()
         {
             var diagnosticsListener = new MultipleMessageListener<PublishDiagnosticsParams>();
-            var features = BicepTestConstants.CreateFeaturesProvider(
-                TestContext,
-                symbolicNameCodegenEnabled: true,
-                assemblyFileVersion: BicepTestConstants.DevAssemblyFileVersion);
 
-            using var helper = await LanguageServerHelper.StartServerWithClientConnectionAsync(
+            using var helper = await LanguageServerHelper.StartServer(
                 this.TestContext,
-                options => options.OnPublishDiagnostics(diagnosticsParams => diagnosticsListener.AddMessage(diagnosticsParams)),
-                new LanguageServer.Server.CreationOptions(
-                    NamespaceProvider: BuiltInTestTypes.Create(),
-                    Features: features));
+                options => options.OnPublishDiagnostics(diagnosticsListener.AddMessage),
+                services => services.WithNamespaceProvider(BuiltInTestTypes.Create()).WithFeatureOverrides(new(TestContext, SymbolicNameCodegenEnabled: true)));
             var client = helper.Client;
 
             var outputDirectory = FileHelper.SaveEmbeddedResourcesWithPathPrefix(
                 TestContext,
-                typeof(ExamplesTests).Assembly,
-                "Bicep.Core.Samples/Resources_CRLF");
+                typeof(DataSet).Assembly,
+                "Files/Resources_CRLF");
 
             var bicepFilePath = Path.Combine(outputDirectory, "main.bicep");
             var expectedJson = File.ReadAllText(Path.Combine(outputDirectory, "main.symbolicnames.json"));

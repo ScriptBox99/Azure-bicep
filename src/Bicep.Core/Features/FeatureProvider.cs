@@ -3,28 +3,40 @@
 
 using System;
 using System.IO;
-using System.Threading;
+using Bicep.Core.Configuration;
 
 namespace Bicep.Core.Features
 {
     public class FeatureProvider : IFeatureProvider
     {
-        private Lazy<string> cacheRootDirectoryLazy = new(() => GetCacheRootDirectory(Environment.GetEnvironmentVariable("BICEP_CACHE_DIRECTORY")), LazyThreadSafetyMode.PublicationOnly);
-        public string CacheRootDirectory => cacheRootDirectoryLazy.Value;
+        private readonly RootConfiguration configuration;
 
-        public bool RegistryEnabled => true;
+        public FeatureProvider(RootConfiguration configuration)
+        {
+            this.configuration = configuration;
+        }
 
-        private Lazy<bool> symbolicNameCodegenEnabledLazy = new(() => ReadBooleanEnvVar("BICEP_SYMBOLIC_NAME_CODEGEN_EXPERIMENTAL", defaultValue: false), LazyThreadSafetyMode.PublicationOnly);
-        public bool SymbolicNameCodegenEnabled => symbolicNameCodegenEnabledLazy.Value;
+        public string CacheRootDirectory => GetCacheRootDirectory(this.configuration.CacheRootDirectory);
 
-        private Lazy<bool> importsEnabledLazy = new(() => ReadBooleanEnvVar("BICEP_IMPORTS_ENABLED_EXPERIMENTAL", defaultValue: false), LazyThreadSafetyMode.PublicationOnly);
-        public bool ImportsEnabled => importsEnabledLazy.Value;
+        public bool SymbolicNameCodegenEnabled => this.configuration.ExperimentalFeaturesEnabled.SymbolicNameCodegen;
+
+        public bool ExtensibilityEnabled => this.configuration.ExperimentalFeaturesEnabled.Extensibility;
+
+        public bool ResourceTypedParamsAndOutputsEnabled => this.configuration.ExperimentalFeaturesEnabled.ResourceTypedParamsAndOutputs;
 
         public string AssemblyVersion => ThisAssembly.AssemblyFileVersion;
 
+        public bool SourceMappingEnabled => this.configuration.ExperimentalFeaturesEnabled.SourceMapping;
+
+        public bool UserDefinedTypesEnabled => configuration.ExperimentalFeaturesEnabled.UserDefinedTypes;
+
+        public bool UserDefinedFunctionsEnabled => configuration.ExperimentalFeaturesEnabled.UserDefinedFunctions;
+
+        public bool PrettyPrintingEnabled => this.configuration.ExperimentalFeaturesEnabled.PrettyPrinting;
+
         public static bool TracingEnabled => ReadBooleanEnvVar("BICEP_TRACING_ENABLED", defaultValue: false);
 
-        public static TraceVerbosity TracingVerbosity => ReadEnumEnvvar<TraceVerbosity>("BICEP_TRACING_VERBOSITY", TraceVerbosity.Basic);
+        public static TraceVerbosity TracingVerbosity => ReadEnumEnvvar("BICEP_TRACING_VERBOSITY", TraceVerbosity.Basic);
 
         private static bool ReadBooleanEnvVar(string envVar, bool defaultValue)
             => bool.TryParse(Environment.GetEnvironmentVariable(envVar), out var value) ? value : defaultValue;

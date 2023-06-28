@@ -4,18 +4,21 @@ using System.Collections.Immutable;
 using Bicep.Core.DataFlow;
 using Bicep.Core.Semantics;
 using Bicep.Core.Semantics.Metadata;
+using Bicep.Core.Syntax;
+using Bicep.Core.Visitors;
 
 namespace Bicep.Core.Emit
 {
     public class EmitterContext
     {
-        public EmitterContext(SemanticModel semanticModel, EmitterSettings settings)
+        public EmitterContext(SemanticModel semanticModel)
         {
-            this.Settings = settings;
-            this.SemanticModel = semanticModel;
-            this.DataFlowAnalyzer = new(semanticModel);
-            this.VariablesToInline = InlineDependencyVisitor.GetVariablesToInline(semanticModel);
-            this.ResourceDependencies = ResourceDependencyVisitor.GetResourceDependencies(semanticModel);
+            Settings = new(semanticModel.Features, semanticModel.Root.FileKind);
+            SemanticModel = semanticModel;
+            DataFlowAnalyzer = new(semanticModel);
+            VariablesToInline = InlineDependencyVisitor.GetVariablesToInline(semanticModel);
+            ResourceDependencies = ResourceDependencyVisitor.GetResourceDependencies(semanticModel);
+            FunctionVariables = FunctionVariableGeneratorVisitor.GetFunctionVariables(semanticModel);
         }
 
         public EmitterSettings Settings { get; }
@@ -28,8 +31,10 @@ namespace Bicep.Core.Emit
 
         public ImmutableDictionary<DeclaredSymbol, ImmutableHashSet<ResourceDependency>> ResourceDependencies { get; }
 
+        public ImmutableDictionary<FunctionCallSyntaxBase, FunctionVariable> FunctionVariables { get; }
+
         public ImmutableDictionary<ModuleSymbol, ScopeHelper.ScopeData> ModuleScopeData => SemanticModel.EmitLimitationInfo.ModuleScopeData;
 
-        public ImmutableDictionary<ResourceMetadata, ScopeHelper.ScopeData> ResourceScopeData => SemanticModel.EmitLimitationInfo.ResourceScopeData;
+        public ImmutableDictionary<DeclaredResourceMetadata, ScopeHelper.ScopeData> ResourceScopeData => SemanticModel.EmitLimitationInfo.ResourceScopeData;
     }
 }

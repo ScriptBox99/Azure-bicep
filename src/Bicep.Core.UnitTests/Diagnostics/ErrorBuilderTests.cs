@@ -97,14 +97,16 @@ namespace Bicep.Core.UnitTests.Diagnostics
                 return new List<TypeSymbol> { new PrimitiveType($"<list_type_{index}>", TypeSymbolValidationFlags.Default) };
             }
 
-            if (parameter.ParameterType == typeof(IEnumerable<string>))
+            if (parameter.ParameterType == typeof(IEnumerable<string>) ||
+                parameter.ParameterType == typeof(IList<string>) ||
+                parameter.ParameterType == typeof(ICollection<string>))
             {
                 return new List<string> { $"<value_{index}" };
             }
 
-            if (parameter.ParameterType == typeof(IList<string>))
+            if (parameter.ParameterType == typeof(IDiagnosticLookup))
             {
-                return new List<string> { $"<value_{index}" };
+                return new DiagnosticTree();
             }
 
             if (parameter.ParameterType == typeof(ImmutableArray<string>))
@@ -130,7 +132,7 @@ namespace Bicep.Core.UnitTests.Diagnostics
 
             if (parameter.ParameterType == typeof(long) || parameter.ParameterType == typeof(long?))
             {
-                return 0;
+                return 0L;
             }
 
             if (parameter.ParameterType == typeof(bool) || parameter.ParameterType == typeof(bool?))
@@ -161,6 +163,16 @@ namespace Bicep.Core.UnitTests.Diagnostics
             if (parameter.ParameterType == typeof(ObjectSyntax))
             {
                 return TestSyntaxFactory.CreateObject(Array.Empty<ObjectPropertySyntax>());
+            }
+
+            if (parameter.ParameterType == typeof(SyntaxBase))
+            {
+                return TestSyntaxFactory.CreateVariableAccess("identifier");
+            }
+
+            if (parameter.ParameterType == typeof(AccessExpressionSyntax))
+            {
+                return TestSyntaxFactory.CreatePropertyAccess(TestSyntaxFactory.CreateVariableAccess("identifier"), "propertyName");
             }
 
             throw new AssertFailedException($"Unable to generate mock parameter value of type '{parameter.ParameterType}' for the diagnostic builder method.");
@@ -210,7 +222,7 @@ namespace Bicep.Core.UnitTests.Diagnostics
         // There is leading whitespace in this one
         [DataRow(@"
                 resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
-                  
+                  "+@"
                 }",
            @"
                 resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
@@ -219,21 +231,21 @@ namespace Bicep.Core.UnitTests.Diagnostics
        )]
         [DataRow(@"
                  resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
-                   location: 'westus2'
+                   location: 'global'
                  }",
             @"
                  resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
-                   location: 'westus2'
+                   location: 'global'
                    name:
                  }"
         )]
         [DataRow(@"
                  resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
-                               location: 'westus2'
+                               location: 'global'
                  }",
             @"
                  resource vnet 'Microsoft.Network/virtualNetworks@2018-10-01' = {
-                               location: 'westus2'
+                               location: 'global'
                                name:
                  }"
         )]
@@ -253,9 +265,9 @@ namespace Bicep.Core.UnitTests.Diagnostics
                          name: 'D1'
 
                        }
-                       // comment
+                       
                        location:
-                       name:
+                       name:// comment
                  }"
         )]
         [DataRow(@"
@@ -273,6 +285,18 @@ namespace Bicep.Core.UnitTests.Diagnostics
         public void MissingTypePropertiesHasFix(string text, string expectedFix)
         {
             ExpectDiagnosticWithFixedText(text, expectedFix);
+        }
+
+        private class PrimitiveType : TypeSymbol
+        {
+            public PrimitiveType(string name, TypeSymbolValidationFlags validationFlags) : base(name)
+            {
+                ValidationFlags = validationFlags;
+            }
+
+            public override TypeKind TypeKind => TypeKind.Primitive;
+
+            public override TypeSymbolValidationFlags ValidationFlags { get; }
         }
     }
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 using System;
 using System.IO;
+using Bicep.Core.Emit.Options;
 
 namespace Bicep.Core.FileSystem
 {
@@ -12,6 +13,8 @@ namespace Bicep.Core.FileSystem
         private const string TemplateOutputExtension = ".json";
 
         private const string BicepExtension = LanguageConstants.LanguageFileExtension;
+
+        private const string BicepParamsExtension = LanguageConstants.ParamsFileExtension;
 
         public static StringComparer PathComparer => IsFileSystemCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
@@ -65,6 +68,26 @@ namespace Bicep.Core.FileSystem
             }
         }
 
+        public static string ResolveParametersFileOutputPath(string path, OutputFormatOption outputFormat)
+        {
+            var folder = ResolvePath(path);
+
+            var pathWithoutFileName = Path.GetDirectoryName(folder);
+
+            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+
+            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            {
+                fileNameWithoutExtension = "output";
+            }
+
+            var extension = outputFormat == OutputFormatOption.Json ? "parameters.json" : "bicepparam";
+
+            var outputPath = $"{pathWithoutFileName}{Path.DirectorySeparatorChar}{fileNameWithoutExtension}.{extension}";
+
+            return outputPath;
+        }
+
         public static string GetDefaultBuildOutputPath(string path)
         {
             if (string.Equals(Path.GetExtension(path), TemplateOutputExtension, PathComparison))
@@ -87,6 +110,17 @@ namespace Bicep.Core.FileSystem
             return Path.ChangeExtension(path, BicepExtension);
         }
 
+        public static string GetDefaultDecompileparamOutputPath(string path)
+        {
+            if (string.Equals(Path.GetExtension(path), BicepParamsExtension, PathComparison))
+            {
+                // throwing because this could lead to us destroying the input file if extensions get mixed up.
+                throw new ArgumentException($"The specified file already has the '{BicepParamsExtension}' extension.");
+            }
+
+            return Path.ChangeExtension(path, BicepParamsExtension);
+        }
+
         /// <summary>
         /// Returns true if the current file system is case sensitive (most Linux and MacOS X file systems). Returns false if the file system is case insensitive (Windows file systems.)
         /// </summary>
@@ -107,6 +141,7 @@ namespace Bicep.Core.FileSystem
             {
                 filePath = "/" + filePath;
             }
+            filePath = filePath.Replace("%", "%25");
 
             var uriBuilder = new UriBuilder
             {
@@ -147,13 +182,29 @@ namespace Bicep.Core.FileSystem
         public static Uri RemoveExtension(Uri uri) => ChangeExtension(uri, null);
 
         public static Uri ChangeToBicepExtension(Uri uri) => ChangeExtension(uri, BicepExtension);
-
+        
+        public static Uri ChangeToBicepparamExtension(Uri uri) => ChangeExtension(uri, BicepParamsExtension);
+        
         public static bool HasBicepExtension(Uri uri) => HasExtension(uri, BicepExtension);
+
+        public static bool HasBicepparamsExension(Uri uri) => HasExtension(uri, BicepParamsExtension);
+
+        public static bool HasArmTemplateLikeExtension(Uri uri) =>
+                HasExtension(uri, LanguageConstants.JsonFileExtension) ||
+                HasExtension(uri, LanguageConstants.JsoncFileExtension) ||
+                HasExtension(uri, LanguageConstants.ArmTemplateFileExtension);
 
         private static string GetNormalizedPath(Uri uri) =>
             uri.Scheme != Uri.UriSchemeFile ? uri.AbsoluteUri.TrimEnd('/') : uri.AbsolutePath;
 
         private static string NormalizeExtension(string extension) =>
             extension.StartsWith(".") ? extension : $".{extension}";
+
+        public static bool IsSubPathOf(Uri parent, Uri child)
+        {
+            var parentPath = parent.AbsolutePath.EndsWith('/') ? parent.AbsolutePath : $"{parent.AbsolutePath}/";
+
+            return child.AbsolutePath.StartsWith(parentPath);
+        }
     }
 }

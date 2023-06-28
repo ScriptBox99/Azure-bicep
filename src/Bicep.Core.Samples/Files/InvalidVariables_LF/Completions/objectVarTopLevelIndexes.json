@@ -44,6 +44,7 @@
       "newText": "any($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -64,6 +65,7 @@
       "newText": "array($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -81,6 +83,7 @@
       "newText": "az."
     },
     "command": {
+      "title": "symbol completion",
       "command": "editor.action.triggerSuggest"
     }
   },
@@ -101,6 +104,28 @@
       "newText": "az.resourceGroup($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "az.subscription",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nsubscription(): subscription\nsubscription(subscriptionId: string): subscription\n\n```\nReturns a subscription scope.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_az.subscription",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "az.subscription($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -163,6 +188,7 @@
       "newText": "base64($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -183,6 +209,7 @@
       "newText": "base64ToJson($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -203,6 +230,7 @@
       "newText": "base64ToString($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -237,26 +265,49 @@
       "newText": "bool($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
   {
-    "label": "coalesce",
+    "label": "cidrHost",
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\ncoalesce(... : any): any\n\n```\nReturns first non-null value from the parameters. Empty strings, empty arrays, and empty objects are not null.\n"
+      "value": "```bicep\ncidrHost(network: string, hostIndex: int): string\n\n```\nCalculates the usable IP address of the host with the specified index on the specified IP address range in CIDR notation.\n"
     },
     "deprecated": false,
     "preselect": false,
-    "sortText": "3_coalesce",
+    "sortText": "3_cidrHost",
     "insertTextFormat": "snippet",
     "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "coalesce($0)"
+      "newText": "cidrHost($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "cidrSubnet",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\ncidrSubnet(network: string, cidr: int, subnetIndex: int): string\n\n```\nSplits the specified IP address range in CIDR notation into subnets with a new CIDR value and returns the IP address range of the subnet with the specified index.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_cidrSubnet",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "cidrSubnet($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -277,6 +328,7 @@
       "newText": "concat($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -297,7 +349,22 @@
       "newText": "contains($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "copy",
+    "kind": "variable",
+    "detail": "copy",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_copy",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "copy"
     }
   },
   {
@@ -317,6 +384,7 @@
       "newText": "dataUri($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -337,6 +405,7 @@
       "newText": "dataUriToString($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -357,6 +426,49 @@
       "newText": "dateTimeAdd($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "dateTimeFromEpoch",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\ndateTimeFromEpoch([epochTime: int]): string\n\n```\nConverts an epoch time integer value to an [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) dateTime string.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_dateTimeFromEpoch",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "dateTimeFromEpoch($0)"
+    },
+    "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "dateTimeToEpoch",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\ndateTimeToEpoch([dateTime: string]): int\n\n```\nConverts an [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) dateTime string to an epoch time integer value.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_dateTimeToEpoch",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "dateTimeToEpoch($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -408,6 +520,7 @@
       "newText": "empty($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -428,6 +541,7 @@
       "newText": "endsWith($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -479,6 +593,28 @@
       "newText": "extensionResourceId($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "filter",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nfilter(array: array, predicate: any => bool): array\n\n```\nFilters an array with a custom filtering function.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_filter",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "filter($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -499,6 +635,28 @@
       "newText": "first($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "flatten",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nflatten(array: array[]): array\n\n```\nTakes an array of arrays, and returns an array of sub-array elements, in the original order. Sub-arrays are only flattened once, not recursively.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_flatten",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "flatten($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -533,6 +691,7 @@
       "newText": "format($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -553,6 +712,7 @@
       "newText": "guid($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -575,7 +735,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nindexOf(stringToSearch: string, stringToFind: string): int\n\n```\nReturns the first position of a value within a string. The comparison is case-insensitive.\n"
+      "value": "```bicep\nindexOf(stringToSearch: string, stringToFind: string): int\nindexOf(array: array, itemToFind: any): int\n\n```\nReturns the first position of a value within a string. The comparison is case-insensitive.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -587,6 +747,7 @@
       "newText": "indexOf($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -663,6 +824,7 @@
       "newText": "int($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -683,6 +845,7 @@
       "newText": "intersection($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -759,6 +922,28 @@
       "newText": "items($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "join",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\njoin(inputArray: (bool | int | string)[], delimiter: string): string\n\n```\nJoins multiple strings into a single string, separated using a delimiter.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_join",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "join($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -779,6 +964,7 @@
       "newText": "json($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -900,6 +1086,7 @@
       "newText": "last($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -908,7 +1095,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nlastIndexOf(stringToSearch: string, stringToFind: string): int\n\n```\nReturns the last position of a value within a string. The comparison is case-insensitive.\n"
+      "value": "```bicep\nlastIndexOf(stringToSearch: string, stringToFind: string): int\nlastIndexOf(array: array, itemToFind: any): int\n\n```\nReturns the last position of a value within a string. The comparison is case-insensitive.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -920,6 +1107,7 @@
       "newText": "lastIndexOf($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -928,7 +1116,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nlength(arg: array | object | string): int\n\n```\nReturns the number of characters in a string, elements in an array, or root-level properties in an object.\n"
+      "value": "```bicep\nlength(arg: object | string): int\nlength(arg: array): int\n\n```\nReturns the number of characters in a string, elements in an array, or root-level properties in an object.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -940,7 +1128,36 @@
       "newText": "length($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "listSecrets",
+    "kind": "variable",
+    "detail": "listSecrets",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_listSecrets",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "listSecrets"
+    }
+  },
+  {
+    "label": "listSecretsVar",
+    "kind": "variable",
+    "detail": "listSecretsVar",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_listSecretsVar",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "listSecretsVar"
     }
   },
   {
@@ -960,6 +1177,28 @@
       "newText": "loadFileAsBase64($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "loadJsonContent",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nloadJsonContent(filePath: string, [jsonPath: string], [encoding: 'iso-8859-1' | 'us-ascii' | 'utf-16' | 'utf-16BE' | 'utf-8']): any\n\n```\nLoads the specified JSON file as bicep object. File loading occurs during compilation, not at runtime.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_loadJsonContent",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "loadJsonContent($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -980,6 +1219,28 @@
       "newText": "loadTextContent($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "loadYamlContent",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nloadYamlContent(filePath: string, [pathFilter: string], [encoding: 'iso-8859-1' | 'us-ascii' | 'utf-16' | 'utf-16BE' | 'utf-8']): any\n\n```\nLoads the specified YAML file as bicep object. File loading occurs during compilation, not at runtime.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_loadYamlContent",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "loadYamlContent($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1014,6 +1275,49 @@
       "newText": "managementGroup($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "managementGroupResourceId",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nmanagementGroupResourceId(resourceType: string, ... : string): string\nmanagementGroupResourceId(managementGroupId: string, resourceType: string, ... : string): string\n\n```\nReturns the unique identifier for a resource deployed at the management group level.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_managementGroupResourceId",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "managementGroupResourceId($0)"
+    },
+    "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "map",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nmap(array: array, predicate: any => any): array\n\n```\nApplies a custom mapping function to each element of an array and returns the result array.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_map",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "map($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1022,7 +1326,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nmax(... : int): int\nmax(intArray: array): int\n\n```\nReturns the maximum value from an array of integers or a comma-separated list of integers.\n"
+      "value": "```bicep\nmax(... : int): int\nmax(intArray: int[]): int\n\n```\nReturns the maximum value from an array of integers or a comma-separated list of integers.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -1034,6 +1338,7 @@
       "newText": "max($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1042,7 +1347,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nmin(... : int): int\nmin(intArray: array): int\n\n```\nReturns the minimum value from an array of integers or a comma-separated list of integers.\n"
+      "value": "```bicep\nmin(... : int): int\nmin(intArray: int[]): int\n\n```\nReturns the minimum value from an array of integers or a comma-separated list of integers.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -1054,6 +1359,7 @@
       "newText": "min($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1212,6 +1518,48 @@
     }
   },
   {
+    "label": "nonExistentIndex1",
+    "kind": "variable",
+    "detail": "nonExistentIndex1",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_nonExistentIndex1",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "nonExistentIndex1"
+    }
+  },
+  {
+    "label": "nonExistentIndex2",
+    "kind": "variable",
+    "detail": "nonExistentIndex2",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_nonExistentIndex2",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "nonExistentIndex2"
+    }
+  },
+  {
+    "label": "nonExistentIndex3",
+    "kind": "variable",
+    "detail": "nonExistentIndex3",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_nonExistentIndex3",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "nonExistentIndex3"
+    }
+  },
+  {
     "label": "nonTopLevelLoop",
     "kind": "variable",
     "detail": "nonTopLevelLoop",
@@ -1354,6 +1702,28 @@
       "newText": "padLeft($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "parseCidr",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nparseCidr(network: string): parseCidr\n\n```\nParses an IP address range in CIDR notation to get various properties of the address range.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_parseCidr",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "parseCidr($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1374,6 +1744,7 @@
       "newText": "pickZones($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1394,6 +1765,7 @@
       "newText": "providers($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1414,6 +1786,28 @@
       "newText": "range($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "reduce",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nreduce(array: array, initialValue: any, predicate: (any, any) => any): array\n\n```\nReduces an array with a custom reduce function.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_reduce",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "reduce($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1434,6 +1828,7 @@
       "newText": "reference($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1454,6 +1849,7 @@
       "newText": "replace($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1488,6 +1884,7 @@
       "newText": "resourceId($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1592,6 +1989,7 @@
       "newText": "skip($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1610,11 +2008,32 @@
     }
   },
   {
+    "label": "sort",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\nsort(array: array, predicate: (any, any) => bool): array\n\n```\nSorts an array with a custom sort function.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_sort",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "sort($0)"
+    },
+    "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
     "label": "split",
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nsplit(inputString: string, delimiter: array | string): array\n\n```\nReturns an array of strings that contains the substrings of the input string that are delimited by the specified delimiters.\n"
+      "value": "```bicep\nsplit(inputString: string, delimiter: array | string): string[]\n\n```\nReturns an array of strings that contains the substrings of the input string that are delimited by the specified delimiters.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -1626,6 +2045,7 @@
       "newText": "split($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1646,6 +2066,7 @@
       "newText": "startsWith($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1666,27 +2087,36 @@
       "newText": "string($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
   {
-    "label": "subscription",
-    "kind": "function",
-    "documentation": {
-      "kind": "markdown",
-      "value": "```bicep\nsubscription(): subscription\nsubscription(subscriptionId: string): subscription\n\n```\nReturns a subscription scope.\n"
-    },
+    "label": "subName",
+    "kind": "variable",
+    "detail": "subName",
     "deprecated": false,
     "preselect": false,
-    "sortText": "3_subscription",
-    "insertTextFormat": "snippet",
+    "sortText": "2_subName",
+    "insertTextFormat": "plainText",
     "insertTextMode": "adjustIndentation",
     "textEdit": {
       "range": {},
-      "newText": "subscription($0)"
-    },
-    "command": {
-      "command": "editor.action.triggerParameterHints"
+      "newText": "subName"
+    }
+  },
+  {
+    "label": "subscription",
+    "kind": "variable",
+    "detail": "subscription",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "2_subscription",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "subscription"
     }
   },
   {
@@ -1706,6 +2136,7 @@
       "newText": "subscriptionResourceId($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1726,6 +2157,7 @@
       "newText": "substring($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1743,6 +2175,7 @@
       "newText": "sys."
     },
     "command": {
+      "title": "symbol completion",
       "command": "editor.action.triggerSuggest"
     }
   },
@@ -1763,6 +2196,7 @@
       "newText": "take($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1800,6 +2234,7 @@
       "newText": "tenantResourceId($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1876,6 +2311,28 @@
       "newText": "toLower($0)"
     },
     "command": {
+      "title": "signature help",
+      "command": "editor.action.triggerParameterHints"
+    }
+  },
+  {
+    "label": "toObject",
+    "kind": "function",
+    "documentation": {
+      "kind": "markdown",
+      "value": "```bicep\ntoObject(array: array, keyPredicate: any => string, [valuePredicate: any => any]): object\n\n```\nConverts an array to an object with a custom key function and optional custom value function.\n"
+    },
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_toObject",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "toObject($0)"
+    },
+    "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1896,6 +2353,7 @@
       "newText": "toUpper($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1916,6 +2374,7 @@
       "newText": "trim($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1936,6 +2395,7 @@
       "newText": "union($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1944,7 +2404,7 @@
     "kind": "function",
     "documentation": {
       "kind": "markdown",
-      "value": "```bicep\nuniqueString(... : string): string\n\n```\nCreates a deterministic hash string based on the values provided as parameters.\n"
+      "value": "```bicep\nuniqueString(... : string): string\n\n```\nCreates a deterministic hash string based on the values provided as parameters. The returned value is 13 characters long.\n"
     },
     "deprecated": false,
     "preselect": false,
@@ -1956,6 +2416,7 @@
       "newText": "uniqueString($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1976,6 +2437,7 @@
       "newText": "uri($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -1996,6 +2458,7 @@
       "newText": "uriComponent($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },
@@ -2016,6 +2479,7 @@
       "newText": "uriComponentToString($0)"
     },
     "command": {
+      "title": "signature help",
       "command": "editor.action.triggerParameterHints"
     }
   },

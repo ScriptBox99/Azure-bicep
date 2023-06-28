@@ -4,16 +4,16 @@
 import { Example } from "./example";
 
 describe("msbuild", () => {
-  it("multiple", () => {
+  it("should build a multi-targeting project with customized output paths successfully", () => {
     const example = new Example("multiple");
-    example.clean();
+    example.cleanProjectDir();
 
     const result = example.build();
 
     expect(result.stderr).toBe("");
 
-    example.expectTemplate("bin/Debug/templates/net6.0/empty.json");
-    example.expectTemplate("bin/Debug/templates/net6.0/passthrough.json");
-    example.expectTemplate("bin/Debug/templates/net6.0/special/special.arm");
+    example.expectTemplate("bin/Debug/templates/net7.0/empty.json");
+    example.expectTemplate("bin/Debug/templates/net7.0/passthrough.json");
+    example.expectTemplate("bin/Debug/templates/net7.0/special/special.arm");
   });
 });

@@ -21,7 +21,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             docUri: new Uri($"https://aka.ms/bicep/linter/{Code}"))
         { }
 
-        override public IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model)
+        override public IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel model, DiagnosticLevel diagnosticLevel)
         {
             var defaultValueSyntaxes = model.Root.ParameterDeclarations.Where(p => p.IsSecure())
                 .Select(p => p.DeclaringParameter.Modifier as ParameterDefaultValueSyntax)
@@ -48,13 +48,14 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                     continue;
                 }
 
-                yield return CreateFixableDiagnosticForSpan(defaultValueSyntax.Span,
-                    new CodeFix(CoreResources.SecureParameterDefaultFixTitle, true,
+                yield return CreateFixableDiagnosticForSpan(diagnosticLevel,
+                    defaultValueSyntax.Span,
+                    new CodeFix(CoreResources.SecureParameterDefaultFixTitle, true, CodeFixKind.QuickFix,
                             new CodeReplacement(defaultValueSyntax.Span, string.Empty)));
             }
         }
 
-        private class NewGuidVisitor : SyntaxVisitor
+        private class NewGuidVisitor : AstVisitor
         {
             public bool hasNewGuid = false;
 
@@ -70,7 +71,7 @@ namespace Bicep.Core.Analyzers.Linter.Rules
             }
         }
 
-        private bool ExpressionContainsNewGuid(ExpressionSyntax expression)
+        private static bool ExpressionContainsNewGuid(ExpressionSyntax expression)
         {
             var visitor = new NewGuidVisitor();
             expression.Accept(visitor);

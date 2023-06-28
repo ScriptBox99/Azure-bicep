@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Bicep.Tools.Benchmark</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Bicep.Core/Bicep.Core.csproj" />
+    <ProjectReference Include="../Bicep.Core.Samples/Bicep.Core.Samples.csproj" />
+    <ProjectReference Include="../Bicep.LangServer.IntegrationTests/Bicep.LangServer.IntegrationTests.csproj" />
+  </ItemGroup>
+</Project>

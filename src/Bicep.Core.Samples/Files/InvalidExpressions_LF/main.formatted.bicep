@@ -14,7 +14,7 @@ var bad = 222222222222222222222222222222222222222222 * 4
 var bad = (null) ?
 var bad = (null) ? :
 var bad = (null) ? !
-var bad = (null) !
+var bad = (null)!
 var bad = (null)[0]
 var bad = ()
 var bad = 
@@ -84,7 +84,8 @@ var errorInsideArrayAccess = [
 ][!0]
 var integerIndexOnNonArray = (null)[0]
 var stringIndexOnNonObject = 'test'['test']
-var malformedStringIndex = {}[ 'test\e']
+var malformedStringIndex = {
+}['test\e']
 var invalidIndexTypeOverAny = any(true)[true]
 var badIndexOverArray = [][null]
 var badIndexOverArray2 = []['s']
@@ -240,4 +241,12 @@ var partialObject = {
 @sys.secure()
 xxxxx
 
+var noElements = ()
+var justAComma = (,)
+var twoElements = (1, 2)
+var threeElements = (1, 2, 3)
+var unterminated1 = (
+var unterminated2 = (,
+
+// trailing decorator with no declaration
 @minLength()

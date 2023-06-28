@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System.Collections.Generic;
-using Bicep.Core.Syntax;
 
 namespace Bicep.Core.Semantics
 {
@@ -10,5 +8,7 @@ namespace Bicep.Core.Semantics
         ITypeManager TypeManager { get; }
 
         Compilation Compilation { get; }
+
+        IBinder Binder { get; }
     }
 }

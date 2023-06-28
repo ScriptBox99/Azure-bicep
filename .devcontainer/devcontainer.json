@@ -1,32 +1,30 @@
 {
   "name": "Bicep Development Environment",
-  "dockerFile": "Dockerfile",
-  "runArgs": [
-    "-v",
-    "/var/run/docker.sock:/var/run/docker.sock"
-  ],
-  "settings": {
-    "terminal.integrated.profiles.linux": {
-      "bash": {
-        "path": "/bin/bash"
-      }
+  "image": "mcr.microsoft.com/devcontainers/base:bullseye",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "msazurermtools.azurerm-vscode-tools",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "ms-azuretools.vscode-bicep",
+        "ms-dotnettools.csharp",
+        "ms-azuretools.vscode-docker",
+        "editorconfig.editorconfig",
+        "github.vscode-pull-request-github"
+      ]
     }
   },
-  "extensions": [
-    "msazurermtools.azurerm-vscode-tools",
-    "ms-azuretools.vscode-bicep",
-    "ms-dotnettools.csharp",
-    "ms-azuretools.vscode-docker",
-    "ms-vsliveshare.vsliveshare",
-    "editorconfig.editorconfig",
-    "github.copilot",
-    "github.vscode-pull-request-github",
-    "davidanson.vscode-markdownlint"
-  ],
   "features": {
-    "github-cli": "latest",
-    "azure-cli": "latest",
-    "node": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/dotnet:1": {
+      "version": "7.0"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
       "version": "lts",
       "nodeGypDependencies": true
     }

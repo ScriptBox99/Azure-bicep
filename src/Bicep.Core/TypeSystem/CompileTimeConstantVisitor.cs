@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System.Collections.Generic;
 using Bicep.Core.Diagnostics;
-using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
 
 namespace Bicep.Core.TypeSystem
@@ -10,7 +8,7 @@ namespace Bicep.Core.TypeSystem
     /// <summary>
     /// Visitor used to collect errors caused by expression assignment to a compile-time constant property.
     /// </summary>
-    public sealed class CompileTimeConstantVisitor : SyntaxVisitor
+    public sealed class CompileTimeConstantVisitor : AstVisitor
     {
         private readonly IDiagnosticWriter diagnosticWriter;
 

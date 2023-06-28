@@ -2,8 +2,10 @@
 // Licensed under the MIT License.
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Bicep.Core.Json
 {
@@ -17,6 +19,7 @@ namespace Bicep.Core.Json
         private static readonly JsonSerializerOptions DefaultSerializeOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter() },
         };
 
         public static JsonElement CreateElement(ReadOnlyMemory<byte> utf8Json, JsonDocumentOptions? options = null)
@@ -28,7 +31,7 @@ namespace Bicep.Core.Json
             return document.RootElement.Clone();
         }
 
-        public static JsonElement CreateElement(Stream utf8Json, JsonDocumentOptions? options = null)
+        public static JsonElement CreateElementFromStream(Stream utf8Json, JsonDocumentOptions? options = null)
         {
             using var document = JsonDocument.Parse(utf8Json, options ?? DefaultJsonDocumentOptions);
 
@@ -42,6 +45,7 @@ namespace Bicep.Core.Json
             return document.RootElement.Clone();
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Relying on references to required properties of the generic type elsewhere in the codebase.")]
         public static JsonElement CreateElement<T>(T value, JsonSerializerOptions? options = null)
         {
             if (value is JsonElement element)

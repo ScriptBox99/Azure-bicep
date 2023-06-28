@@ -3,48 +3,73 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
 using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.Extensions;
 using Bicep.Core.Features;
 using Bicep.Core.FileSystem;
+using Bicep.Core.Json;
 using Bicep.Core.Modules;
+using Bicep.Core.Semantics;
 using Bicep.Core.Tracing;
 
 namespace Bicep.Core.Registry
 {
+    public readonly record struct TemplateSpecEntity(string Content);
+
     public class TemplateSpecModuleRegistry : ExternalModuleRegistry<TemplateSpecModuleReference, TemplateSpecEntity>
     {
         private readonly ITemplateSpecRepositoryFactory repositoryFactory;
+
         private readonly IFeatureProvider featureProvider;
 
-        public TemplateSpecModuleRegistry(IFileResolver fileResolver, ITemplateSpecRepositoryFactory repositoryFactory, IFeatureProvider featureProvider)
+        private readonly RootConfiguration configuration;
+
+        private readonly Uri parentModuleUri;
+
+        public TemplateSpecModuleRegistry(IFileResolver fileResolver, ITemplateSpecRepositoryFactory repositoryFactory, IFeatureProvider featureProvider, RootConfiguration configuration, Uri parentModuleUri)
             : base(fileResolver)
         {
             this.repositoryFactory = repositoryFactory;
             this.featureProvider = featureProvider;
+            this.configuration = configuration;
+            this.parentModuleUri = parentModuleUri;
         }
 
         public override string Scheme => ModuleReferenceSchemes.TemplateSpecs;
 
         public override RegistryCapabilities GetCapabilities(TemplateSpecModuleReference reference) => RegistryCapabilities.Default;
 
-        public override ModuleReference? TryParseModuleReference(string? aliasName, string reference, RootConfiguration configuration, out DiagnosticBuilder.ErrorBuilderDelegate? failureBuilder) =>
-            TemplateSpecModuleReference.TryParse(aliasName, reference, configuration, out failureBuilder);
+        public override bool TryParseModuleReference(string? aliasName, string reference, [NotNullWhen(true)] out ModuleReference? moduleReference, [NotNullWhen(false)] out DiagnosticBuilder.ErrorBuilderDelegate? failureBuilder)
+        {
+            if (TemplateSpecModuleReference.TryParse(aliasName, reference, configuration, parentModuleUri, out var @ref, out failureBuilder))
+            {
+                moduleReference = @ref;
+                return true;
+            }
+
+            moduleReference = null;
+            return false;
+        }
 
         public override bool IsModuleRestoreRequired(TemplateSpecModuleReference reference) =>
             !this.FileResolver.FileExists(this.GetModuleEntryPointUri(reference));
 
-        public override Task PublishModule(RootConfiguration configuration, TemplateSpecModuleReference reference, Stream compiled) => throw new NotSupportedException("Template Spec modules cannot be published.");
+        public override Task PublishModule(TemplateSpecModuleReference reference, Stream compiled, string? documentationUri, string? description) => throw new NotSupportedException("Template Spec modules cannot be published.");
 
-        public override Uri? TryGetLocalModuleEntryPointUri(Uri? parentModuleUri, TemplateSpecModuleReference reference, out DiagnosticBuilder.ErrorBuilderDelegate? failureBuilder)
+        public override Task<bool> CheckModuleExists(TemplateSpecModuleReference reference) => throw new NotSupportedException("Template Spec modules cannot be published.");
+
+        public override bool TryGetLocalModuleEntryPointUri(TemplateSpecModuleReference reference, [NotNullWhen(true)] out Uri? localUri, [NotNullWhen(false)] out DiagnosticBuilder.ErrorBuilderDelegate? failureBuilder)
         {
             failureBuilder = null;
-            return this.GetModuleEntryPointUri(reference);
+            localUri = this.GetModuleEntryPointUri(reference);
+            return true;
         }
 
-        public override async Task<IDictionary<ModuleReference, DiagnosticBuilder.ErrorBuilderDelegate>> RestoreModules(RootConfiguration configuration, IEnumerable<TemplateSpecModuleReference> references)
+        public override async Task<IDictionary<ModuleReference, DiagnosticBuilder.ErrorBuilderDelegate>> RestoreModules(IEnumerable<TemplateSpecModuleReference> references)
         {
             var statuses = new Dictionary<ModuleReference, DiagnosticBuilder.ErrorBuilderDelegate>();
 
@@ -82,7 +107,7 @@ namespace Bicep.Core.Registry
         }
 
         protected override void WriteModuleContent(TemplateSpecModuleReference reference, TemplateSpecEntity entity) =>
-            File.WriteAllText(this.GetModuleEntryPointPath(reference), entity.ToUtf8Json());
+            File.WriteAllText(this.GetModuleEntryPointPath(reference), entity.Content);
 
         protected override string GetModuleDirectoryPath(TemplateSpecModuleReference reference) => Path.Combine(
             this.featureProvider.CacheRootDirectory,
@@ -97,5 +122,31 @@ namespace Bicep.Core.Registry
         private string GetModuleEntryPointPath(TemplateSpecModuleReference reference) => Path.Combine(this.GetModuleDirectoryPath(reference), "main.json");
 
         private Uri GetModuleEntryPointUri(TemplateSpecModuleReference reference) => new(this.GetModuleEntryPointPath(reference), UriKind.Absolute);
+
+        public override async Task<IDictionary<ModuleReference, DiagnosticBuilder.ErrorBuilderDelegate>> InvalidateModulesCache(IEnumerable<TemplateSpecModuleReference> references)
+        {
+            return await base.InvalidateModulesCacheInternal(references);
+        }
+
+        public override string? TryGetDocumentationUri(TemplateSpecModuleReference moduleReference) => null;
+
+        public override Task<string?> TryGetDescription(TemplateSpecModuleReference moduleReference)
+        {
+            try
+            {
+                string entrypointPath = this.GetModuleEntryPointPath(moduleReference);
+                if (File.Exists(entrypointPath))
+                {
+                    using var stream = File.OpenRead(entrypointPath);
+                    return Task.FromResult(DescriptionHelper.TryGetFromTemplateSpec(stream));
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return Task.FromResult<string?>(null);
+        }
     }
 }

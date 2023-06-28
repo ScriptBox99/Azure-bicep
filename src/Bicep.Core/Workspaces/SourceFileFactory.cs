@@ -23,18 +23,53 @@ namespace Bicep.Core.Workspaces
             LineInfoHandling = LineInfoHandling.Ignore,
         };
 
-        public static ISourceFile CreateSourceFile(Uri fileUri, string fileContents, ModuleReference? moduleReference = null)
+        public static BicepSourceFile? TryCreateSourceFileByBicepLanguageId(Uri fileUri, string fileContents, string languageId) => languageId switch
         {
-            if (PathHelper.HasExtension(fileUri, LanguageConstants.JsonFileExtension) ||
-                PathHelper.HasExtension(fileUri, LanguageConstants.JsoncFileExtension) ||
-                PathHelper.HasExtension(fileUri, LanguageConstants.ArmTemplateFileExtension))
+            LanguageConstants.LanguageId => CreateBicepFile(fileUri, fileContents),
+            LanguageConstants.ParamsLanguageId => CreateBicepParamFile(fileUri, fileContents),
+            _ => null
+        };
+
+
+        public static BicepSourceFile? TryCreateSourceFileByFileKind(Uri fileUri, string fileContents, BicepSourceFileKind? fileKind) => fileKind switch
+        {
+            BicepSourceFileKind.BicepFile => CreateBicepFile(fileUri, fileContents),
+            BicepSourceFileKind.ParamsFile => CreateBicepParamFile(fileUri, fileContents),
+            null => null,
+            _ => throw new NotImplementedException($"Unexpected file kind '{fileKind}'.")
+        };
+
+        public static ISourceFile? TryCreateSourceFile(Uri fileUri, string fileContents, ModuleReference? moduleReference = null)
+        {
+            if (PathHelper.HasArmTemplateLikeExtension(fileUri))
             {
                 return moduleReference is TemplateSpecModuleReference
                     ? CreateTemplateSpecFile(fileUri, fileContents)
                     : CreateArmTemplateFile(fileUri, fileContents);
             }
 
-            return CreateBicepFile(fileUri, fileContents);
+            if (PathHelper.HasBicepExtension(fileUri))
+            {
+                return CreateBicepFile(fileUri, fileContents);
+            }
+
+            if (PathHelper.HasBicepparamsExension(fileUri))
+            {
+                return CreateBicepParamFile(fileUri, fileContents);
+            }
+
+            return null;
+        }
+
+        public static ISourceFile CreateSourceFile(Uri fileUri, string fileContents, ModuleReference? moduleReference = null) =>
+            TryCreateSourceFile(fileUri, fileContents, moduleReference) ?? CreateBicepFile(fileUri, fileContents);
+
+        public static BicepParamFile CreateBicepParamFile(Uri fileUri, string fileContents)
+        {
+            var parser = new ParamsParser(fileContents);
+            var lineStarts = TextCoordinateConverter.GetLineStarts(fileContents);
+
+            return new(fileUri, lineStarts, parser.Program(), parser.LexingErrorLookup, parser.ParsingErrorLookup);
         }
 
         public static BicepFile CreateBicepFile(Uri fileUri, string fileContents)
@@ -42,7 +77,7 @@ namespace Bicep.Core.Workspaces
             var parser = new Parser(fileContents);
             var lineStarts = TextCoordinateConverter.GetLineStarts(fileContents);
 
-            return new(fileUri, lineStarts, parser.Program());
+            return new(fileUri, lineStarts, parser.Program(), parser.LexingErrorLookup, parser.ParsingErrorLookup);
         }
 
         public static ArmTemplateFile CreateArmTemplateFile(Uri fileUri, string fileContents)

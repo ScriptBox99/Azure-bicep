@@ -13,13 +13,13 @@ namespace Bicep.Core.Semantics
             string genericDescription,
             string description,
             Regex wildcardRegex,
-            ReturnTypeBuilderDelegate returnTypeBuilder,
+            ResultBuilderDelegate resultBuilder,
             TypeSymbol returnType,
             IEnumerable<FixedFunctionParameter> fixedArgumentTypes,
             VariableFunctionParameter? variableArgumentType,
-            EvaluatorDelegate? expressionEmitterDelegate,
+            EvaluatorDelegate? evaluator,
             FunctionFlags flags = FunctionFlags.Default)
-            : base(name, genericDescription, description, returnTypeBuilder, returnType, fixedArgumentTypes, variableArgumentType, expressionEmitterDelegate, flags)
+            : base(name, genericDescription, description, resultBuilder, returnType, fixedArgumentTypes, variableArgumentType, evaluator, flags)
         {
             WildcardRegex = wildcardRegex;
         }

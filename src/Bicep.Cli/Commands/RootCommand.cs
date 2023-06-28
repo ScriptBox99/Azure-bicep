@@ -2,18 +2,20 @@
 // Licensed under the MIT License.
 
 using Bicep.Cli.Arguments;
-using Bicep.Cli.Services;
+using Bicep.Core.Exceptions;
 using System;
+using System.IO;
+using System.IO.Compression;
 
 namespace Bicep.Cli.Commands
 {
     public class RootCommand : ICommand
     {
-        private readonly InvocationContext invocationContext;
+        private readonly IOContext io;
 
-        public RootCommand(InvocationContext invocationContext)
+        public RootCommand(IOContext io)
         {
-            this.invocationContext = invocationContext;
+            this.io = io;
         }
 
         public int Run(RootArguments args)
@@ -30,6 +32,18 @@ namespace Bicep.Cli.Commands
                 return 0;
             }
 
+            if(args.PrintLicense)
+            {
+                PrintLicense();
+                return 0;
+            }
+
+            if(args.PrintThirdPartyNotices)
+            {
+                PrintThirdPartyNotices();
+                return 0;
+            }
+
             return 1;
         }
 
@@ -37,28 +51,6 @@ namespace Bicep.Cli.Commands
         {
             var exeName = ThisAssembly.AssemblyName;
             var versionString = GetVersionString();
-
-            var registryText =
-$@"
-  {exeName} publish <file> --target <ref>
-    Publishes the .bicep file to the module registry.
-
-    Arguments:
-      <file>        The input file
-      <ref>         The module reference
-
-    Examples:
-      bicep publish file.bicep --target br:example.azurecr.io/hello/world:v1
-
-  {exeName} restore <file>
-    Restores external modules from the specified Bicep file to the local module cache.
-
-    Arguments:
-      <file>        The input file
-
-";
-
-            var registryPlaceholder = this.invocationContext.Features.RegistryEnabled ? registryText : Environment.NewLine;
 
             var output =
 $@"Bicep CLI version {versionString}
@@ -71,19 +63,41 @@ Usage:
       <file>        The input file
 
     Options:
-      --outdir <dir>    Saves the output at the specified directory.
-      --outfile <file>  Saves the output as the specified file path.
-      --no-summary      Omits the summary at the end of the build.
-      --stdout          Prints the output to stdout.
-      --no-restore      Builds the bicep file without restoring external modules.
+      --outdir <dir>                Saves the output at the specified directory.
+      --outfile <file>              Saves the output as the specified file path.
+      --stdout                      Prints the output to stdout.
+      --no-restore                  Builds the bicep file without restoring external modules.
+      --diagnostics-format <format>  Sets the format with which diagnostics are displayed. Valid values are ( {string.Join(" | ", Enum.GetNames(typeof(DiagnosticsFormat)))} ).
 
     Examples:
       bicep build file.bicep
       bicep build file.bicep --stdout
-      bicep build file.bicep --no-summary
       bicep build file.bicep --outdir dir1
       bicep build file.bicep --outfile file.json
       bicep build file.bicep --no-restore
+      bicep build file.bicep --diagnostics-format sarif
+
+    {exeName} format [options] <file>
+    Formats a .bicep file.
+
+    Arguments:
+      <file>        The input file
+
+    Options:
+      --outdir <dir>        Saves the output at the specified directory.
+      --outfile <file>      Saves the output as the specified file path.
+      --stdout              Prints the output to stdout.
+      --newline             Set newline char. Valid values are ( Auto | LF | CRLF | CR ).
+      --indentKind          Set indentation kind. Valid values are ( Space | Tab ).
+      --indentSize          Number of spaces to indent with (Only valid with --indentKind set to Space).
+      --insertFinalNewline  Insert a final newline.
+
+    Examples:
+      bicep format file.bicep
+      bicep format file.bicep --stdout
+      bicep format file.bicep --outdir dir1
+      bicep format file.bicep --outfile file.json
+      bicep format file.bicep --indentKind Tab
 
   {exeName} decompile [options] <file>
     Attempts to decompile a template .json file to .bicep.
@@ -95,28 +109,128 @@ Usage:
       --outdir <dir>    Saves the output at the specified directory.
       --outfile <file>  Saves the output as the specified file path.
       --stdout          Prints the output to stdout.
+      --force           Allows overwriting the output file if it exists (applies only to 'bicep decompile' or 'bicep decompile-params').
 
     Examples:
       bicep decompile file.json
       bicep decompile file.json --stdout
       bicep decompile file.json --outdir dir1
+      bicep decompile file.json --force
       bicep decompile file.json --outfile file.bicep
-{registryPlaceholder}  {exeName} [options]
+
+  {exeName} decompile-params [options] <file>
+    Attempts to decompile a parameters .json file to .bicepparam.
+
+    Arguments:
+      <file>        The input file
+
     Options:
-      --version  -v   Shows bicep version information
-      --help     -h   Shows this usage information
+      --outdir <dir>    Saves the output at the specified directory.
+      --outfile <file>  Saves the output as the specified file path.
+      --stdout          Prints the output to stdout.
+      --force           Allows overwriting the output file if it exists (applies only to 'bicep decompile' or 'bicep decompile-params').
+      --bicep-file      Path to the bicep template file (relative to the .bicepparam file) that will be referenced in the using declaration
+
+    Examples:
+      bicep decompile-params file.json
+      bicep decompile-params file.json --bicep-file ./dir/main.bicep
+      bicep decompile-params file.json --stdout
+      bicep decompile-params file.json --outdir dir1
+      bicep decompile-params file.json --force
+      bicep decompile-params file.json --outfile file.bicepparam
+
+  {exeName} generate-params [options] <file>
+    Builds parameters file from the given bicep file, updates if there is an existing parameters file.
+
+    Arguments:
+      <file>        The input file
+
+    Options:
+      --no-restore      Generates the parameters file without restoring external modules.
+      --outdir <dir>    Saves the output at the specified directory.
+      --outfile <file>  Saves the output as the specified file path.
+      --stdout          Prints the output to stdout.
+      --output-format   Selects the output format {{json, bicepparam}}
+      --include-params  Selects which parameters to include into output {{requiredonly, all}}
+
+    Examples:
+      bicep generate-params file.bicep
+      bicep generate-params file.bicep --no-restore
+      bicep generate-params file.bicep --stdout
+      bicep generate-params file.bicep --outdir dir1
+      bicep generate-params file.bicep --outfile file.parameters.json
+      bicep generate-params file.bicep --output-format bicepparam --include-params all
+
+  {exeName} publish <file> --target <ref>
+    Publishes the .bicep file to the module registry.
+
+    Arguments:
+      <file>        The input file (can be a Bicep file or an ARM template file)
+      <ref>         The module reference
+
+    Options:
+      --documentationUri  Module documentation uri
+      --force             Overwrite existing published module or file
+
+    Examples:
+      bicep publish file.bicep --target br:example.azurecr.io/hello/world:v1
+      bicep publish file.bicep --target br:example.azurecr.io/hello/world:v1 --force
+      bicep publish file.json --target br:example.azurecr.io/hello/world:v1
+      bicep publish file.json --target br:example.azurecr.io/hello/world:v1 --documentationUri https://github.com/hello-world/README.md
+
+  {exeName} restore <file>
+    Restores external modules from the specified Bicep file to the local module cache.
+
+    Arguments:
+      <file>        The input file
+
+  {exeName} [options]
+    Options:
+      --version              -v   Shows bicep version information
+      --help                 -h   Shows this usage information
+      --license                   Prints license information
+      --third-party-notices       Prints third-party notices
+
+  {exeName} build-params <file>
+    Builds .bicepparam file.
+
+    Arguments:
+      <file>        The input Bicepparam file
+
+    Options:
+      --bicep-file <file> Verifies if the specified bicep file path matches the one provided in the params file using declaration
+      --outfile <file>  Saves the param output json as the specified file path.
+      --stdout          Prints the param and bicep json output to stdout.
+      --no-restore      Builds the bicep file (referenced in using declaration) without restoring external modules.
+
+    Examples:
+      bicep build-params params.bicepparam
+      bicep build-params params.bicepparam --stdout
+      bicep build-params params.bicepparam --outfile otherParams.json
+      bicep build-params params.bicepparam --no-restore
+
 "; // this newline is intentional
 
-            invocationContext.OutputWriter.Write(output);
-            invocationContext.OutputWriter.Flush();
+            io.Output.Write(output);
+            io.Output.Flush();
         }
 
         private void PrintVersion()
         {
             var output = $@"Bicep CLI version {GetVersionString()}{Environment.NewLine}";
 
-            invocationContext.OutputWriter.Write(output);
-            invocationContext.OutputWriter.Flush();
+            io.Output.Write(output);
+            io.Output.Flush();
+        }
+
+        private void PrintLicense()
+        {
+            WriteEmbeddedResource(io.Output, "LICENSE.deflated");
+        }
+
+        private void PrintThirdPartyNotices()
+        {
+            WriteEmbeddedResource(io.Output, "NOTICE.deflated");
         }
 
         private static string GetVersionString()
@@ -125,6 +239,21 @@ Usage:
 
             // <major>.<minor>.<patch> (<commmithash>)
             return $"{versionSplit[0]} ({(versionSplit.Length > 1 ? versionSplit[1] : "custom")})";
+        }
+
+        private static void WriteEmbeddedResource(TextWriter writer, string streamName)
+        {
+            using var stream = typeof(RootCommand).Assembly.GetManifestResourceStream(streamName)
+                ?? throw new BicepException($"The resource stream '{streamName}' is missing from this executable.");
+
+            using var decompressor = new DeflateStream(stream, CompressionMode.Decompress);
+
+            using var reader = new StreamReader(decompressor);
+            string? line = null;
+            while((line = reader.ReadLine()) is not null)
+            {
+                writer.WriteLine(line);
+            }
         }
     }
 }

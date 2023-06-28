@@ -72,7 +72,7 @@ namespace Bicep.Core.Semantics
                     _ => builder.SymbolicNameDoesNotExistWithSuggestion(identifierSyntax.IdentifierName, suggestedName),
                 });
 
-        public static Symbol ResolveUnqualifiedSymbol(Symbol? foundSymbol, IdentifierSyntax identifierSyntax, NamespaceResolver namespaceResolver, IEnumerable<string> declarations)
+        public static Symbol ResolveUnqualifiedSymbol(Symbol? foundSymbol, IdentifierSyntax identifierSyntax, NamespaceResolver namespaceResolver)
             => ResolveSymbolInternal(
                 FunctionFlags.Default,
                 foundSymbol,
@@ -130,6 +130,11 @@ namespace Bicep.Core.Semantics
                 return new ErrorSymbol(DiagnosticBuilder.ForPosition(span).CannotUseFunctionAsParameterDecorator(functionSymbol.Name));
             }
 
+            if (!functionFlags.HasFlag(FunctionFlags.TypeDecorator) && allowedFlags.HasFlag(FunctionFlags.TypeDecorator))
+            {
+                return new ErrorSymbol(DiagnosticBuilder.ForPosition(span).CannotUseFunctionAsTypeDecorator(functionSymbol.Name));
+            }
+
             if (!functionFlags.HasFlag(FunctionFlags.VariableDecorator) && allowedFlags.HasFlag(FunctionFlags.VariableDecorator))
             {
                 return new ErrorSymbol(DiagnosticBuilder.ForPosition(span).CannotUseFunctionAsVariableDecorator(functionSymbol.Name));
@@ -148,6 +153,11 @@ namespace Bicep.Core.Semantics
             if (!functionFlags.HasFlag(FunctionFlags.OutputDecorator) && allowedFlags.HasFlag(FunctionFlags.OutputDecorator))
             {
                 return new ErrorSymbol(DiagnosticBuilder.ForPosition(span).CannotUseFunctionAsOutputDecorator(functionSymbol.Name));
+            }
+
+            if (!functionFlags.HasFlag(FunctionFlags.MetadataDecorator) && allowedFlags.HasFlag(FunctionFlags.MetadataDecorator))
+            {
+                return new ErrorSymbol(DiagnosticBuilder.ForPosition(span).CannotUseFunctionAsMetadataDecorator(functionSymbol.Name));
             }
 
             return functionSymbol;

@@ -154,6 +154,21 @@ resource baz 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   apiVersion: true
 }
 
+resource readOnlyPropertyAssignment 'Microsoft.Network/virtualNetworks@2020-06-01' = {
+  name: 'vnet-bicep'
+  location: 'westeurope'
+  etag: 'assigning-to-read-only-value'
+  properties: {
+    resourceGuid: 'assigning-to-read-only-value'
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: []
+  }
+}
+
 resource badDepends 'Microsoft.Foo/foos@2020-02-02-alpha' = {
   name: 'test'
   dependsOn: [
@@ -268,12 +283,6 @@ resource runtimeInvalidRes8 'Microsoft.Advisor/recommendations/suppressions@2020
   name: runtimeValidRes2['${magicString1}']
 }
 
-// note: this should be fine, but we block string interpolation all together if there's a potential runtime property usage for name.
-var magicString2 = 'name'
-resource runtimeInvalidRes9 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
-  name: runtimeValidRes2['${magicString2}']
-}
-
 resource runtimeInvalidRes10 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
   name: '${runtimeValidRes3.location}'
 }
@@ -349,6 +358,10 @@ resource runtimeValidRes9 'Microsoft.Advisor/recommendations/suppressions@2020-0
   name: runtimeValid.foo4
 }
 
+var magicString2 = 'name'
+resource runtimeValidRes10 'Microsoft.Advisor/recommendations/suppressions@2020-01-01' = {
+  name: runtimeValidRes2['${magicString2}']
+}
 
 resource loopForRuntimeCheck 'Microsoft.Network/dnsZones@2018-05-01' = [for thing in []: {
   name: 'test'
@@ -1591,4 +1604,11 @@ resource issue4668_mainResource 'Microsoft.Resources/deploymentScripts@2020-10-0
   kind: issue4668_kind
   identity: issue4668_identity
   properties: issue4668_properties
+}
+
+// https://github.com/Azure/bicep/issues/8516
+resource storage 'Microsoft.Storage/storageAccounts@2022-05-01' existing = {
+  resource blobServices 'blobServices' existing = {
+    name: $account
+  }
 }

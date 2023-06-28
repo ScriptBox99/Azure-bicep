@@ -2,15 +2,17 @@
 // Licensed under the MIT License.
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.Emit;
 using Bicep.Core.Extensions;
 using Bicep.Core.Parsing;
 using Bicep.Core.Text;
+using Microsoft.WindowsAzure.ResourceStack.Common.Extensions;
 
 namespace Bicep.Core.UnitTests.Utils
 {
@@ -22,17 +24,51 @@ namespace Bicep.Core.UnitTests.Utils
             .Replace("\n", "\\n")
             .Replace("\t", "\\t");
 
-        public static string AddDiagsToSourceText<T>(string bicepOutput, string newlineSequence, IEnumerable<T> items, Func<T, TextSpan> getSpanFunc, Func<T, string> diagsFunc)
+        private static int CountDigits(int number)
+        {
+            if (number == 0)
+            {
+                return 1;
+            }
+
+            var count = 0;
+            while (number != 0)
+            {
+                number /= 10;
+                ++count;
+            }
+
+            return count;
+        }
+
+        private static Func<int, string> GetPaddingFunc(IEnumerable<int> integers)
+        {
+            var padding = integers.Any() ? CountDigits(integers.Max()) : 0;
+
+            return x => x.ToInvariantString().PadLeft(padding, '0');
+        }
+
+        public static string AddDiagsToSourceText<T>(string bicepOutput, string newlineSequence, IEnumerable<T> items, Func<T, TextSpan> getSpanFunc, Func<T, string> diagsFunc, bool isLinePreformatted = false)
         {
             var lineStarts = TextCoordinateConverter.GetLineStarts(bicepOutput);
 
-            var itemsByLine = items
+            var diagsByLine = items
                 .Select(item =>
                 {
-                    var (line, character) = TextCoordinateConverter.GetPosition(lineStarts, getSpanFunc(item).Position);
-                    return (line, character, item);
+                    var span = getSpanFunc(item);
+                    var (line, startChar) = TextCoordinateConverter.GetPosition(lineStarts, span.Position);
+                    var endChar = startChar + span.Length;
+
+                    var escapedText = EscapeWhitespace(diagsFunc(item));
+
+                    return (line, startChar, endChar, escapedText);
                 })
                 .ToLookup(t => t.line);
+
+            var diags = diagsByLine.SelectMany(x => x);
+
+            var padStartChar = GetPaddingFunc(diags.Select(x => x.startChar));
+            var padEndChar = GetPaddingFunc(diags.Select(x => x.endChar));
 
             var sourceTextLines = bicepOutput.Split(newlineSequence);
             var stringBuilder = new StringBuilder();
@@ -41,10 +77,20 @@ namespace Bicep.Core.UnitTests.Utils
             {
                 stringBuilder.Append(sourceTextLines[i]);
                 stringBuilder.Append(newlineSequence);
-                foreach (var (line, character, item) in itemsByLine[i])
+                foreach (var diag in diagsByLine[i])
                 {
-                    var escapedDiagsText = EscapeWhitespace(diagsFunc(item));
-                    stringBuilder.Append($"//@[{character}:{character + getSpanFunc(item).Length}) {escapedDiagsText}");
+                    // Pad the start & end char with zeros to ensure that the escaped text always starts at the same place
+                    // This makes it easier to compare lines visually
+                    if (isLinePreformatted)
+                    {
+                        stringBuilder.Append(diag.escapedText);
+                    }
+                    else
+                    {
+                        var startCharPadded = padStartChar(diag.startChar);
+                        var endCharPadded = padEndChar(diag.endChar);
+                        stringBuilder.Append($"//@[{startCharPadded}:{endCharPadded}) {diag.escapedText}");
+                    }
                     stringBuilder.Append(newlineSequence);
                 }
             }
@@ -52,9 +98,36 @@ namespace Bicep.Core.UnitTests.Utils
             return stringBuilder.ToString();
         }
 
-        public static string AddDiagsToSourceText<TPositionable>(string bicepOutput, string newlineSequence, IEnumerable<TPositionable> items, Func<TPositionable, string> diagsFunc)
+        public static string AddDiagsToSourceText<TPositionable>(string bicepOutput, string newlineSequence, IEnumerable<TPositionable> items, Func<TPositionable, string> diagsFunc, bool isLinePreformatted = false)
             where TPositionable : IPositionable
-            => AddDiagsToSourceText(bicepOutput, newlineSequence, items, item => item.Span, diagsFunc);
+            => AddDiagsToSourceText(bicepOutput, newlineSequence, items, item => item.Span, diagsFunc, isLinePreformatted);
+
+        private record SourceMapDiags(TextSpan Span, string JsonLine) : IPositionable;
+
+        public static string AddSourceMapToSourceText(string bicepOutput, string bicepFilePath, string newlineSequence, SourceMap sourceMap, string[] jsonLines)
+        {
+            // get source map entries for bicep file to annotate
+            var fileEntry = sourceMap.Entries.FirstOrDefault(entry => string.Compare(entry.FilePath, bicepFilePath) == 0);
+            if (fileEntry is null)
+            {
+                return bicepOutput;
+            }
+
+            var lineStarts = TextCoordinateConverter.GetLineStarts(bicepOutput);
+            var sourceMapDiags = fileEntry.SourceMap.Select(entry => {
+                var offset = TextCoordinateConverter.GetOffset(lineStarts, entry.SourceLine, 0);
+                var jsonLine = jsonLines[entry.TargetLine];
+
+                return new SourceMapDiags(new(offset, 0), jsonLine);
+            });
+
+            return AddDiagsToSourceText(
+                bicepOutput,
+                newlineSequence,
+                sourceMapDiags,
+                e => $"//@{e.JsonLine}",
+                isLinePreformatted: true);
+        }
 
         public static string GetSpanText(string sourceText, IPositionable positionable)
         {
@@ -70,7 +143,7 @@ namespace Bicep.Core.UnitTests.Utils
             // Normalize file path seperators across OS
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                message = Regex.Replace(message, @"'\${TEST_OUTPUT_DIR}.*?'", new MatchEvaluator((match) => match.Value.Replace('\\', '/')));
+                message = Regex.Replace(message, @"(""|')\${TEST_OUTPUT_DIR}.*?(""|')", new MatchEvaluator((match) => match.Value.Replace('\\', '/')));
             }
 
             var docLink = diagnostic.Uri == null

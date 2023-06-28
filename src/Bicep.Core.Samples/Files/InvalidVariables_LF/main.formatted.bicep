@@ -86,8 +86,16 @@ var myConcat = sys.concat('a', az.concat('b', 'c'))
 // invalid string using double quotes
 var doubleString = "bad string"
 
+// invalid index on array literal
+var nonExistentIndex1 = [][0]
+var nonExistentIndex2 = [ 'foo' ][1]
+var nonExistentIndex3 = [ 'foo', 'bar' ][-1]
+
 var resourceGroup = ''
 var rgName = resourceGroup().name
+
+var subscription = ''
+var subName = subscription().name
 
 // this does not work at the resource group scope
 var invalidLocationVar = deployment().location
@@ -237,4 +245,15 @@ var keyVaultSecretArrayVar = [
 ]
 var keyVaultSecretArrayInterpolatedVar = [
   '${kv.getSecret('mySecret')}'
+]
+
+var listSecrets = ''
+var listSecretsVar = listSecrets()
+
+var copy = [
+  {
+    name: 'one'
+    count: '[notAFunction()]'
+    input: {}
+  }
 ]

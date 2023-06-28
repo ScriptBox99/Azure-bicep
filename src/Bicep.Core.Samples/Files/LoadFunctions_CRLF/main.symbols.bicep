@@ -19,9 +19,9 @@ var loadedBinary2 = sys.loadFileAsBase64('Assets/binary')
 //@[4:17) Variable loadedBinary2. Type: Assets/binary. Declaration start char: 0, length: 57
 
 var loadedTextInterpolation1 = 'Text: ${loadTextContent('Assets/TextFile.CRLF.txt')}'
-//@[4:28) Variable loadedTextInterpolation1. Type: string. Declaration start char: 0, length: 85
+//@[4:28) Variable loadedTextInterpolation1. Type: 'Text: Lorem ipsum dolor sit amet, consectetur adipiscing elit.\r\n\tProin varius in nunc et laoreet.\r\n  Nam pulvinar ipsum sed lectus porttitor, at porttitor ipsum faucibus.\r\n  \tAliquam euismod, odio tincidunt convallis pulvinar, felis sem porttitor turpis, a condimentum dui erat nec tellus.\r\n  Duis elementum cursus est, congue efficitur risus.\r\n\tMauris sit amet.\r\nExcepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\r\n'. Declaration start char: 0, length: 85
 var loadedTextInterpolation2 = 'Text: ${loadTextContent('Assets/TextFile.LF.txt')}'
-//@[4:28) Variable loadedTextInterpolation2. Type: string. Declaration start char: 0, length: 83
+//@[4:28) Variable loadedTextInterpolation2. Type: 'Text: Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n Donec laoreet sem tortor, ut dignissim ipsum ornare vel.\n  Duis ac ipsum turpis.\n\tMaecenas at condimentum dui.\n Suspendisse aliquet efficitur iaculis.\nIn hac habitasse platea dictumst.\nEtiam consectetur ut libero ac lobortis.\n\tNullam vitae auctor massa.\nFusce tincidunt urna purus, sit amet.\n'. Declaration start char: 0, length: 83
 
 var loadedTextObject1 = {
 //@[4:21) Variable loadedTextObject1. Type: object. Declaration start char: 0, length: 84
@@ -37,7 +37,7 @@ var loadedBinaryInObject = {
 }
 
 var loadedTextArray = [
-//@[4:19) Variable loadedTextArray. Type: array. Declaration start char: 0, length: 108
+//@[4:19) Variable loadedTextArray. Type: ['Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n Donec laoreet sem tortor, ut dignissim ipsum ornare vel.\n  Duis ac ipsum turpis.\n\tMaecenas at condimentum dui.\n Suspendisse aliquet efficitur iaculis.\nIn hac habitasse platea dictumst.\nEtiam consectetur ut libero ac lobortis.\n\tNullam vitae auctor massa.\nFusce tincidunt urna purus, sit amet.\n', Assets/binary]. Declaration start char: 0, length: 108
   loadTextContent('Assets/TextFile.LF.txt')
   loadFileAsBase64('Assets/binary')
 ]
@@ -107,4 +107,88 @@ var testJsonObject = testJson.object
 //@[4:18) Variable testJsonObject. Type: object. Declaration start char: 0, length: 36
 var testJsonNestedString = testJson.object.nestedString
 //@[4:24) Variable testJsonNestedString. Type: 'someVal'. Declaration start char: 0, length: 55
+
+var testJson2 = loadJsonContent('./Assets/test.json.txt')
+//@[4:13) Variable testJson2. Type: object. Declaration start char: 0, length: 57
+var testJsonString2 = testJson.string
+//@[4:19) Variable testJsonString2. Type: 'someVal'. Declaration start char: 0, length: 37
+var testJsonString2_1 = loadJsonContent('./Assets/test.json.txt', '.string')
+//@[4:21) Variable testJsonString2_1. Type: 'someVal'. Declaration start char: 0, length: 76
+var testJsonInt2 = testJson.int
+//@[4:16) Variable testJsonInt2. Type: int. Declaration start char: 0, length: 31
+var testJsonInt2_1 = loadJsonContent('./Assets/test.json.txt', '.int')
+//@[4:18) Variable testJsonInt2_1. Type: int. Declaration start char: 0, length: 70
+var testJsonArrayVal2 = testJson.array[0]
+//@[4:21) Variable testJsonArrayVal2. Type: int. Declaration start char: 0, length: 41
+var testJsonArrayVal2_1 = loadJsonContent('./Assets/test.json.txt', '.array[0]')
+//@[4:23) Variable testJsonArrayVal2_1. Type: int. Declaration start char: 0, length: 80
+var testJsonObject2 = testJson.object
+//@[4:19) Variable testJsonObject2. Type: object. Declaration start char: 0, length: 37
+var testJsonObject2_1 = loadJsonContent('./Assets/test.json.txt', '.object')
+//@[4:21) Variable testJsonObject2_1. Type: object. Declaration start char: 0, length: 76
+var testJsonNestedString2 = testJson.object.nestedString
+//@[4:25) Variable testJsonNestedString2. Type: 'someVal'. Declaration start char: 0, length: 56
+var testJsonNestedString2_1 = testJsonObject2_1.nestedString
+//@[4:27) Variable testJsonNestedString2_1. Type: 'someVal'. Declaration start char: 0, length: 60
+var testJsonNestedString2_2 = loadJsonContent('./Assets/test.json.txt', '.object.nestedString')
+//@[4:27) Variable testJsonNestedString2_2. Type: 'someVal'. Declaration start char: 0, length: 95
+
+var testJsonTokensAsArray = loadJsonContent('./Assets/test2.json.txt', '.products[?(@.price > 3)].name')
+//@[4:25) Variable testJsonTokensAsArray. Type: ('pizza' | 'salad')[]. Declaration start char: 0, length: 104
+
+var testYaml = loadYamlContent('./Assets/test.yaml.txt')
+//@[4:12) Variable testYaml. Type: object. Declaration start char: 0, length: 56
+var testYamlString = testYaml.string
+//@[4:18) Variable testYamlString. Type: 'someVal'. Declaration start char: 0, length: 36
+var testYamlInt = testYaml.int
+//@[4:15) Variable testYamlInt. Type: int. Declaration start char: 0, length: 30
+var testYamlBool = testYaml.bool
+//@[4:16) Variable testYamlBool. Type: bool. Declaration start char: 0, length: 32
+var testYamlArrayInt = testYaml.arrayInt
+//@[4:20) Variable testYamlArrayInt. Type: int[]. Declaration start char: 0, length: 40
+var testYamlArrayIntVal = testYaml.arrayInt[0]
+//@[4:23) Variable testYamlArrayIntVal. Type: int. Declaration start char: 0, length: 46
+var testYamlArrayString = testYaml.arrayString
+//@[4:23) Variable testYamlArrayString. Type: ('someVal' | 'someVal2')[]. Declaration start char: 0, length: 46
+var testYamlArrayStringVal = testYaml.arrayString[0]
+//@[4:26) Variable testYamlArrayStringVal. Type: 'someVal' | 'someVal2'. Declaration start char: 0, length: 52
+var testYamlArrayBool = testYaml.arrayBool
+//@[4:21) Variable testYamlArrayBool. Type: bool[]. Declaration start char: 0, length: 42
+var testYamlArrayBoolVal = testYaml.arrayBool[0]
+//@[4:24) Variable testYamlArrayBoolVal. Type: bool. Declaration start char: 0, length: 48
+var testYamlObject = testYaml.object
+//@[4:18) Variable testYamlObject. Type: object. Declaration start char: 0, length: 36
+var testYamlObjectNestedString = testYaml.object.nestedString
+//@[4:30) Variable testYamlObjectNestedString. Type: 'someVal'. Declaration start char: 0, length: 61
+var testYamlObjectNestedInt = testYaml.object.nestedInt
+//@[4:27) Variable testYamlObjectNestedInt. Type: int. Declaration start char: 0, length: 55
+var testYamlObjectNestedBool = testYaml.object.nestedBool
+//@[4:28) Variable testYamlObjectNestedBool. Type: bool. Declaration start char: 0, length: 57
+
+output testYamlString string = testYamlString
+//@[7:21) Output testYamlString. Type: string. Declaration start char: 0, length: 45
+output testYamlInt int = testYamlInt
+//@[7:18) Output testYamlInt. Type: int. Declaration start char: 0, length: 36
+output testYamlBool bool = testYamlBool
+//@[7:19) Output testYamlBool. Type: bool. Declaration start char: 0, length: 39
+output testYamlArrayInt array = testYamlArrayInt
+//@[7:23) Output testYamlArrayInt. Type: array. Declaration start char: 0, length: 48
+output testYamlArrayIntVal int = testYamlArrayIntVal
+//@[7:26) Output testYamlArrayIntVal. Type: int. Declaration start char: 0, length: 52
+output testYamlArrayString array = testYamlArrayString
+//@[7:26) Output testYamlArrayString. Type: array. Declaration start char: 0, length: 54
+output testYamlArrayStringVal string = testYamlArrayStringVal
+//@[7:29) Output testYamlArrayStringVal. Type: string. Declaration start char: 0, length: 61
+output testYamlArrayBool array = testYamlArrayBool
+//@[7:24) Output testYamlArrayBool. Type: array. Declaration start char: 0, length: 50
+output testYamlArrayBoolVal bool = testYamlArrayBoolVal
+//@[7:27) Output testYamlArrayBoolVal. Type: bool. Declaration start char: 0, length: 55
+output testYamlObject object = testYamlObject
+//@[7:21) Output testYamlObject. Type: object. Declaration start char: 0, length: 45
+output testYamlObjectNestedString string = testYamlObjectNestedString
+//@[7:33) Output testYamlObjectNestedString. Type: string. Declaration start char: 0, length: 69
+output testYamlObjectNestedInt int = testYamlObjectNestedInt
+//@[7:30) Output testYamlObjectNestedInt. Type: int. Declaration start char: 0, length: 60
+output testYamlObjectNestedBool bool = testYamlObjectNestedBool
+//@[7:31) Output testYamlObjectNestedBool. Type: bool. Declaration start char: 0, length: 63
 

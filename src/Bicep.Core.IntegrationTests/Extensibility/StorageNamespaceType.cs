@@ -6,7 +6,6 @@ using Bicep.Core.Extensions;
 using Bicep.Core.Resources;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.Semantics;
-using Bicep.Core.TypeSystem.Az;
 
 namespace Bicep.Core.IntegrationTests.Extensibility
 {
@@ -24,7 +23,7 @@ namespace Bicep.Core.IntegrationTests.Extensibility
             BicepProviderName: BuiltInName,
             ConfigurationType: GetConfigurationType(),
             ArmTemplateProviderName: "AzureStorage",
-            ArmTemplateProviderVersion: "1.0");
+            ArmTemplateProviderVersion: "1.0.0");
 
         private static ObjectType GetConfigurationType()
         {
@@ -40,6 +39,8 @@ namespace Bicep.Core.IntegrationTests.Extensibility
                 new ResourceTypeComponents(
                     ResourceTypeReference.Parse("service"),
                     ResourceScope.Tenant | ResourceScope.ManagementGroup | ResourceScope.Subscription | ResourceScope.ResourceGroup,
+                    ResourceScope.None,
+                    ResourceFlags.None,
                     new ObjectType("Service properties", TypeSymbolValidationFlags.Default, new[]
                     {
                         new TypeProperty("staticWebsiteEnabled", LanguageConstants.Bool),
@@ -49,6 +50,8 @@ namespace Bicep.Core.IntegrationTests.Extensibility
                 new ResourceTypeComponents(
                     ResourceTypeReference.Parse("container"),
                     ResourceScope.Tenant | ResourceScope.ManagementGroup | ResourceScope.Subscription | ResourceScope.ResourceGroup,
+                    ResourceScope.None,
+                    ResourceFlags.None,
                     new ObjectType("Container properties", TypeSymbolValidationFlags.Default, new[]
                     {
                         new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.Required),
@@ -56,13 +59,15 @@ namespace Bicep.Core.IntegrationTests.Extensibility
                 new ResourceTypeComponents(
                     ResourceTypeReference.Parse("blob"),
                     ResourceScope.Tenant | ResourceScope.ManagementGroup | ResourceScope.Subscription | ResourceScope.ResourceGroup,
+                    ResourceScope.None,
+                    ResourceFlags.None,
                     new ObjectType("Blob properties", TypeSymbolValidationFlags.Default, new[]
                     {
                         new TypeProperty("containerName", LanguageConstants.String, TypePropertyFlags.Required),
                         new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.Required),
                         new TypeProperty("base64Content", LanguageConstants.String, TypePropertyFlags.Required),
                     }, null)),
-            }.ToImmutableDictionary(x => x.TypeReference, ResourceTypeReferenceComparer.Instance);
+            }.ToImmutableDictionary(x => x.TypeReference);
 
             public ResourceType? TryGenerateFallbackType(NamespaceType declaringNamespace, ResourceTypeReference reference, ResourceTypeGenerationFlags flags)
                 => null;
@@ -74,7 +79,14 @@ namespace Bicep.Core.IntegrationTests.Extensibility
                     return null;
                 }
 
-                return new(declaringNamespace, resourceType.TypeReference, resourceType.ValidParentScopes, resourceType.Body, UniqueIdentifierProperties);
+                return new(
+                    declaringNamespace,
+                    resourceType.TypeReference,
+                    resourceType.ValidParentScopes,
+                    resourceType.ReadOnlyScopes,
+                    resourceType.Flags,
+                    resourceType.Body,
+                    UniqueIdentifierProperties);
             }
 
             public bool HasDefinedType(ResourceTypeReference typeReference)
@@ -89,7 +101,7 @@ namespace Bicep.Core.IntegrationTests.Extensibility
             return new NamespaceType(
                 aliasName,
                 Settings,
-                ImmutableArray<TypeProperty>.Empty,
+                ImmutableArray<TypeTypeProperty>.Empty,
                 ImmutableArray<FunctionOverload>.Empty,
                 ImmutableArray<BannedFunction>.Empty,
                 ImmutableArray<Decorator>.Empty,

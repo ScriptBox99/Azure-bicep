@@ -1,6 +1,8 @@
 # Sample module
 
-Sample description for test
+Sample summary for test
+
+## Details
 
 ## Parameters
 
@@ -25,4 +27,4 @@ Sample description for test
 									| :--------------- | :----: | :--------------------- |
 	| controlPlaneFQDN | string | The control plane FQDN |
 
-
+## Examples

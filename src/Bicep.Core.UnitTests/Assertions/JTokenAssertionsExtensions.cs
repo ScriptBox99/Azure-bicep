@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 
 using System.Linq;
-using Bicep.Core.FileSystem;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using JsonDiffPatchDotNet;
@@ -38,25 +37,35 @@ namespace Bicep.Core.UnitTests.Assertions
             return string.Join('\n', lineLogs);
         }
 
-        public static AndConstraint<JTokenAssertions> EqualWithJsonDiffOutput(this JTokenAssertions instance, TestContext testContext, JToken expected, string expectedLocation, string actualLocation, string because = "", params object[] becauseArgs)
+        public static AndConstraint<JTokenAssertions> EqualWithJsonDiffOutput(this JTokenAssertions instance, TestContext testContext, JToken expected, string expectedLocation, string actualLocation, string because = "", bool validateLocation = true, params object[] becauseArgs)
         {
             var jsonDiff = GetJsonDiff(instance.Subject, expected);
 
             var testPassed = jsonDiff is null;
-            var isBaselineUpdate = !testPassed && BaselineHelper.ShouldSetBaseline(testContext);
-            if (isBaselineUpdate)
+            if (validateLocation)
             {
-                BaselineHelper.SetBaseline(actualLocation, expectedLocation);
-            }
+                var isBaselineUpdate = !testPassed && BaselineHelper.ShouldSetBaseline(testContext);
+                if (isBaselineUpdate)
+                {
+                    BaselineHelper.SetBaseline(actualLocation, expectedLocation);
+                }
 
-            Execute.Assertion
-                .BecauseOf(because, becauseArgs)
-                .ForCondition(testPassed)
-                .FailWith(
-                    BaselineHelper.GetAssertionFormatString(isBaselineUpdate),
-                    jsonDiff,
-                    BaselineHelper.GetAbsolutePathRelativeToRepoRoot(actualLocation),
-                    BaselineHelper.GetAbsolutePathRelativeToRepoRoot(expectedLocation));
+                Execute.Assertion
+                    .BecauseOf(because, becauseArgs)
+                    .ForCondition(testPassed)
+                    .FailWith(
+                        BaselineHelper.GetAssertionFormatString(isBaselineUpdate),
+                        jsonDiff,
+                        BaselineHelper.GetAbsolutePathRelativeToRepoRoot(actualLocation),
+                        BaselineHelper.GetAbsolutePathRelativeToRepoRoot(expectedLocation));
+            }
+            else
+            {
+                Execute.Assertion
+                    .BecauseOf(because, becauseArgs)
+                    .ForCondition(testPassed)
+                    .FailWith(jsonDiff);
+            }
 
             return new AndConstraint<JTokenAssertions>(instance);
         }

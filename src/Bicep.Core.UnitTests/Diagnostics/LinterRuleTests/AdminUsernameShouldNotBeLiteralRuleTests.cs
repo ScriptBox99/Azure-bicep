@@ -2,20 +2,16 @@
 // Licensed under the MIT License.
 
 using Bicep.Core.Analyzers.Linter.Rules;
-using Bicep.Core.UnitTests.Assertions;
-using FluentAssertions;
-using FluentAssertions.Execution;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Linq;
 
 namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
 {
     [TestClass]
     public class AdminUsernameShouldNotBeLiteralRuleTests : LinterRuleTestsBase
     {
-        private void CompileAndTest(string text, int expectedErrorCount, OnCompileErrors onCompileErrors = OnCompileErrors.Fail)
+        private void CompileAndTest(string text, int expectedErrorCount, Options? options = null)
         {
-            AssertLinterRuleDiagnostics(AdminUsernameShouldNotBeLiteralRule.Code, text, expectedErrorCount, onCompileErrors);
+            AssertLinterRuleDiagnostics(AdminUsernameShouldNotBeLiteralRule.Code, text, expectedErrorCount, options);
         }
 
         [DataRow(1, @" // This is the failing example in the docs
@@ -35,7 +31,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             CompileAndTest(text, diagnosticCount);
         }
 
-        [DataRow(1, @"        
+        [DataRow(1, @"
             resource vm 'Microsoft.Compute/virtualMachines@2020-12-01' = {
               name: 'name'
               location: resourceGroup().location
@@ -134,7 +130,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
                   adminUsername: p1
                 }
               }
-            }        
+            }
         ")]
         [DataTestMethod]
         public void If_UsesParameter_ShouldPass(string text)
@@ -155,7 +151,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
                   adminUsername: p.v
                 }
               }
-            }        
+            }
         ")]
         [DataTestMethod]
         public void If_UsesObjectParameterPropertyRef_ShouldPass(string text)
@@ -163,7 +159,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             CompileAndTest(text, 0);
         }
 
-        // TTK shows this error: AdminUsername ""adminUserName"" is variable which is not an expression  
+        // TTK shows this error: AdminUsername ""adminUserName"" is variable which is not an expression
         [DataRow(1, @"
             var adminUsername = 'hello'
 
@@ -175,7 +171,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
                   adminUsername: adminUsername
                 }
               }
-            }        
+            }
         ")]
         [DataTestMethod]
         public void If_UsesStringVariable_ShouldFail(int diagnosticCount, string text)
@@ -184,13 +180,13 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         }
 
         [DataRow(@"
-            var v = 'value'
+            param idx int
             resource vm 'Microsoft.Compute/virtualMachines@2020-12-01' = {
               name: 'name'
               location: resourceGroup().location
               properties: {
                 osProfile: {
-                  adminUsername: '${v}'
+                  adminUsername: 'admin${idx}'
                 }
               }
             }
@@ -201,7 +197,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
             CompileAndTest(text, 0);
         }
 
-        [DataRow(@"        
+        [DataRow(@"
             resource vm 'Microsoft.Compute/virtualMachines@2020-12-01' = {
               name: 'name'
               location: resourceGroup().location
@@ -290,7 +286,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         [DataTestMethod]
         public void If_UsesObjectVariable_ThatResolvesToUndefined_ShouldPass(string text)
         {
-            CompileAndTest(text, 0, OnCompileErrors.Ignore);
+            CompileAndTest(text, 0, new Options(OnCompileErrors.Ignore));
         }
 
         [DataRow(@"
@@ -315,7 +311,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         [DataTestMethod]
         public void If_UsesObjectVariables_ThatContainsSyntaxError_ShouldPass(string text)
         {
-            CompileAndTest(text, 0, OnCompileErrors.Ignore);
+            CompileAndTest(text, 0, new Options(OnCompileErrors.Ignore));
         }
 
         [DataRow(@"
@@ -340,7 +336,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
         [DataTestMethod]
         public void If_UsesObjectVariables_AndReferencesInvalidProperty_ShouldPass(string text)
         {
-            CompileAndTest(text, 0, OnCompileErrors.Ignore);
+            CompileAndTest(text, 0, new Options(OnCompileErrors.Ignore));
         }
 
         // TTK shows this error: AdminUsername references variable 'v1', which has a literal value.
@@ -408,7 +404,7 @@ namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
                   adminUsername: o1.o2.admin   // evaluates to a string literal
                 }
               }
-            }        
+            }
         ")]
         [DataTestMethod]
         public void If_UsesObjectVariable_ThatResolvesDeeplyToStringLiteral_ShouldFail(int diagnosticCount, string text)

@@ -1,14 +1,14 @@
-/* 
+/*
   This is a block comment.
 */
 
 // parameters without default value
 @sys.description('''
-this is my multi line 
+this is my multi line
 description for my myString
 ''')
 param myString string
-//@[6:14) Parameter myString. Type: string. Declaration start char: 0, length: 98
+//@[6:14) Parameter myString. Type: string. Declaration start char: 0, length: 97
 param myInt int
 //@[6:11) Parameter myInt. Type: int. Declaration start char: 0, length: 15
 param myBool bool
@@ -37,7 +37,7 @@ param myEscapedString string = 'First line\r\nSecond\ttabbed\tline'
   another: 'just for fun'
 })
 param foo object = {
-//@[6:9) Parameter foo. Type: object. Declaration start char: 0, length: 348
+//@[6:09) Parameter foo. Type: object. Declaration start char: 0, length: 348
   enabled: true
   name: 'this is my object'
   priority: 3
@@ -85,6 +85,14 @@ param secretObject object
 ])
 param storageSku string
 //@[6:16) Parameter storageSku. Type: 'Standard_GRS' | 'Standard_LRS'. Declaration start char: 0, length: 71
+
+@allowed([
+  1
+  2
+  3
+])
+param intEnum int
+//@[6:13) Parameter intEnum. Type: 1 | 2 | 3. Declaration start char: 0, length: 43
 
 // length constraint on a string
 @minLength(3)
@@ -171,7 +179,7 @@ param stringLiteralWithAllowedValuesSuperset string = stringLiteral
 param decoratedString string
 //@[6:21) Parameter decoratedString. Type: 'Apple' | 'Banana'. Declaration start char: 0, length: 104
 
-@minValue(200)
+@minValue(100)
 param decoratedInt int = 123
 //@[6:18) Parameter decoratedInt. Type: int. Declaration start char: 0, length: 43
 
@@ -191,8 +199,8 @@ param negativeValues int
         123
     ]
 })
-param decoratedBool bool = (true && false) != true
-//@[6:19) Parameter decoratedBool. Type: bool. Declaration start char: 0, length: 219
+param decoratedBool bool = /* comment1 */ /* comment2*/      /* comment3 */ /* comment4 */ (true && false) != true
+//@[6:19) Parameter decoratedBool. Type: bool. Declaration start char: 0, length: 283
 
 @secure()
 param decoratedObject object = {

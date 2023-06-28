@@ -10,7 +10,7 @@ namespace Bicep.Core.TypeSystem
         Error,
 
         /// <summary>
-        /// Empty union of types. 
+        /// Empty union of types.
         /// </summary>
         Never,
 
@@ -68,5 +68,25 @@ namespace Bicep.Core.TypeSystem
         /// Import type
         /// </summary>
         Import,
+
+        /// <summary>
+        /// Lambda type
+        /// </summary>
+        Lambda,
+
+        /// <summary>
+        /// Boolean literal type
+        /// </summary>
+        BooleanLiteral,
+
+        /// <summary>
+        /// Integer literal type
+        /// </summary>
+        IntegerLiteral,
+
+        /// <summary>
+        /// A reference to a type symbol
+        /// </summary>
+        TypeReference,
     }
 }

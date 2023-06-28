@@ -9,10 +9,18 @@ namespace Bicep.Core.Features
 
         string CacheRootDirectory { get; }
 
-        bool RegistryEnabled { get; }
-
         bool SymbolicNameCodegenEnabled { get; }
 
-        bool ImportsEnabled { get; }
+        bool ExtensibilityEnabled { get; }
+
+        bool ResourceTypedParamsAndOutputsEnabled { get; }
+
+        bool SourceMappingEnabled { get; }
+        
+        bool UserDefinedTypesEnabled { get; }
+
+        bool UserDefinedFunctionsEnabled { get; }
+
+        bool PrettyPrintingEnabled { get; }
     }
 }

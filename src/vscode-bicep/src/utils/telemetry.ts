@@ -3,28 +3,40 @@
 import {
   callWithTelemetryAndErrorHandling,
   IActionContext,
-} from "vscode-azureextensionui";
+  parseError,
+} from "@microsoft/vscode-azext-utils";
 
 import { getLogger } from "./logger";
 
 export async function activateWithTelemetryAndErrorHandling(
-  activateCallback: () => Promise<void>
+  activateCallback: (actionContext: IActionContext) => Promise<void>
 ): Promise<void> {
   await callWithTelemetryAndErrorHandling(
     "bicep.activate",
-    async (activateContext: IActionContext) => {
+    async (actionContext: IActionContext) => {
       const startTime = Date.now();
-      activateContext.telemetry.properties.isActivationEvent = "true";
+      actionContext.telemetry.properties.isActivationEvent = "true";
 
       try {
-        await activateCallback();
+        await activateCallback(actionContext);
       } catch (e) {
-        getLogger().error(e.message ?? e);
+        getLogger().error(parseError(e).message);
         throw e;
       }
 
-      activateContext.telemetry.measurements.extensionLoad =
+      actionContext.telemetry.measurements.extensionLoad =
         (Date.now() - startTime) / 1000;
     }
   );
+}
+
+// Creates a possible telemetry event scope.  But the event is only sent if there is a cancel or an error
+export async function callWithTelemetryAndErrorHandlingOnlyOnErrors<T>(callbackId: string, callback: (context: IActionContext) => T | PromiseLike<T>): Promise<T | undefined> {
+  return await callWithTelemetryAndErrorHandling<T | undefined>(
+    callbackId,
+    async (context): Promise<T | undefined> => {
+      context.telemetry.suppressIfSuccessful = true;
+
+      return await callback(context);
+    });
 }

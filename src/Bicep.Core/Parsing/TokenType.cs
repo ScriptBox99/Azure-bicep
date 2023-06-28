@@ -48,5 +48,9 @@ namespace Bicep.Core.Parsing
         EndOfFile,
         DoubleQuestion,
         DoubleColon,
+        Arrow,
+        Pipe,
+        WithKeyword,
+        AsKeyword,
     }
 }

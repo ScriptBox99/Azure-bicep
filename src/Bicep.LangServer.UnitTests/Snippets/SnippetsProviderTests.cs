@@ -4,16 +4,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bicep.Core;
-using Bicep.Core.Configuration;
 using Bicep.Core.Resources;
 using Bicep.Core.TypeSystem;
 using Bicep.Core.TypeSystem.Az;
 using Bicep.Core.UnitTests;
 using Bicep.Core.UnitTests.Assertions;
-using Bicep.Core.UnitTests.Utils;
+using Bicep.Core.Workspaces;
 using Bicep.LanguageServer.Completions;
 using Bicep.LanguageServer.Snippets;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Bicep.LangServer.UnitTests.Snippets
@@ -21,107 +21,20 @@ namespace Bicep.LangServer.UnitTests.Snippets
     [TestClass]
     public class SnippetsProviderTests
     {
-        private readonly SnippetsProvider snippetsProvider = new(BicepTestConstants.NamespaceProvider, BicepTestConstants.FileResolver, BicepTestConstants.ConfigurationManager);
-        private readonly NamespaceType azNamespaceType = BicepTestConstants.NamespaceProvider.TryGetNamespace("az", "az", ResourceScope.ResourceGroup)!;
+        private ISnippetsProvider CreateSnippetsProvider()
+            => ServiceBuilder.Create(s => s.AddSingleton<SnippetsProvider>()).Construct<SnippetsProvider>();
 
-        [TestMethod]
-        public void GetDescriptionAndText_WithEmptyInput_ReturnsEmptyDescriptionAndText()
-        {
-            (string description, string text) = snippetsProvider.GetDescriptionAndText(string.Empty, @"C:\foo.bicep");
-
-            Assert.IsTrue(description.Equals(string.Empty));
-            Assert.IsTrue(text.Equals(string.Empty));
-        }
-
-        [TestMethod]
-        public void GetDescriptionAndText_WithNullInput_ReturnsEmptyDescriptionAndText()
-        {
-            (string description, string text) = snippetsProvider.GetDescriptionAndText(null, @"C:\foo.bicep");
-
-            Assert.IsTrue(description.Equals(string.Empty));
-            Assert.IsTrue(text.Equals(string.Empty));
-        }
-
-        [TestMethod]
-        public void GetDescriptionAndText_WithOnlyWhitespaceInput_ReturnsEmptyDescriptionAndText()
-        {
-            (string description, string text) = snippetsProvider.GetDescriptionAndText("   ", @"C:\foo.bicep");
-
-            Assert.IsTrue(description.Equals(string.Empty));
-            Assert.IsTrue(text.Equals(string.Empty));
-        }
-
-        [TestMethod]
-        public void GetDescriptionAndText_WithValidInput_ReturnsDescriptionAndText()
-        {
-            string template = @"// DNS Zone
-resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${1:dnsZone}'
-  location: 'global'
-  tags: {
-    displayName: '${1:dnsZone}'
-  }
-}";
-
-            (string description, string text) = snippetsProvider.GetDescriptionAndText(template, @"C:\foo.bicep");
-
-            string expectedText = @"resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${1:dnsZone}'
-  location: 'global'
-  tags: {
-    displayName: '${1:dnsZone}'
-  }
-}";
-
-            Assert.AreEqual("DNS Zone", description);
-            Assert.AreEqual(expectedText, text);
-        }
-
-        [TestMethod]
-        public void GetDescriptionAndText_WithMissingCommentInInput_ReturnsEmptyDescriptionAndValidText()
-        {
-            string template = @"resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${1:dnsZone}'
-  location: 'global'
-  tags: {
-    displayName: '${1:dnsZone}'
-  }
-}";
-
-            (string description, string text) = snippetsProvider.GetDescriptionAndText(template, @"C:\foo.bicep");
-
-            string expectedText = @"resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${1:dnsZone}'
-  location: 'global'
-  tags: {
-    displayName: '${1:dnsZone}'
-  }
-}";
-
-            Assert.IsTrue(description.Equals(string.Empty));
-            Assert.AreEqual(expectedText, text);
-        }
-
-        [TestMethod]
-        public void GetDescriptionAndText_WithCommentAndMissingDeclarations_ReturnsEmptyDescriptionAndText()
-        {
-            string template = @"// DNS Zone";
-
-            (string description, string text) = snippetsProvider.GetDescriptionAndText(template, @"C:\foo.bicep");
-
-            Assert.IsTrue(description.Equals(string.Empty));
-            Assert.IsTrue(text.Equals(string.Empty));
-        }
+        private readonly NamespaceType azNamespaceType = BicepTestConstants.NamespaceProvider.TryGetNamespace("az", "az", ResourceScope.ResourceGroup, BicepTestConstants.Features, BicepSourceFileKind.BicepFile)!;
 
         [TestMethod]
         public void CompletionPriorityOfResourceSnippets_ShouldBeHigh()
         {
-            IEnumerable<Snippet> snippets = snippetsProvider.GetTopLevelNamedDeclarationSnippets()
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetTopLevelNamedDeclarationSnippets()
                 .Where(x => x.Prefix.StartsWith("resource"));
 
             foreach (Snippet snippet in snippets)
             {
-                Assert.AreEqual(CompletionPriority.High, snippet.CompletionPriority);
+                snippet.CompletionPriority.Should().Be(CompletionPriority.High);
             }
         }
 
@@ -129,12 +42,12 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
         [TestMethod]
         public void CompletionPriorityOfNonResourceSnippets_ShouldBeMedium()
         {
-            IEnumerable<Snippet> snippets = snippetsProvider.GetTopLevelNamedDeclarationSnippets()
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetTopLevelNamedDeclarationSnippets()
        .Where(x => !x.Prefix.StartsWith("resource"));
 
             foreach (Snippet snippet in snippets)
             {
-                Assert.AreEqual(CompletionPriority.Medium, snippet.CompletionPriority);
+                snippet.CompletionPriority.Should().Be(CompletionPriority.Medium);
             }
         }
 
@@ -145,13 +58,15 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
                 azNamespaceType,
                 ResourceTypeReference.Parse("Microsoft.DataLakeStore/accounts@2016-11-01"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 CreateObjectType(
                     "Microsoft.DataLakeStore/accounts@2016-11-01",
                     ("name", LanguageConstants.String, TypePropertyFlags.Required),
                     ("location", LanguageConstants.String, TypePropertyFlags.Required)),
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -193,15 +108,17 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
         {
             ResourceType resourceType = new ResourceType(
                 azNamespaceType,
-                ResourceTypeReference.Parse("Microsoft.Automation/automationAccounts/modules@2015-10-31"),
+                ResourceTypeReference.Parse("Microsoft.Automation/automationAccounts/modules@2019-06-01"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 CreateObjectType(
                     "Microsoft.Automation/automationAccounts/modules@2015-10-31",
                     ("name", LanguageConstants.String, TypePropertyFlags.Required),
                     ("location", LanguageConstants.String, TypePropertyFlags.Required)),
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -225,7 +142,7 @@ resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
     }
   }
 }
-resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' = {
+resource automationAccount 'Microsoft.Automation/automationAccounts@2019-06-01' = {
   name: ${1:'name'}
 }
 ");
@@ -249,13 +166,15 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 azNamespaceType,
                 ResourceTypeReference.Parse("Microsoft.Automation/automationAccounts/certificates@2019-06-01"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 CreateObjectType(
                     "Microsoft.Automation/automationAccounts/certificates@2019-06-01",
                     ("name", LanguageConstants.String, TypePropertyFlags.Required),
                     ("location", LanguageConstants.String, TypePropertyFlags.Required)),
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: true);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: true);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -299,6 +218,8 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 azNamespaceType,
                 ResourceTypeReference.Parse("microsoft.aadiam/azureADMetrics@2020-07-01-preview"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 CreateObjectType(
                     "microsoft.aadiam/azureADMetrics@2020-07-01-preview",
                     ("name", LanguageConstants.String, TypePropertyFlags.Required),
@@ -316,7 +237,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                         TypePropertyFlags.Required)),
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -353,10 +274,12 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 azNamespaceType,
                 ResourceTypeReference.Parse("microsoft.aadiam/azureADMetrics@2020-07-01-preview"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 CreateObjectType("microsoft.aadiam/azureADMetrics@2020-07-01-preview"),
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -373,7 +296,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             ResourceTypeReference resourceTypeReference = ResourceTypeReference.Parse("Microsoft.Automation/automationAccounts@2019-06-01");
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetNestedResourceDeclarationSnippets(resourceTypeReference);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetNestedResourceDeclarationSnippets(resourceTypeReference);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -398,6 +321,10 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 },
                 x =>
                 {
+                    x.Prefix.Should().Be("res-automation-module");
+                },
+                x =>
+                {
                     x.Prefix.Should().Be("res-automation-runbook");
                 },
                 x =>
@@ -415,7 +342,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             ResourceTypeReference resourceTypeReference = ResourceTypeReference.Parse("Microsoft.Automation/automationAccounts/runbooks@2019-06-01");
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetNestedResourceDeclarationSnippets(resourceTypeReference);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetNestedResourceDeclarationSnippets(resourceTypeReference);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -433,13 +360,13 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             var objectTypeA = new ObjectType("objA", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyA")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyA")),
                 new TypeProperty("keyAProp", LanguageConstants.String),
             }, null);
 
             var objectTypeB = new ObjectType("objB", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyB")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyB")),
                 new TypeProperty("keyBProp", LanguageConstants.String),
             }, null);
 
@@ -449,10 +376,12 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 azNamespaceType,
                 ResourceTypeReference.Parse("microsoft.aadiam/azureADMetrics@2020-07-01-preview"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 discriminatedObjectType,
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -469,17 +398,17 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             var objectTypeA = new ObjectType("objA", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyA")),
-                new TypeProperty("name", new StringLiteralType("keyA"), TypePropertyFlags.Required),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyA")),
+                new TypeProperty("name", TypeFactory.CreateStringLiteralType("keyA"), TypePropertyFlags.Required),
                 new TypeProperty("location", LanguageConstants.String, TypePropertyFlags.Required),
                 new TypeProperty("id", LanguageConstants.String)
             }, null);
 
             var objectTypeB = new ObjectType("objB", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyB")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyB")),
                 new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.Required),
-                new TypeProperty("kind", new StringLiteralType("discKey"), TypePropertyFlags.ReadOnly),
+                new TypeProperty("kind", TypeFactory.CreateStringLiteralType("discKey"), TypePropertyFlags.ReadOnly),
                 new TypeProperty("hostPoolType", LanguageConstants.String)
             }, null);
 
@@ -489,10 +418,12 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 azNamespaceType,
                 ResourceTypeReference.Parse("microsoft.aadiam/azureADMetrics@2020-07-01-preview"),
                 ResourceScope.ResourceGroup,
+                ResourceScope.None,
+                ResourceFlags.None,
                 discriminatedObjectType,
                 AzResourceTypeProvider.UniqueIdentifierProperties);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetResourceBodyCompletionSnippets(resourceType, isExistingResource: false, isResourceNested: false);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -534,7 +465,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
             }, null);
             TypeSymbol typeSymbol = new ModuleType("module", ResourceScope.Module, objectType);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetModuleBodyCompletionSnippets(typeSymbol);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetModuleBodyCompletionSnippets(typeSymbol);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -557,7 +488,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
             }, null);
             TypeSymbol typeSymbol = new ModuleType("module", ResourceScope.Module, objectType);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetModuleBodyCompletionSnippets(typeSymbol);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetModuleBodyCompletionSnippets(typeSymbol);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -589,7 +520,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 new TypeProperty("id", LanguageConstants.String)
             }, null);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetObjectBodyCompletionSnippets(objectType);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetObjectBodyCompletionSnippets(objectType);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -611,7 +542,7 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
                 new TypeProperty("id", LanguageConstants.String)
             }, null);
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetObjectBodyCompletionSnippets(objectType);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetObjectBodyCompletionSnippets(objectType);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -638,19 +569,19 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             var objectTypeA = new ObjectType("objA", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyA")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyA")),
                 new TypeProperty("keyAProp", LanguageConstants.String),
             }, null);
 
             var objectTypeB = new ObjectType("objB", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyB")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyB")),
                 new TypeProperty("keyBProp", LanguageConstants.String),
             }, null);
 
             var discriminatedObjectType = new DiscriminatedObjectType("discObj", TypeSymbolValidationFlags.Default, "discKey", new[] { objectTypeA, objectTypeB });
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetObjectBodyCompletionSnippets(discriminatedObjectType);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetObjectBodyCompletionSnippets(discriminatedObjectType);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -667,23 +598,23 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
         {
             var objectTypeA = new ObjectType("objA", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyA")),
-                new TypeProperty("name", new StringLiteralType("keyA"), TypePropertyFlags.Required),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyA")),
+                new TypeProperty("name", TypeFactory.CreateStringLiteralType("keyA"), TypePropertyFlags.Required),
                 new TypeProperty("location", LanguageConstants.String, TypePropertyFlags.Required),
                 new TypeProperty("id", LanguageConstants.String)
             }, null);
 
             var objectTypeB = new ObjectType("objB", TypeSymbolValidationFlags.Default, new[]
             {
-                new TypeProperty("discKey", new StringLiteralType("keyB")),
+                new TypeProperty("discKey", TypeFactory.CreateStringLiteralType("keyB")),
                 new TypeProperty("name", LanguageConstants.String, TypePropertyFlags.Required),
-                new TypeProperty("kind", new StringLiteralType("discKey"), TypePropertyFlags.ReadOnly),
+                new TypeProperty("kind", TypeFactory.CreateStringLiteralType("discKey"), TypePropertyFlags.ReadOnly),
                 new TypeProperty("hostPoolType", LanguageConstants.String)
             }, null);
 
             var discriminatedObjectType = new DiscriminatedObjectType("discObj", TypeSymbolValidationFlags.Default, "discKey", new[] { objectTypeA, objectTypeB });
 
-            IEnumerable<Snippet> snippets = snippetsProvider.GetObjectBodyCompletionSnippets(discriminatedObjectType);
+            IEnumerable<Snippet> snippets = CreateSnippetsProvider().GetObjectBodyCompletionSnippets(discriminatedObjectType);
 
             snippets.Should().SatisfyRespectively(
                 x =>
@@ -712,84 +643,6 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2015-10-31' 
 	name: $1
 }$0");
                 });
-        }
-
-        [DataTestMethod]
-        [DataRow(null, null)]
-        [DataRow("", "")]
-        [DataRow("   ", "   ")]
-        public void RemoveSnippetPlaceholderComments_WithInvalidInput_ReturnsInputTextAsIs(string input, string expected)
-        {
-            string actual = snippetsProvider.RemoveSnippetPlaceholderComments(input);
-
-            Assert.AreEqual(expected, actual);
-        }
-
-        [TestMethod]
-        public void RemoveSnippetPlaceholderComments_WithoutMatchingSnippetPlaceholderCommentPatternInInput_ReturnsInputTextAsIs()
-        {
-            string input = @"resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: 'name'
-  location: resourceGroup().location
-}";
-
-            string actual = snippetsProvider.RemoveSnippetPlaceholderComments(input);
-
-            actual.Should().BeEquivalentToIgnoringNewlines(input);
-        }
-
-        [TestMethod]
-        public void RemoveSnippetPlaceholderComments_WithMatchingSnippetPlaceholderCommentPatternInInput_RemovesSnippetPlaceholderComments()
-        {
-            string input = @"// DNS Record
-resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: /*${1:'name'}*/'name'
-  location: resourceGroup().location
-}
-
-resource /*${2:dnsRecord}*/dnsRecord 'Microsoft.Network/dnsZones//*${3|A,AAAA,CNAME,MX,NS,PTR,SOA,SRV,TXT|}*/A@2018-05-01' = {
-  parent: dnsZone
-  name: /*${4:'name'}*/'name'
-  properties: {
-    TTL: 3600
-    mode: /*'${5|Detection,Prevention|}'*/'Detection'
-    /*'hidden-related:${resourceGroup().id}/providers/Microsoft.Web/serverfarms/${6:'appServicePlan'}'*/'resource': 'Resource'
-    '/*${7|ARecords,AAAARecords,MXRecords,NSRecords,PTRRecords,SRVRecords,TXTRecords,CNAMERecord,SOARecord|}*/ARecords': []
-    precision: /*${8:-1}*/-1
-    appSettings: [
-    {
-      name: 'AzureWebJobsDashboard'
-      value: /*'DefaultEndpointsProtocol=https;AccountName=${4:storageAccountName1};AccountKey=${listKeys(${5:'storageAccountID1'}, '2019-06-01').key1}'*/'value'
-    }
-    id: /*$0*/
-  }
-}";
-
-            string actual = snippetsProvider.RemoveSnippetPlaceholderComments(input);
-
-            actual.Should().BeEquivalentToIgnoringNewlines(@"// DNS Record
-resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: ${1:'name'}
-  location: resourceGroup().location
-}
-
-resource ${2:dnsRecord} 'Microsoft.Network/dnsZones/${3|A,AAAA,CNAME,MX,NS,PTR,SOA,SRV,TXT|}@2018-05-01' = {
-  parent: dnsZone
-  name: ${4:'name'}
-  properties: {
-    TTL: 3600
-    mode: '${5|Detection,Prevention|}'
-    'hidden-related:${resourceGroup().id}/providers/Microsoft.Web/serverfarms/${6:'appServicePlan'}': 'Resource'
-    '${7|ARecords,AAAARecords,MXRecords,NSRecords,PTRRecords,SRVRecords,TXTRecords,CNAMERecord,SOARecord|}': []
-    precision: ${8:-1}
-    appSettings: [
-    {
-      name: 'AzureWebJobsDashboard'
-      value: 'DefaultEndpointsProtocol=https;AccountName=${4:storageAccountName1};AccountKey=${listKeys(${5:'storageAccountID1'}, '2019-06-01').key1}'
-    }
-    id: $0
-  }
-}");
         }
 
 

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+using System;
 
 namespace Bicep.Cli.Arguments
 {
@@ -31,6 +32,31 @@ namespace Bicep.Cli.Arguments
                         i++;
                         break;
 
+                    case "--documentationuri":
+                        if (isLast)
+                        {
+                            throw new CommandLineException("The --documentationUri parameter expects an argument.");
+                        }
+
+                        if (this.DocumentationUri is not null)
+                        {
+                            throw new CommandLineException("The --documentationUri parameter cannot be specified more than once.");
+                        }
+
+                        DocumentationUri = args[i + 1];
+
+                        if (!Uri.IsWellFormedUriString(DocumentationUri, UriKind.Absolute))
+                        {
+                            throw new CommandLineException("The --documentationUri should be a well formed uri string.");
+                        }
+
+                        i++;
+                        break;
+
+                    case "--force":
+                        Force = true;
+                        break;
+
                     default:
                         if (args[i].StartsWith("--"))
                         {
@@ -58,10 +84,14 @@ namespace Bicep.Cli.Arguments
             }
         }
 
+        public string? DocumentationUri { get; }
+
         public string InputFile { get; }
 
         public string TargetModuleReference { get; }
 
         public bool NoRestore { get; }
+
+        public bool Force { get; }
     }
 }

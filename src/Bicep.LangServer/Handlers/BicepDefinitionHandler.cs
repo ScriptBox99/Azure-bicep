@@ -27,35 +27,28 @@ using Bicep.Core.Registry;
 using Bicep.Core.Modules;
 using System.Net;
 using Bicep.Core.Navigation;
+using Bicep.Core.TypeSystem;
 
 namespace Bicep.LanguageServer.Handlers
 {
     public class BicepDefinitionHandler : DefinitionHandlerBase
     {
         private readonly ISymbolResolver symbolResolver;
-
         private readonly ICompilationManager compilationManager;
-
         private readonly IFileResolver fileResolver;
-
-        private readonly IWorkspace workspace;
-
         private readonly ILanguageServerFacade languageServer;
-
         private readonly IModuleDispatcher moduleDispatcher;
 
         public BicepDefinitionHandler(
             ISymbolResolver symbolResolver,
             ICompilationManager compilationManager,
             IFileResolver fileResolver,
-            IWorkspace workspace,
             ILanguageServerFacade languageServer,
             IModuleDispatcher moduleDispatcher) : base()
         {
             this.symbolResolver = symbolResolver;
             this.compilationManager = compilationManager;
             this.fileResolver = fileResolver;
-            this.workspace = workspace;
             this.languageServer = languageServer;
             this.moduleDispatcher = moduleDispatcher;
         }
@@ -71,51 +64,87 @@ namespace Bicep.LanguageServer.Handlers
             var result = this.symbolResolver.ResolveSymbol(request.TextDocument.Uri, request.Position);
 
             // No parent Symbol: ad hoc syntax matching
-            return result switch
+            var response =  result switch
             {
-                null => HandleUnboundSymbolLocationAsync(request, context),
+                null => HandleUnboundSymbolLocation(request, context),
 
-                { Symbol: DeclaredSymbol declaration } => HandleDeclaredDefinitionLocationAsync(request, result, declaration),
+                { Symbol: ParameterAssignmentSymbol param } => HandleParameterAssignment(request, result, context, param),
+
+                { Symbol: DeclaredSymbol declaration } => HandleDeclaredDefinitionLocation(request, result, declaration),
 
                 // Object property: currently only used for module param goto
-                { Origin: ObjectPropertySyntax } => HandleObjectPropertyLocationAsync(request, result, context),
+                { Origin: ObjectPropertySyntax } => HandleObjectPropertyLocation(request, result, context),
 
                 // Used for module (name), variable or resource property access
-                { Symbol: PropertySymbol } => HandlePropertyLocationAsync(request, result, context),
+                { Symbol: PropertySymbol } => HandlePropertyLocation(request, result, context),
 
-                _ => Task.FromResult(new LocationOrLocationLinks()),
+                _ => new(),
             };
+            
+            return Task.FromResult(response);
         }
 
         protected override DefinitionRegistrationOptions CreateRegistrationOptions(DefinitionCapability capability, ClientCapabilities clientCapabilities) => new()
         {
-            DocumentSelector = DocumentSelectorFactory.Create()
+            DocumentSelector = DocumentSelectorFactory.CreateForBicepAndParams()
         };
 
-        private Task<LocationOrLocationLinks> HandleUnboundSymbolLocationAsync(DefinitionParams request, CompilationContext context)
+        private LocationOrLocationLinks HandleUnboundSymbolLocation(DefinitionParams request, CompilationContext context)
         {
-            // Currently we only definition handler for a non symbol bound to implement module path goto.
-            // try to resolve module path syntax from given offset using tail matching.
+
             int offset = PositionHelper.GetOffset(context.LineStarts, request.Position);
             var matchingNodes = SyntaxMatcher.FindNodesMatchingOffset(context.Compilation.SourceFileGrouping.EntryPoint.ProgramSyntax, offset);
-            if (SyntaxMatcher.IsTailMatch<ModuleDeclarationSyntax, StringSyntax, Token>(
-                matchingNodes,
-                (moduleSyntax, stringSyntax, token) => moduleSyntax.Path == stringSyntax && token.Type == TokenType.StringComplete)
-                && matchingNodes[^3] is ModuleDeclarationSyntax moduleDeclarationSyntax
-                && matchingNodes[^2] is StringSyntax stringToken
-                && context.Compilation.SourceFileGrouping.TryLookupModuleSourceFile(moduleDeclarationSyntax) is ISourceFile sourceFile
-                && this.moduleDispatcher.TryGetModuleReference(moduleDeclarationSyntax, context.Compilation.Configuration, out _) is { } moduleReference)
+            { // Definition handler for a non symbol bound to implement module path goto.
+                // try to resolve module path syntax from given offset using tail matching.
+                if (SyntaxMatcher.IsTailMatch<ModuleDeclarationSyntax, StringSyntax, Token>(
+                     matchingNodes,
+                     (moduleSyntax, stringSyntax, token) => moduleSyntax.Path == stringSyntax && token.Type == TokenType.StringComplete)
+                 && matchingNodes[^3] is ModuleDeclarationSyntax moduleDeclarationSyntax
+                 && matchingNodes[^2] is StringSyntax stringToken
+                 && context.Compilation.SourceFileGrouping.TryGetSourceFile(moduleDeclarationSyntax) is ISourceFile sourceFile
+                 && this.moduleDispatcher.TryGetModuleReference(moduleDeclarationSyntax, request.TextDocument.Uri.ToUri(), out var moduleReference, out _))
+                {
+                    // goto beginning of the module file.
+                    return GetFileDefinitionLocation(
+                        GetDocumentLinkUri(sourceFile, moduleReference),
+                        stringToken,
+                        context,
+                        new() { Start = new(0, 0), End = new(0, 0) });
+                }
+            }
+            {  // Definition handler for a non symbol bound to implement load* functions file argument path goto.
+                if (SyntaxMatcher.IsTailMatch<StringSyntax, Token>(
+                        matchingNodes,
+                        (stringSyntax, token) => !stringSyntax.IsInterpolated() && token.Type == TokenType.StringComplete)
+                    && matchingNodes[^2] is StringSyntax stringToken
+                    && context.Compilation.GetEntrypointSemanticModel().GetDeclaredType(stringToken) is { } stringType
+                    && stringType.ValidationFlags.HasFlag(TypeSymbolValidationFlags.IsStringFilePath)
+                    && stringToken.TryGetLiteralValue() is { } stringTokenValue
+                    && fileResolver.TryResolveFilePath(context.Compilation.SourceFileGrouping.EntryPoint.FileUri, stringTokenValue) is { } fileUri
+                    && fileResolver.FileExists(fileUri))
+                {
+                    return GetFileDefinitionLocation(
+                        fileUri,
+                        stringToken,
+                        context,
+                        new() { Start = new(0, 0), End = new(0, 0) });
+                }
+            }
             {
-                // goto beginning of the module file.
-                return Task.FromResult(GetModuleDefinitionLocation(
-                    GetDocumentLinkUri(sourceFile, moduleReference),
-                    stringToken,
-                    context,
-                    new Range { Start = new Position(0, 0), End = new Position(0, 0) }));
+                if (SyntaxMatcher.GetTailMatch<UsingDeclarationSyntax, StringSyntax, Token>(matchingNodes) is (var @using, var path, _) &&
+                    @using.Path == path &&
+                    context.Compilation.SourceFileGrouping.TryGetSourceFile(@using) is {} sourceFile)
+                {
+                    return GetFileDefinitionLocation(
+                        sourceFile.FileUri,
+                        path,
+                        context,
+                        new() { Start = new(0, 0), End = new(0, 0) });
+                }
             }
 
-            // all other unbound syntax nodes return no 
-            return Task.FromResult(new LocationOrLocationLinks());
+            // all other unbound syntax nodes return no
+            return new();
         }
 
         private Uri GetDocumentLinkUri(ISourceFile sourceFile, ModuleReference moduleReference)
@@ -136,12 +165,12 @@ namespace Bicep.LanguageServer.Handlers
             var fullyQualifiedReference = WebUtility.UrlEncode(moduleReference.FullyQualifiedReference);
 
             // Encode the source file path as a path and the fully qualified reference as a fragment.
-            return new Uri($"bicep-cache:///{sourceFilePath}#{fullyQualifiedReference}");
+            return new Uri($"bicep-cache:{sourceFilePath}#{fullyQualifiedReference}");
         }
 
-        private static Task<LocationOrLocationLinks> HandleDeclaredDefinitionLocationAsync(DefinitionParams request, SymbolResolutionResult result, DeclaredSymbol declaration)
+        private static LocationOrLocationLinks HandleDeclaredDefinitionLocation(DefinitionParams request, SymbolResolutionResult result, DeclaredSymbol declaration)
         {
-            return Task.FromResult(new LocationOrLocationLinks(new LocationOrLocationLink(new LocationLink
+            return new(new LocationOrLocationLink(new LocationLink
             {
                 // source of the link. Underline only the symbolic name
                 OriginSelectionRange = (result.Origin is ITopLevelNamedDeclarationSyntax named ? named.Name : result.Origin).ToRange(result.Context.LineStarts),
@@ -149,11 +178,11 @@ namespace Bicep.LanguageServer.Handlers
 
                 // entire span of the declaredSymbol
                 TargetRange = declaration.DeclaringSyntax.ToRange(result.Context.LineStarts),
-                TargetSelectionRange = declaration.NameSyntax.ToRange(result.Context.LineStarts)
-            })));
+                TargetSelectionRange = declaration.NameSource.ToRange(result.Context.LineStarts)
+            }));
         }
 
-        private Task<LocationOrLocationLinks> HandleObjectPropertyLocationAsync(DefinitionParams request, SymbolResolutionResult result, CompilationContext context)
+        private LocationOrLocationLinks HandleObjectPropertyLocation(DefinitionParams request, SymbolResolutionResult result, CompilationContext context)
         {
             int offset = PositionHelper.GetOffset(context.LineStarts, request.Position);
             var matchingNodes = SyntaxMatcher.FindNodesMatchingOffset(context.Compilation.SourceFileGrouping.EntryPoint.ProgramSyntax, offset);
@@ -168,7 +197,7 @@ namespace Bicep.LanguageServer.Handlers
                     propertyAccesses[1].TryGetKeyText() is { } propertyName)
                 {
                     // underline only the key of the object property access
-                    return GetModuleSymbolLocationAsync(
+                    return GetModuleSymbolLocation(
                         propertyAccesses.Last().Key,
                         context,
                         moduleDeclarationSyntax,
@@ -177,10 +206,10 @@ namespace Bicep.LanguageServer.Handlers
                 }
             }
 
-            return Task.FromResult(new LocationOrLocationLinks());
+            return new();
         }
 
-        private Task<LocationOrLocationLinks> HandlePropertyLocationAsync(DefinitionParams request, SymbolResolutionResult result, CompilationContext context)
+        private LocationOrLocationLinks HandlePropertyLocation(DefinitionParams request, SymbolResolutionResult result, CompilationContext context)
         {
             var semanticModel = context.Compilation.GetEntrypointSemanticModel();
 
@@ -203,7 +232,7 @@ namespace Bicep.LanguageServer.Handlers
                 && ancestorSymbol.DeclaringSyntax is ModuleDeclarationSyntax moduleDeclarationSyntax)
                 {
                     // underline only the last property access
-                    return GetModuleSymbolLocationAsync(
+                    return GetModuleSymbolLocation(
                         propertyAccesses.Last(),
                         context,
                         moduleDeclarationSyntax,
@@ -216,27 +245,63 @@ namespace Bicep.LanguageServer.Handlers
                     && ObjectSyntaxExtensions.TryGetPropertyByNameRecursive(objectSyntax, propertyAccesses) is ObjectPropertySyntax resultingSyntax)
                 {
                     // underline only the last property access
-                    return Task.FromResult(new LocationOrLocationLinks(new LocationOrLocationLink(new LocationLink
+                    return new(new LocationOrLocationLink(new LocationLink
                     {
                         OriginSelectionRange = propertyAccesses.Last().ToRange(result.Context.LineStarts),
                         TargetUri = request.TextDocument.Uri,
                         TargetRange = resultingSyntax.ToRange(result.Context.LineStarts),
                         TargetSelectionRange = resultingSyntax.ToRange(result.Context.LineStarts)
-                    })));
+                    }));
                 }
             }
 
-            return Task.FromResult(new LocationOrLocationLinks());
+            return new();
         }
 
-        private Task<LocationOrLocationLinks> GetModuleSymbolLocationAsync(
+        private LocationOrLocationLinks HandleParameterAssignment(DefinitionParams request, SymbolResolutionResult result, CompilationContext context, ParameterAssignmentSymbol param)
+        {
+            if (param.NameSource is not {} nameSyntax)
+            {
+                return new();
+            }
+
+            var paramsSemanticModel = context.Compilation.GetEntrypointSemanticModel();
+            if (!paramsSemanticModel.Root.TryGetBicepFileSemanticModelViaUsing(out var bicepSemanticModel, out _))
+            {
+                return new();
+            }
+
+            var parameterDeclarations = bicepSemanticModel.Root.Syntax.Children.OfType<ParameterDeclarationSyntax>();
+            var parameterDeclarationSymbol = paramsSemanticModel.TryGetParameterDeclaration(param);
+
+            if (parameterDeclarationSymbol is null)
+            {
+                return new();
+            }
+
+            var range = PositionHelper.GetNameRange(bicepSemanticModel.SourceFile.LineStarts, parameterDeclarationSymbol.DeclaringSyntax);
+            var documentUri = bicepSemanticModel.SourceFile.FileUri;
+
+            return new(new LocationOrLocationLink(new LocationLink
+            {
+                // source of the link. Underline only the symbolic name
+                OriginSelectionRange = nameSyntax.ToRange(context.LineStarts),
+                TargetUri = documentUri,
+
+                // entire span of the declaredSymbol
+                TargetRange = range,
+                TargetSelectionRange = range
+            }));
+        }
+
+        private LocationOrLocationLinks GetModuleSymbolLocation(
             SyntaxBase underlinedSyntax,
             CompilationContext context,
             ModuleDeclarationSyntax moduleDeclarationSyntax,
             string propertyType,
             string propertyName)
         {
-            if (context.Compilation.SourceFileGrouping.LookUpModuleSourceFile(moduleDeclarationSyntax) is BicepFile bicepFile
+            if (context.Compilation.SourceFileGrouping.TryGetSourceFile(moduleDeclarationSyntax) is BicepFile bicepFile
             && context.Compilation.GetSemanticModel(bicepFile) is SemanticModel moduleModel)
             {
                 switch (propertyType)
@@ -245,43 +310,43 @@ namespace Bicep.LanguageServer.Handlers
                         if (moduleModel.Root.OutputDeclarations
                             .FirstOrDefault(d => string.Equals(d.Name, propertyName)) is OutputSymbol outputSymbol)
                         {
-                            return Task.FromResult(GetModuleDefinitionLocation(
+                            return GetFileDefinitionLocation(
                                 bicepFile.FileUri,
                                 underlinedSyntax,
                                 context,
-                                outputSymbol.DeclaringOutput.Name.ToRange(bicepFile.LineStarts)));
+                                outputSymbol.DeclaringOutput.Name.ToRange(bicepFile.LineStarts));
                         }
                         break;
                     case LanguageConstants.ModuleParamsPropertyName:
                         if (moduleModel.Root.ParameterDeclarations
                             .FirstOrDefault(d => string.Equals(d.Name, propertyName)) is ParameterSymbol parameterSymbol)
                         {
-                            return Task.FromResult(GetModuleDefinitionLocation(
+                            return GetFileDefinitionLocation(
                                 bicepFile.FileUri,
                                 underlinedSyntax,
                                 context,
-                                parameterSymbol.DeclaringParameter.Name.ToRange(bicepFile.LineStarts)));
+                                parameterSymbol.DeclaringParameter.Name.ToRange(bicepFile.LineStarts));
                         }
                         break;
                 }
 
             }
 
-            return Task.FromResult(new LocationOrLocationLinks());
+            return new();
         }
 
-        private LocationOrLocationLinks GetModuleDefinitionLocation(
-            Uri moduleUri,
+        private LocationOrLocationLinks GetFileDefinitionLocation(
+            Uri fileUri,
             SyntaxBase originalSelectionSyntax,
             CompilationContext context,
-            Range targetTange)
+            Range targetRange)
         {
             return new LocationOrLocationLinks(new LocationOrLocationLink(new LocationLink
             {
                 OriginSelectionRange = originalSelectionSyntax.ToRange(context.LineStarts),
-                TargetUri = DocumentUri.From(moduleUri),
-                TargetRange = targetTange,
-                TargetSelectionRange = targetTange
+                TargetUri = DocumentUri.From(fileUri),
+                TargetRange = targetRange,
+                TargetSelectionRange = targetRange
             }));
         }
 

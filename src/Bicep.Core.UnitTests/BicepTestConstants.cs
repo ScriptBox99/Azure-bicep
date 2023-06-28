@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System;
 using System.Collections.Generic;
 using Bicep.Core.Analyzers.Linter;
+using Bicep.Core.Analyzers.Linter.ApiVersions;
 using Bicep.Core.Configuration;
 using Bicep.Core.Emit;
 using Bicep.Core.Extensions;
@@ -12,11 +14,11 @@ using Bicep.Core.Json;
 using Bicep.Core.Registry;
 using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.TypeSystem.Az;
+using Bicep.Core.UnitTests.Configuration;
+using Bicep.Core.UnitTests.Features;
 using Bicep.Core.UnitTests.Mock;
-using Bicep.Core.UnitTests.Utils;
 using Bicep.LanguageServer.Registry;
 using Bicep.LanguageServer.Telemetry;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using IOFileSystem = System.IO.Abstractions.FileSystem;
 
@@ -28,53 +30,49 @@ namespace Bicep.Core.UnitTests
 
         public const string GeneratorTemplateHashPath = "metadata._generator.templateHash";
 
-        public static readonly FileResolver FileResolver = new();
+        public static readonly FileResolver FileResolver = new(new IOFileSystem());
 
-        public static readonly IFeatureProvider Features = CreateMockFeaturesProvider(registryEnabled: false, symbolicNameCodegenEnabled: false, importsEnabled: false, assemblyFileVersion: BicepTestConstants.DevAssemblyFileVersion).Object;
-
-        public static readonly EmitterSettings EmitterSettings = new EmitterSettings(Features);
-
-        public static readonly EmitterSettings EmitterSettingsWithSymbolicNames = new EmitterSettings(
-            CreateMockFeaturesProvider(registryEnabled: false, symbolicNameCodegenEnabled: true, importsEnabled: false, assemblyFileVersion: BicepTestConstants.DevAssemblyFileVersion).Object);
+        public static readonly FeatureProviderOverrides FeatureOverrides = new();
 
         public static readonly IAzResourceTypeLoader AzResourceTypeLoader = new AzResourceTypeLoader();
 
-        public static readonly INamespaceProvider NamespaceProvider = TestTypeHelper.CreateWithAzTypes();
+        public static readonly INamespaceProvider NamespaceProvider = new DefaultNamespaceProvider(AzResourceTypeLoader);
 
         public static readonly IContainerRegistryClientFactory ClientFactory = StrictMock.Of<IContainerRegistryClientFactory>().Object;
 
         public static readonly ITemplateSpecRepositoryFactory TemplateSpecRepositoryFactory = StrictMock.Of<ITemplateSpecRepositoryFactory>().Object;
 
-        public static readonly IModuleRegistryProvider RegistryProvider = new DefaultModuleRegistryProvider(FileResolver, ClientFactory, TemplateSpecRepositoryFactory, Features);
+        public static readonly ConfigurationManager ConfigurationManager = CreateFilesystemConfigurationManager();
 
-        public static readonly IConfigurationManager ConfigurationManager = new ConfigurationManager(new IOFileSystem());
+        public static readonly IFeatureProviderFactory FeatureProviderFactory = new OverriddenFeatureProviderFactory(new FeatureProviderFactory(ConfigurationManager), FeatureOverrides);
 
-        public static readonly RootConfiguration BuiltInConfiguration = ConfigurationManager.GetBuiltInConfiguration();
+        // Linter rules added to this list will be automtically disabled for most tests.
+        public static readonly string[] AnalyzerRulesToDisableInTests = new string[] {
+            // use-recent-api-versions is problematic for tests but it's off by default so doesn't need to appear here
+        };
 
-        public static readonly LinterAnalyzer LinterAnalyzer = new LinterAnalyzer(BuiltInConfiguration);
+        public static readonly RootConfiguration BuiltInConfigurationWithAllAnalyzersEnabled = IConfigurationManager.GetBuiltInConfiguration();
+        public static readonly RootConfiguration BuiltInConfigurationWithAllAnalyzersDisabled = IConfigurationManager.GetBuiltInConfiguration().WithAllAnalyzersDisabled();
+        public static readonly RootConfiguration BuiltInConfigurationWithProblematicAnalyzersDisabled = IConfigurationManager.GetBuiltInConfiguration().WithAnalyzersDisabled(AnalyzerRulesToDisableInTests);
 
-        public static readonly RootConfiguration BuiltInConfigurationWithAnalyzersDisabled = ConfigurationManager.GetBuiltInConfiguration(disableAnalyzers: true);
+        // By default turns off only problematic analyzers
+        public static readonly RootConfiguration BuiltInConfiguration = BuiltInConfigurationWithProblematicAnalyzersDisabled;
+
+        public static readonly IConfigurationManager BuiltInOnlyConfigurationManager = IConfigurationManager.WithStaticConfiguration(BuiltInConfiguration);
+
+        public static readonly IFeatureProvider Features = new OverriddenFeatureProvider(new FeatureProvider(BuiltInConfiguration), FeatureOverrides);
+
+        public static readonly IServiceProvider EmptyServiceProvider = new Mock<IServiceProvider>(MockBehavior.Loose).Object;
+        public static readonly IModuleRegistryProvider RegistryProvider = new DefaultModuleRegistryProvider(EmptyServiceProvider, FileResolver, ClientFactory, TemplateSpecRepositoryFactory, FeatureProviderFactory, BuiltInOnlyConfigurationManager);
+
+        public static readonly IModuleDispatcher ModuleDispatcher = new ModuleDispatcher(RegistryProvider, IConfigurationManager.WithStaticConfiguration(BuiltInConfiguration));
+
+        // By default turns off only problematic analyzers
+        public static readonly LinterAnalyzer LinterAnalyzer = new LinterAnalyzer();
 
         public static readonly IModuleRestoreScheduler ModuleRestoreScheduler = CreateMockModuleRestoreScheduler();
-
-        public static IFeatureProvider CreateFeaturesProvider(
-            TestContext testContext,
-            bool registryEnabled = false,
-            bool symbolicNameCodegenEnabled = false,
-            bool importsEnabled = false,
-            string assemblyFileVersion = DevAssemblyFileVersion)
-        {
-            var mock = CreateMockFeaturesProvider(
-                registryEnabled: registryEnabled,
-                symbolicNameCodegenEnabled: symbolicNameCodegenEnabled,
-                importsEnabled: importsEnabled,
-                assemblyFileVersion: assemblyFileVersion);
-
-            var testPath = FileHelper.GetCacheRootPath(testContext);
-            mock.SetupGet(m => m.CacheRootDirectory).Returns(testPath);
-
-            return mock.Object;
-        }
+        public static readonly ApiVersionProvider ApiVersionProvider = new ApiVersionProvider(Features, AzResourceTypeLoader);
+        public static readonly IApiVersionProviderFactory ApiVersionProviderFactory = IApiVersionProviderFactory.WithStaticApiVersionProvider(ApiVersionProvider);
 
         public static RootConfiguration CreateMockConfiguration(Dictionary<string, object>? customConfigurationData = null, string? configurationPath = null)
         {
@@ -86,6 +84,8 @@ namespace Bicep.Core.UnitTests
                 ["cloud.credentialPrecedence"] = new[] { "AzureCLI", "AzurePowerShell" },
                 ["moduleAliases"] = new Dictionary<string, object>(),
                 ["analyzers"] = new Dictionary<string, object>(),
+                ["experimentalFeaturesEnabled"] = new Dictionary<string, bool>(),
+                ["formatting"] = new Dictionary<string, bool>(),
             };
 
             if (customConfigurationData is not null)
@@ -106,16 +106,13 @@ namespace Bicep.Core.UnitTests
             return RootConfiguration.Bind(element, configurationPath);
         }
 
-        private static Mock<IFeatureProvider> CreateMockFeaturesProvider(bool registryEnabled, bool symbolicNameCodegenEnabled, bool importsEnabled, string assemblyFileVersion)
-        {
-            var mock = StrictMock.Of<IFeatureProvider>();
-            mock.SetupGet(m => m.RegistryEnabled).Returns(registryEnabled);
-            mock.SetupGet(m => m.SymbolicNameCodegenEnabled).Returns(symbolicNameCodegenEnabled);
-            mock.SetupGet(m => m.ImportsEnabled).Returns(importsEnabled);
-            mock.SetupGet(m => m.AssemblyVersion).Returns(assemblyFileVersion);
+        public static ConfigurationManager CreateFilesystemConfigurationManager() => new ConfigurationManager(new IOFileSystem());
 
-            return mock;
-        }
+        public static IConfigurationManager CreateConfigurationManager(Func<RootConfiguration, RootConfiguration> patchFunc)
+            => new PatchingConfigurationManager(CreateFilesystemConfigurationManager(), patchFunc);
+
+        public static IFeatureProviderFactory CreateFeatureProviderFactory(FeatureProviderOverrides featureOverrides, IConfigurationManager? configurationManager = null)
+            => new OverriddenFeatureProviderFactory(new FeatureProviderFactory(configurationManager ?? CreateFilesystemConfigurationManager()), featureOverrides);
 
         private static IModuleRestoreScheduler CreateMockModuleRestoreScheduler()
         {

@@ -1,4 +1,4 @@
-/* 
+/*
   This is a block comment.
 */
 
@@ -24,7 +24,7 @@ param myEscapedString string = 'First line\r\nSecond\ttabbed\tline'
 
 // object default value
 param foo object = {
-//@[6:9) Parameter foo. Type: object. Declaration start char: 0, length: 253
+//@[6:09) Parameter foo. Type: object. Declaration start char: 0, length: 253
   enabled: true
   name: 'this is my object'
   priority: 3
@@ -158,7 +158,7 @@ param stringLiteralWithAllowedValuesSuperset string = stringLiteral
 param decoratedString string
 //@[6:21) Parameter decoratedString. Type: 'Apple' | 'Banana'. Declaration start char: 0, length: 111
 
-@minValue(200)
+@minValue(100)
 param decoratedInt int = 123
 //@[6:18) Parameter decoratedInt. Type: int. Declaration start char: 0, length: 44
 

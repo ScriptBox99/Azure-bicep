@@ -1,29 +1,23 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-using Bicep.Core.Features;
-using Bicep.Core.UnitTests.Registry;
+using Bicep.Core.UnitTests.Features;
 using FluentAssertions;
-using FluentAssertions.Execution;
 using FluentAssertions.Primitives;
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Bicep.Core.UnitTests.Assertions
 {
     public static class FeatureProviderExtensions
     {
-        public static FeatureProviderAssertions Should(this IFeatureProvider features) => new(features);
+        public static FeatureProviderAssertions Should(this FeatureProviderOverrides features) => new(features);
     }
 
-    public class FeatureProviderAssertions : ReferenceTypeAssertions<IFeatureProvider, FeatureProviderAssertions>
+    public class FeatureProviderAssertions : ReferenceTypeAssertions<FeatureProviderOverrides, FeatureProviderAssertions>
     {
-        public FeatureProviderAssertions(IFeatureProvider features) : base(features)
+        public FeatureProviderAssertions(FeatureProviderOverrides features) : base(features)
         {
         }
 
@@ -32,7 +26,7 @@ namespace Bicep.Core.UnitTests.Assertions
         public AndConstraint<FeatureProviderAssertions> HaveValidModules()
         {
             // ensure something got restored
-            var cacheDir = new DirectoryInfo(this.Subject.CacheRootDirectory);
+            var cacheDir = new DirectoryInfo(this.Subject.CacheRootDirectory!);
             cacheDir.Exists.Should().BeTrue();
 
             // we create it with same casing on all file systems

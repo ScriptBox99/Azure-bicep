@@ -6,7 +6,11 @@ namespace Bicep.Cli.Constants
     public static class Command
     {
         public const string Build = "build";
+        public const string BuildParams = "build-params";
+        public const string Format = "format";
+        public const string GenerateParamsFile = "generate-params";
         public const string Decompile = "decompile";
+        public const string DecompileParams = "decompile-params";
         public const string Publish = "publish";
         public const string Restore = "restore";
         public const string Root = "";
@@ -16,5 +20,7 @@ namespace Bicep.Cli.Constants
     {
         public const string VersionRegex = @"^(--version|-v)$";
         public const string HelpRegex = @"^(--help|-h)$";
+        public const string LicenseRegex = @"^--license$";
+        public const string ThirdPartyNoticesRegex = @"^--third-party-notices$";
     }
 }

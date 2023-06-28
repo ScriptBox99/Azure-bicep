@@ -8,7 +8,7 @@ namespace Bicep.Core.Parsing
     public enum ExpressionFlags
     {
         None = 0,
-        AllowComplexLiterals = 1,
-        AllowResourceDeclarations = 2,
+        AllowComplexLiterals = 1 << 0,
+        AllowResourceDeclarations = 1 << 1,
     }
 }

@@ -1,11 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Collections.Generic;
-using System.Linq;
-using Bicep.Core.Diagnostics;
-using Bicep.Core.Extensions;
+using Bicep.Core.Resources;
 using Bicep.Core.Syntax;
-using Bicep.Core.Syntax.Visitors;
 using Bicep.Core.TypeSystem;
 
 namespace Bicep.Core.Semantics
@@ -33,5 +30,13 @@ namespace Bicep.Core.Semantics
                 yield return this.Type;
             }
         }
+
+        public bool IsCollection => this.Type is ArrayType;
+
+        public ResourceType? TryGetResourceType() => ResourceType.TryUnwrap(this.Type);
+
+        public ResourceTypeReference? TryGetResourceTypeReference() => this.TryGetResourceType()?.TypeReference;
+
+        public ObjectType? TryGetBodyObjectType() => this.TryGetResourceType()?.Body.Type as ObjectType;
     }
 }

@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using Bicep.Core.Semantics;
 
 namespace Bicep.Core.TypeSystem
@@ -18,7 +17,7 @@ namespace Bicep.Core.TypeSystem
         public NamespaceType(
             string aliasName,
             NamespaceSettings settings,
-            IEnumerable<TypeProperty> properties,
+            IEnumerable<TypeTypeProperty> properties,
             IEnumerable<FunctionOverload> functionOverloads,
             IEnumerable<BannedFunction> bannedFunctions,
             IEnumerable<Decorator> decorators,

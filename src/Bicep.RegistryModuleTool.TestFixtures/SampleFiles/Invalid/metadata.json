@@ -1,9 +1,6 @@
 {
-  "$schema": "https://aka.ms/azure-quickstart-templates-metadata-schema#",
-  "type": "Module",
-  "itemDisplayName": "Sample module",
-  "description": "",
+  "$schema": "https://aka.ms/bicep-registry-module-metadata-file-schema-v2#",
+  "name": "Test module",
   "summary": "",
-  "githubUsername": "test",
-  "dateUpdated": "2021-11-19"
+  "owner": "42"
 }

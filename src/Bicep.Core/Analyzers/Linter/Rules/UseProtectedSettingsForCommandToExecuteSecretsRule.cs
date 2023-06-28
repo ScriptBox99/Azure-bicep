@@ -2,20 +2,12 @@
 // Licensed under the MIT License.
 
 using Bicep.Core.Diagnostics;
-using Bicep.Core.Emit;
 using Bicep.Core.Analyzers.Linter.Common;
-using Bicep.Core.Parsing;
-using Bicep.Core.Resources;
 using Bicep.Core.Semantics;
-using Bicep.Core.Semantics.Metadata;
-using Bicep.Core.Semantics.Namespaces;
 using Bicep.Core.Syntax;
-using Bicep.Core.TypeSystem;
-using Bicep.Core.Visitors;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 
 namespace Bicep.Core.Analyzers.Linter.Rules
@@ -43,11 +35,11 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         public override string FormatMessage(params object[] values)
             => string.Format(CoreResources.ProtectCommandToExecuteSecretsRuleMessage, (string)values[0]);
 
-        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel semanticModel)
+        public override IEnumerable<IDiagnostic> AnalyzeInternal(SemanticModel semanticModel, DiagnosticLevel diagnosticLevel)
         {
-            List<IDiagnostic> diagnostics = new List<IDiagnostic>();
+            List<IDiagnostic> diagnostics = new();
 
-            foreach (ResourceMetadata resource in semanticModel.AllResources.Where(r => r.IsAzResource))
+            foreach (var resource in semanticModel.DeclaredResources.Where(r => r.IsAzResource))
             {
                 // We're looking for this pattern:
                 //
@@ -89,10 +81,10 @@ namespace Bicep.Core.Analyzers.Linter.Rules
                                 if (matches)
                                 {
                                     // Does it contain any possible secrets?
-                                    var secrets = FindPossibleSecretsVisitor.FindPossibleSecrets(semanticModel, commandToExecuteSyntax.Value);
+                                    var secrets = FindPossibleSecretsVisitor.FindPossibleSecretsInExpression(semanticModel, commandToExecuteSyntax.Value);
                                     if (secrets.Any())
                                     {
-                                        diagnostics.Add(CreateDiagnosticForSpan(commandToExecuteSyntax.Key.Span, secrets[0].FoundMessage));
+                                        diagnostics.Add(CreateDiagnosticForSpan(diagnosticLevel, commandToExecuteSyntax.Key.Span, secrets.First().FoundMessage));
                                     }
                                 }
                             }
@@ -105,4 +97,3 @@ namespace Bicep.Core.Analyzers.Linter.Rules
         }
     }
 }
-

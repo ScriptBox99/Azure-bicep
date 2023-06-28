@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Bicep.Core.Semantics;
-using Bicep.Core.Syntax;
 
 namespace Bicep.Core.TypeSystem
 {
@@ -22,7 +21,7 @@ namespace Bicep.Core.TypeSystem
             : base(name)
         {
             this.ValidationFlags = validationFlags;
-            this.Properties = properties.ToImmutableDictionary(property => property.Name, LanguageConstants.IdentifierComparer);
+            this.Properties = properties.ToImmutableSortedDictionary(property => property.Name, property => property, LanguageConstants.IdentifierComparer);
             this.MethodResolver = methodResolverBuilder(this);
             this.AdditionalPropertiesType = additionalPropertiesType;
             this.AdditionalPropertiesFlags = additionalPropertiesFlags;
@@ -32,12 +31,25 @@ namespace Bicep.Core.TypeSystem
 
         public override TypeSymbolValidationFlags ValidationFlags { get; }
 
-        public ImmutableDictionary<string, TypeProperty> Properties { get; }
+        public ImmutableSortedDictionary<string, TypeProperty> Properties { get; }
 
         public ITypeReference? AdditionalPropertiesType { get; }
 
         public TypePropertyFlags AdditionalPropertiesFlags { get; }
 
         public FunctionResolver MethodResolver { get; }
+
+        public ObjectType With(
+            TypeSymbolValidationFlags? validationFlags = null,
+            IEnumerable<TypeProperty>? properties = null,
+            Tuple<ITypeReference?>? additionalPropertiesType = null,
+            TypePropertyFlags? additionalPropertiesFlags = null,
+            Func<ObjectType, FunctionResolver>? methodResolverBuilder = null) => new(
+                this.Name,
+                validationFlags ?? this.ValidationFlags,
+                properties ?? this.Properties.Values,
+                additionalPropertiesType is not null ? additionalPropertiesType.Item1 : this.AdditionalPropertiesType,
+                additionalPropertiesFlags ?? this.AdditionalPropertiesFlags,
+                methodResolverBuilder ?? this.MethodResolver.CopyToObject);
     }
 }

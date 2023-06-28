@@ -1,23 +1,36 @@
 # Language Grammar
 The following is the active pseudo-grammar of the bicep language.
 ```
-program -> statement* EOF 
-statement -> 
-  targetScopeDecl | 
-  importDecl | 
-  parameterDecl | 
+program -> statement* EOF
+statement ->
+  targetScopeDecl |
+  importDecl |
+  metadataDecl |
+  parameterDecl |
+  typeDecl |
   variableDecl |
   resourceDecl |
   moduleDecl |
   outputDecl |
+  functionDecl |
   NL
 
 targetScopeDecl -> "targetScope" "=" expression
 
-importDecl -> decorator* "import" IDENTIFIER(providerName) "as" IDENTIFIER(aliasName) object? NL
+importDecl -> decorator* "import" interpString(specification) importWithClause? importAsClause? NL
 
-parameterDecl -> decorator* "parameter" IDENTIFIER(name) IDENTIFIER(type) parameterDefaultValue? NL
+importWithClause -> "with" object
+
+importAsClause -> "as" IDENTIFIER(alias)
+
+metadataDecl -> "metadata" IDENTIFIER(name) "=" expression NL
+
+parameterDecl ->
+  decorator* "parameter" IDENTIFIER(name) typeExpression parameterDefaultValue? NL |
+  decorator* "parameter" IDENTIFIER(name) "resource" interpString(type) parameterDefaultValue? NL |
 parameterDefaultValue -> "=" expression
+
+typeDecl -> decorator* "type" IDENTIFIER(name) "=" typeExpression NL
 
 variableDecl -> decorator* "variable" IDENTIFIER(name) "=" expression NL
 
@@ -25,42 +38,45 @@ resourceDecl -> decorator* "resource" IDENTIFIER(name) interpString(type) "exist
 
 moduleDecl -> decorator* "module" IDENTIFIER(name) interpString(type) "=" (ifCondition | object | forExpression) NL
 
-outputDecl -> decorator* "output" IDENTIFIER(name) IDENTIFIER(type) "=" expression NL
-
+outputDecl ->
+  decorator* "output" IDENTIFIER(name) IDENTIFIER(type) "=" expression NL
+  decorator* "output" IDENTIFIER(name) "resource" interpString(type) "=" expression NL
 NL -> ("\n" | "\r")+
+
+functionDecl -> decorator* "func" IDENTIFIER(name) typedLambdaExpression NL
 
 decorator -> "@" decoratorExpression NL
 
 disableNextLineDiagnosticsDirective-> #disable-next-line diagnosticCode1 diagnosticCode2 diagnosticCode3 NL
 
-expression -> 
+expression ->
   binaryExpression |
   binaryExpression "?" expression ":" expression
 
-binaryExpression -> 
+binaryExpression ->
   equalityExpression |
   binaryExpression "&&" equalityExpression |
   binaryExpression "||" equalityExpression |
   binaryExpression "??" equalityExpression
 
-equalityExpression -> 
+equalityExpression ->
   relationalExpression |
   equalityExpression "==" relationalExpression |
   equalityExpression "!=" relationalExpression
 
-relationalExpression -> 
+relationalExpression ->
   additiveExpression |
   relationalExpression ">" additiveExpression |
   relationalExpression ">=" additiveExpression |
   relationalExpression "<" additiveExpression |
   relationalExpression "<=" additiveExpression
 
-additiveExpression -> 
+additiveExpression ->
   multiplicativeExpression |
   additiveExpression "+" multiplicativeExpression |
   additiveExpression "-" multiplicativeExpression
 
-multiplicativeExpression -> 
+multiplicativeExpression ->
   unaryExpression |
   multiplicativeExpression "*" unaryExpression |
   multiplicativeExpression "/" unaryExpression |
@@ -76,8 +92,9 @@ memberExpression ->
   primaryExpression |
   memberExpression "[" expression "]" |
   memberExpression "." IDENTIFIER(property) |
-  memberExpression "." functionCall
-  memberExpression ":" IDENTIFIER(name)
+  memberExpression "." functionCall |
+  memberExpression ":" IDENTIFIER(name) |
+  memberExpression "!"
 
 primaryExpression ->
   functionCall |
@@ -87,15 +104,23 @@ primaryExpression ->
   array |
   forExpression |
   object |
-  parenthesizedExpression
+  parenthesizedExpression |
+  lambdaExpression
 
 decoratorExpression -> functionCall | memberExpression "." functionCall
 
+argumentList -> expression ("," expression)*
 functionCall -> IDENTIFIER "(" argumentList? ")"
 
-argumentList -> expression ("," expression)*
-
 parenthesizedExpression -> "(" expression ")"
+
+localVariable -> IDENTIFIER
+variableBlock -> "(" ( localVariable ("," localVariable)* )? ")"
+lambdaExpression -> ( variableBlock | localVariable ) "=>" expression
+
+typedLocalVariable -> IDENTIFIER primaryTypeExpression
+typedVariableBlock -> "(" ( typedLocalVariable ("," typedLocalVariable)* )? ")"
+typedLambdaExpression -> typedVariableBlock primaryTypeExpression "=>" expression
 
 ifCondition -> "if" parenthesizedExpression object
 
@@ -114,9 +139,38 @@ multilineString -> "'''" + MULTILINESTRINGCHAR+ + "'''"
 literalValue -> NUMBER | "true" | "false" | "null"
 
 object -> "{" ( NL+ ( objectProperty NL+ )* )? "}"
-objectProperty -> ( IDENTIFIER(name) | interpString ) ":" expression 
+objectProperty -> ( IDENTIFIER(name) | interpString ) ":" expression
 
 array -> "[" ( NL+ arrayItem* )? "]"
 arrayItem -> expression NL+
+
+typeExpression -> singularTypeExpression ("|" singularTypeExpression)*
+
+singularTypeExpression ->
+  primaryTypeExpression |
+  singularTypeExpression "[]" |
+  singularTypeExpression "?" |
+  parenthesizedTypeExpression
+
+primaryTypeExpression ->
+  ambientTypeReference |
+  IDENTIFIER(type) |
+  literalValue |
+  unaryOperator literalValue |
+  stringComplete |
+  multilineString |
+  objectType |
+  tupleType
+
+ambientTypeReference -> "string" | "int" | "bool" | "array" | "object"
+
+objectType -> "{" (NL+ ((objectTypeProperty | objectTypeAdditionalPropertiesMatcher) NL+ )* )? "}"
+objectTypeProperty -> decorator* ( IDENTIFIER(name) | stringComplete | multilineString ) ":" typeExpression
+objectTypeAdditionalPropertiesMatcher -> decorator* "*:" typeExpression
+
+tupleType -> "[" (NL+ tupleItem* )? "]"
+tupleItem -> decorator* typeExpression NL+
+
+parenthesizedTypeExpression -> "(" typeExpression ")"
 
 ```

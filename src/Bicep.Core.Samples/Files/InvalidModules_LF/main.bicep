@@ -266,16 +266,16 @@ module moduleWithDuplicateName2 './empty.bicep' = {
   name: 'moduleWithDuplicateName'
 }
 
-// #completionTest(19, 20, 21) -> cwdFileCompletions
+// #completionTest(19, 20, 21) -> cwdFileAndBicepRegitryTemplateSpecSchemaCompletions
 module completionB ''
 
-// #completionTest(19, 20, 21) -> cwdFileCompletions
+// #completionTest(19, 20, 21) -> cwdFileAndBicepRegitryTemplateSpecSchemaCompletions
 module completionC '' =
 
-// #completionTest(19, 20, 21) -> cwdFileCompletions
+// #completionTest(19, 20, 21) -> cwdFileAndBicepRegitryTemplateSpecSchemaCompletions
 module completionD '' = {}
 
-// #completionTest(19, 20, 21) -> cwdFileCompletions
+// #completionTest(19, 20, 21) -> cwdFileAndBicepRegitryTemplateSpecSchemaCompletions
 module completionE '' = {
   name: 'hello'
 }
@@ -561,4 +561,9 @@ module jsonModMissingParam 'moduled.json' = {
     foo: 123
     baz: 'C'
   }
+}
+
+module assignToOutput 'empty.bicep' = {
+  name: 'assignToOutput'
+  outputs: {}
 }

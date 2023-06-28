@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NuGet.CommandLine" Version="5.8.1">
+    <PackageReference Include="NuGet.CommandLine" Version="6.3.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
@@ -17,7 +17,7 @@
 
   <Target Name="RunTool" AfterTargets="Build" DependsOnTargets="GetBuildVersion">
     <ItemGroup>
-      <NuSpec Include="$(BUILD_SOURCESDIRECTORY)/src/Bicep.RegistryModuleTool/obj/$(BUILDCONFIGURATION)/Bicep.RegistryModuleTool.$(NugetPackageVersion).nuspec" />
+      <NuSpec Include="../Bicep.RegistryModuleTool/obj/$(BUILDCONFIGURATION)/Azure.Bicep.RegistryModuleTool.$(NugetPackageVersion).nuspec" />
     </ItemGroup>
 
     <Exec Command="$(NugetExePath) pack @(NuSpec) -Version $(NuGetPackageVersion) -Symbols -SymbolPackageFormat snupkg -NonInteractive"

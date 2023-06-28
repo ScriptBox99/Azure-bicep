@@ -4,6 +4,7 @@ import path from "path";
 import webpack from "webpack";
 import CopyPlugin from "copy-webpack-plugin";
 import ForkTsCheckerWebpackPlugin from "fork-ts-checker-webpack-plugin";
+import TerserPlugin from "terser-webpack-plugin";
 
 const extensionConfig: webpack.Configuration = {
   target: "node",
@@ -18,10 +19,20 @@ const extensionConfig: webpack.Configuration = {
   externals: {
     // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
     vscode: "commonjs vscode",
-    // The following are optional dependencies of vscode-azureextensionui that cannot be resolved.
+    // The following are optional dependencies of microsoft/vscode-azext-utils that cannot be resolved.
     "applicationinsights-native-metrics":
       "commonjs applicationinsights-native-metrics",
     "@opentelemetry/tracing": "commonjs @opentelemetry/tracing",
+  },
+  optimization: {
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          keep_classnames: true,
+          keep_fnames: true,
+        },
+      }),
+    ],
   },
   module: {
     rules: [
@@ -30,7 +41,7 @@ const extensionConfig: webpack.Configuration = {
         loader: "esbuild-loader",
         options: {
           loader: "ts",
-          target: "es2016",
+          target: "es2019",
         },
         exclude: [/node_modules/, /visualizer\/app/, /test/],
       },
@@ -42,6 +53,14 @@ const extensionConfig: webpack.Configuration = {
         {
           from: "../textmate/bicep.tmlanguage",
           to: path.join(__dirname, "syntaxes/bicep.tmlanguage"),
+        },
+      ],
+    }) as { apply(...args: unknown[]): void },
+    new CopyPlugin({
+      patterns: [
+        {
+          from: "../textmate/language-configuration.json",
+          to: path.join(__dirname, "syntaxes/language-configuration.json"),
         },
       ],
     }) as { apply(...args: unknown[]): void },
@@ -71,7 +90,7 @@ const visualizerConfig: webpack.Configuration = {
         loader: "esbuild-loader",
         options: {
           loader: "tsx",
-          target: "es2016",
+          target: "es2019",
         },
         exclude: /node_modules/,
       },
@@ -101,8 +120,12 @@ module.exports = (env: unknown, argv: { mode: string }) => {
     // Note that any "eval" options cannot be used because it will be blocked by
     // the content security policy that we set in /visualizer/view.ts.
     const developmentDevtool = "cheap-module-source-map";
-    extensionConfig.devtool = developmentDevtool;
     visualizerConfig.devtool = developmentDevtool;
+
+    // I don't notice any difference in F5 time when using the cheap version, but using it
+    // causes many problems recognizing breakpoints in some code, especially tests, so don't use for
+    // the main extension code.
+    //extensionConfig.devtool = developmentDevtool;
   }
 
   return [extensionConfig, visualizerConfig];

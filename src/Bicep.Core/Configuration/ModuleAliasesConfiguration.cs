@@ -3,6 +3,7 @@
 
 using Bicep.Core.Extensions;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -39,10 +40,8 @@ namespace Bicep.Core.Configuration
             : $"{Registry}";
     }
 
-    public class ModuleAliasesConfiguration : ConfigurationSection<ModuleAliases>
+    public partial class ModuleAliasesConfiguration : ConfigurationSection<ModuleAliases>
     {
-        private static readonly Regex ModuleAliasNameRegex = new(@"^[a-zA-Z0-9-_]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
         private readonly string? configurationPath;
 
         private ModuleAliasesConfiguration(ModuleAliases data, string? configurationPath)
@@ -53,61 +52,73 @@ namespace Bicep.Core.Configuration
 
         public static ModuleAliasesConfiguration Bind(JsonElement element, string? configurationPath) => new(element.ToNonNullObject<ModuleAliases>(), configurationPath);
 
-        public TemplateSpecModuleAlias? TryGetTemplateSpecModuleAlias(string aliasName, out ErrorBuilderDelegate? errorBuilder)
+        public ImmutableSortedDictionary<string, OciArtifactModuleAlias> GetOciArtifactModuleAliases()
+        {
+            return this.Data.OciArtifactModuleAliases;
+        }
+
+        public ImmutableSortedDictionary<string, TemplateSpecModuleAlias> GetTemplateSpecModuleAliases()
+        {
+            return this.Data.TemplateSpecModuleAliases;
+        }
+
+        public bool TryGetTemplateSpecModuleAlias(string aliasName, [NotNullWhen(true)] out TemplateSpecModuleAlias? alias, [NotNullWhen(false)] out ErrorBuilderDelegate? errorBuilder)
         {
             if (!ValidateAliasName(aliasName, out errorBuilder))
             {
-                return null;
+                alias = null;
+                return false;
             }
 
-            if (!this.Data.TemplateSpecModuleAliases.TryGetValue(aliasName, out var alias))
+            if (!this.Data.TemplateSpecModuleAliases.TryGetValue(aliasName, out alias))
             {
                 errorBuilder = x => x.TemplateSpecModuleAliasNameDoesNotExistInConfiguration(aliasName, this.configurationPath);
-                return null;
+                return false;
             }
 
             if (alias.Subscription is null)
             {
                 errorBuilder = x => x.InvalidTemplateSpecAliasSubscriptionNullOrUndefined(aliasName, this.configurationPath);
-                return null;
+                return false;
             }
 
             if (alias.ResourceGroup is null)
             {
                 errorBuilder = x => x.InvalidTemplateSpecAliasResourceGroupNullOrUndefined(aliasName, this.configurationPath);
-                return null;
+                return false;
             }
 
             errorBuilder = null;
-            return alias;
+            return true;
         }
 
-        public OciArtifactModuleAlias? TryGetOciArtifactModuleAlias(string aliasName, out ErrorBuilderDelegate? errorBuilder)
+        public bool TryGetOciArtifactModuleAlias(string aliasName, [NotNullWhen(true)] out OciArtifactModuleAlias? alias, [NotNullWhen(false)] out ErrorBuilderDelegate? errorBuilder)
         {
             if (!ValidateAliasName(aliasName, out errorBuilder))
             {
-                return null;
+                alias = null;
+                return false;
             }
 
-            if (!this.Data.OciArtifactModuleAliases.TryGetValue(aliasName, out var alias))
+            if (!this.Data.OciArtifactModuleAliases.TryGetValue(aliasName, out alias))
             {
                 errorBuilder = x => x.OciArtifactModuleAliasNameDoesNotExistInConfiguration(aliasName, this.configurationPath);
-                return null;
+                return false;
             }
 
             if (alias.Registry is null)
             {
                 errorBuilder = x => x.InvalidOciArtifactModuleAliasRegistryNullOrUndefined(aliasName, this.configurationPath);
-                return null;
+                return false;
             }
 
             errorBuilder = null;
-            return alias;
+            return true;
         }
 
-        private static bool ValidateAliasName(string aliasName, out ErrorBuilderDelegate? errorBuilder)
+        private static bool ValidateAliasName(string aliasName, [NotNullWhen(false)] out ErrorBuilderDelegate? errorBuilder)
         {
-            if (!ModuleAliasNameRegex.IsMatch(aliasName))
+            if (!ModuleAliasNameRegex().IsMatch(aliasName))
             {
                 errorBuilder = x => x.InvalidModuleAliasName(aliasName);
                 return false;
@@ -116,5 +127,8 @@ namespace Bicep.Core.Configuration
             errorBuilder = null;
             return true;
         }
+
+        [GeneratedRegex("^[a-zA-Z0-9-_]+$", RegexOptions.CultureInvariant)]
+        private static partial Regex ModuleAliasNameRegex();
     }
 }

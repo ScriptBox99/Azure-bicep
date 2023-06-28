@@ -1,5 +1,23 @@
 [
   {
+    "label": "../",
+    "kind": "folder",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "3_../",
+    "filterText": "'../'",
+    "insertTextFormat": "snippet",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "'../$0'"
+    },
+    "command": {
+      "title": "file path completion",
+      "command": "editor.action.triggerSuggest"
+    }
+  },
+  {
     "label": "ChildModules/",
     "kind": "folder",
     "deprecated": false,
@@ -13,6 +31,7 @@
       "newText": "'./ChildModules/$0'"
     },
     "command": {
+      "title": "file path completion",
       "command": "editor.action.triggerSuggest"
     }
   },
@@ -30,6 +49,7 @@
       "newText": "'./Completions/$0'"
     },
     "command": {
+      "title": "file path completion",
       "command": "editor.action.triggerSuggest"
     }
   },
@@ -87,6 +107,20 @@
     "textEdit": {
       "range": {},
       "newText": "'./main.formatted.bicep'"
+    }
+  },
+  {
+    "label": "main.pprint.bicep",
+    "kind": "file",
+    "deprecated": false,
+    "preselect": false,
+    "sortText": "1_main.pprint.bicep",
+    "filterText": "'./main.pprint.bicep'",
+    "insertTextFormat": "plainText",
+    "insertTextMode": "adjustIndentation",
+    "textEdit": {
+      "range": {},
+      "newText": "'./main.pprint.bicep'"
     }
   },
   {

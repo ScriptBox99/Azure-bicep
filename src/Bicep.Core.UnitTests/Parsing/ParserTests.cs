@@ -3,7 +3,6 @@
 using System;
 using System.Linq;
 using System.Text;
-using Bicep.Core.Parsing;
 using Bicep.Core.Syntax;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
@@ -31,6 +30,7 @@ namespace Bicep.Core.UnitTests.Parsing
         [DataRow("var mvVar = 'hello'", typeof(VariableDeclarationSyntax))]
         [DataRow("resource myRes 'My.Provider/someResource@2020-08-01' = { \n }", typeof(ResourceDeclarationSyntax))]
         [DataRow("output string myOutput = 'hello'", typeof(OutputDeclarationSyntax))]
+        [DataRow("type arraysOfArraysOfArraysOfStrings = string[][][]", typeof(TypeDeclarationSyntax))]
         public void NewLinesForDeclarationsShouldBeOptionalAtEof(string text, Type expectedType)
         {
             var validFiles = new (int statementCount, string file)[]
@@ -47,8 +47,9 @@ namespace Bicep.Core.UnitTests.Parsing
             foreach (var (statementCount, file) in validFiles)
             {
                 var becauseFileValid = $"{file} is considered valid";
-                var program = ParserHelper.Parse(file);
-                program.GetParseDiagnostics().Should().BeEmpty(becauseFileValid);
+                var program = ParserHelper.Parse(file, out var lexingErrorLookup, out var parsingErrorLookup);
+                lexingErrorLookup.Should().BeEmpty(becauseFileValid);
+                parsingErrorLookup.Should().BeEmpty(becauseFileValid);
                 program.Declarations.Should().HaveCount(statementCount, becauseFileValid);
                 program.Declarations.Should().AllBeOfType(expectedType, becauseFileValid);
             }
@@ -60,8 +61,8 @@ namespace Bicep.Core.UnitTests.Parsing
 
             foreach (var file in invalidFiles)
             {
-                var program = ParserHelper.Parse(file);
-                program.GetParseDiagnostics().Should().NotBeEmpty();
+                ParserHelper.Parse(file, out var syntaxErrors);
+                syntaxErrors.Should().NotBeEmpty();
             }
         }
 
@@ -106,7 +107,6 @@ namespace Bicep.Core.UnitTests.Parsing
 
         [DataTestMethod]
         [DataRow("'${>}def'")]
-        [DataRow("'${concat(}def'")]
         [DataRow("'${concat)}def'")]
         [DataRow("'${'nest\\ed'}def'")]
         [DataRow("'${a b c}def'")]
@@ -144,7 +144,7 @@ namespace Bicep.Core.UnitTests.Parsing
         public void FunctionsShouldParseCorrectly(string text, string expected, int expectedArgumentCount)
         {
             var expression = (FunctionCallSyntax)RunExpressionTest(text, expected, typeof(FunctionCallSyntax));
-            expression.Arguments.Length.Should().Be(expectedArgumentCount);
+            expression.Arguments.Count().Should().Be(expectedArgumentCount);
         }
 
         [DataTestMethod]
@@ -170,8 +170,7 @@ namespace Bicep.Core.UnitTests.Parsing
         public void UnaryOperatorsCannotBeChained(string text)
         {
             var expression = ParseAndVerifyType<UnaryOperationSyntax>(text);
-            expression.Expression.Should().BeOfType<SkippedTriviaSyntax>()
-                .Which.Diagnostics.Single().Message.Should().Be("Expected a literal value, an array, an object, a parenthesized expression, or a function call at this location.");
+            expression.Expression.Should().BeOfType<SkippedTriviaSyntax>();
         }
 
         [DataTestMethod]
@@ -359,6 +358,117 @@ namespace Bicep.Core.UnitTests.Parsing
             RunExpressionTest(text, expected, typeof(BinaryOperationSyntax));
         }
 
+        [TestMethod]
+        public void ObjectTypeLiteralsShouldParseSuccessfully()
+        {
+            var typeDeclaration = @"
+@description('The foo type')
+@sealed()
+type foo = {
+    @minLength(3)
+    @maxLength(10)
+    stringProp: string
+
+    objectProp: {
+        @minValue(1)
+        intProp: int
+        arrayProp: int[][][]
+    }
+
+    unionProp: 'several'|'string'|'literals'
+}";
+
+            var parsed = ParserHelper.Parse(typeDeclaration);
+            parsed.Should().BeOfType<ProgramSyntax>();
+            (parsed as ProgramSyntax).Declarations.Should().HaveCount(1);
+            (parsed as ProgramSyntax).Declarations.Single().Should().BeOfType<TypeDeclarationSyntax>();
+            var declaration = (TypeDeclarationSyntax) (parsed as ProgramSyntax).Declarations.Single();
+            declaration.Decorators.Should().HaveCount(2);
+
+            declaration.Value.Should().BeOfType<ObjectTypeSyntax>();
+            var declaredObject = (ObjectTypeSyntax) declaration.Value;
+            declaredObject.Properties.Should().HaveCount(3);
+            declaredObject.Properties.First().Decorators.Should().HaveCount(2);
+            declaredObject.Properties.First().Value.Should().BeOfType<VariableAccessSyntax>();
+            declaredObject.Properties.Skip(1).First().Value.Should().BeOfType<ObjectTypeSyntax>();
+
+            var objectProp = (ObjectTypeSyntax) declaredObject.Properties.Skip(1).First().Value;
+            objectProp.Properties.Should().HaveCount(2);
+            objectProp.Properties.Last().Value.Should().BeOfType<ArrayTypeSyntax>();
+
+            var arrayProp = (ArrayTypeSyntax) objectProp.Properties.Last().Value;
+            arrayProp.Item.Value.Should().BeOfType<ArrayTypeSyntax>();
+            var intermediateArray = (ArrayTypeSyntax) arrayProp.Item.Value;
+            intermediateArray.Item.Value.Should().BeOfType<ArrayTypeSyntax>();
+            var innerArray = (ArrayTypeSyntax) intermediateArray.Item.Value;
+            innerArray.Item.Value.Should().BeOfType<VariableAccessSyntax>();
+        }
+
+        [TestMethod]
+        public void TupleTypeLiteralsShouldParseSuccessfully()
+        {
+            var typeDeclaration = @"
+type aTuple = [
+    @description('First element')
+    @minLength(10)
+    string
+
+    @description('Second element')
+    -37|0|37
+]";
+
+            var parsed = ParserHelper.Parse(typeDeclaration);
+            parsed.Declarations.Should().HaveCount(1);
+            parsed.Declarations.Single().Should().BeOfType<TypeDeclarationSyntax>();
+            var declaration = (TypeDeclarationSyntax) parsed.Declarations.Single();
+
+            declaration.Value.Should().BeOfType<TupleTypeSyntax>();
+            var declaredTuple = (TupleTypeSyntax) declaration.Value;
+            declaredTuple.Items.Should().HaveCount(2);
+            declaredTuple.Items.First().Decorators.Should().HaveCount(2);
+            declaredTuple.Items.First().Value.Should().BeOfType<VariableAccessSyntax>();
+            declaredTuple.Items.Last().Decorators.Should().HaveCount(1);
+            declaredTuple.Items.Last().Value.Should().BeOfType<UnionTypeSyntax>();
+        }
+
+        [TestMethod]
+        public void MultilineUnionTypeLiteralsShouldParseSuccessfully()
+        {
+            var typeDeclaration = @"
+type multilineUnion = 'a'
+  | 'multiline'
+  | 'union'
+";
+
+            var parsed = ParserHelper.Parse(typeDeclaration);
+            parsed.Declarations.Should().HaveCount(1);
+            parsed.Declarations.Single().Should().BeOfType<TypeDeclarationSyntax>();
+            var declaration = (TypeDeclarationSyntax) parsed.Declarations.Single();
+
+            declaration.Value.Should().BeOfType<UnionTypeSyntax>();
+
+            var expectedMemberValues = new[] { "a", "multiline", "union" };
+            var actualMembers = declaration.Value.As<UnionTypeSyntax>().Members.ToArray();
+            actualMembers.Should().HaveCount(expectedMemberValues.Length);
+
+            for (int i = 0; i < expectedMemberValues.Length; i++)
+            {
+                actualMembers[i].Value.Should().BeOfType<StringSyntax>();
+                actualMembers[i].Value.As<StringSyntax>().TryGetLiteralValue().Should().Be(expectedMemberValues[i]);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("input!", "(input!)", typeof(NonNullAssertionSyntax))]
+        [DataRow("input.property!", "((input.property)!)", typeof(NonNullAssertionSyntax))]
+        [DataRow("input.nested!.property", "(((input.nested)!).property)", typeof(PropertyAccessSyntax))]
+        [DataRow("!input.nullableIntProperty!", "(!((input.nullableIntProperty)!))", typeof(UnaryOperationSyntax))]
+        [DataRow("first(input.arrayProp)!.nested", "((first((input.arrayProp))!).nested)", typeof(PropertyAccessSyntax))]
+        public void NonNullAssertionShouldHaveCorrectPrecedence(string text, string expected, Type expectedRootType)
+        {
+            RunExpressionTest(text, expected, expectedRootType);
+        }
+
         private static SyntaxBase RunExpressionTest(string text, string expected, Type expectedRootType)
         {
             SyntaxBase expression = ParserHelper.ParseExpression(text);
@@ -372,9 +482,8 @@ namespace Bicep.Core.UnitTests.Parsing
             where TSyntax : SyntaxBase
         {
             var expression = ParserHelper.ParseExpression(text);
-            expression.Should().BeOfType<TSyntax>();
 
-            return (TSyntax)expression;
+            return expression.Should().BeOfType<TSyntax>().Subject;
         }
 
         private static string SerializeExpressionWithExtraParentheses(SyntaxBase expression)
@@ -388,4 +497,3 @@ namespace Bicep.Core.UnitTests.Parsing
         }
     }
 }
-

@@ -91,6 +91,7 @@ var expressionIndexOnAny = any({
 var anyIndexOnAny = any(true)[any(false)]
 
 var deploymentName = deployment().name
+var templateContentVersion = deployment().properties.template.contentVersion
 var templateLinkUri = deployment().properties.templateLink.uri
 var templateLinkId = deployment().properties.templateLink.id
 
@@ -108,12 +109,6 @@ var intIndexer = [
 var functionOnIndexer1 = concat([
   's'
 ][0], 's')
-
-var functionOnIndexer2 = concat([
-][0], 's')
-
-var functionOnIndexer3 = concat([
-][0], any('s'))
 
 var singleQuote = '\''
 var myPropertyName = '${singleQuote}foo${singleQuote}'
@@ -258,6 +253,29 @@ var myBigIntExpression2 = 2199023255552 * 2199023255552
 
 // variable loops
 var incrementingNumbers = [for i in range(0,10) : i]
+var printToSingleLine1 = [
+    for i in range(0,20) : i
+]
+var printToSingleLine2 = [
+    /* harmless comment */ for i in range(0,20) : i
+]
+var printToSingleLine3 = [
+    for i in range(0,20) : i /* harmless comment */
+]
+var forceLineBreaks1 = [
+    // force line breaks
+    for i in range(0,    30) : i
+]
+var forceLineBreaks2 = [
+    for i in range(0,    30) : i
+    // force line breaks
+]
+var forceLineBreaks3 = [
+    /* force line breaks */
+    for i in range(0,    30) : i
+    /* force line breaks */
+]
+
 var loopInput = [
   'one'
   'two'
@@ -322,3 +340,21 @@ module.exports = function (context) {
     context.done();
 }
 '''
+
+var providersTest = providers('Microsoft.Resources').namespace
+var providersTest2 = providers('Microsoft.Resources', 'deployments').locations
+
+var copyBlockInObject = {
+  copy: [
+    {
+      name: 'blah'
+      count: '[notAFunction()]'
+      input: {}
+    }
+  ]
+}
+
+var joinedString = join(['I', 'love', 'Bicep!'], ' ')
+
+var prefix = take('food', 3)
+var isPrefixed = startsWith('food', 'foo')

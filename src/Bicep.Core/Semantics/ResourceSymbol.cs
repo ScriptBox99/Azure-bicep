@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-using System;
 using System.Collections.Generic;
 using Bicep.Core.Resources;
 using Bicep.Core.Syntax;
@@ -16,6 +15,8 @@ namespace Bicep.Core.Semantics
         }
 
         public ResourceDeclarationSyntax DeclaringResource => (ResourceDeclarationSyntax)this.DeclaringSyntax;
+
+        public IdentifierSyntax NameIdentifier => (IdentifierSyntax)this.NameSource;
 
         public override void Accept(SymbolVisitor visitor) => visitor.VisitResourceSymbol(this);
 

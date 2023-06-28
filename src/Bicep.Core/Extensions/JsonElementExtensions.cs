@@ -2,8 +2,15 @@
 // Licensed under the MIT License.
 
 using Bicep.Core.Json;
+using Json.Patch;
+using Json.Path;
+using System;
 using System.Buffers;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Bicep.Core.Extensions
 {
@@ -13,6 +20,7 @@ namespace Bicep.Core.Extensions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             ReadCommentHandling = JsonCommentHandling.Skip,
+            Converters = { new JsonStringEnumConverter() },
         };
 
         public static bool IsNotNullValue(this JsonElement element) => element.ValueKind is not JsonValueKind.Null;
@@ -20,21 +28,19 @@ namespace Bicep.Core.Extensions
         public static string ToNonNullString(this JsonElement element) =>
             element.GetString() ?? throw new JsonException($"Expected \"{element}\" to be non-null.");
 
+        [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Relying on references to required properties of the generic type elsewhere in the codebase.")]
         public static T ToNonNullObject<T>(this JsonElement element, JsonSerializerOptions? options = null)
         {
             options ??= DefaultDeserializeOptions;
 
-            var bufferWriter = new ArrayBufferWriter<byte>();
-            using (var writer = new Utf8JsonWriter(bufferWriter))
-            {
-                element.WriteTo(writer);
-            }
-
-            return JsonSerializer.Deserialize<T>(bufferWriter.WrittenSpan, options) ??
+            return JsonSerializer.Deserialize<T>(element, options) ??
                 throw new JsonException($"Expected deserialized value of \"{element}\" to be non-null.");
         }
 
-        public static JsonElement? GetPropertyByPath(this JsonElement element, string path)
+        public static JsonElement GetPropertyByPath(this JsonElement element, string path) =>
+            element.TryGetPropertyByPath(path) ?? throw new InvalidOperationException($"The property \"{path}\" does not exist.");
+
+        public static JsonElement? TryGetPropertyByPath(this JsonElement element, string path)
         {
             var current = element;
 
@@ -74,6 +80,20 @@ namespace Bicep.Core.Extensions
 
             return element.Merge(valueElement);
         }
+
+        public static JsonElement Patch(this JsonElement element, params PatchOperation[] operations)
+        {
+            var patch = new JsonPatch(operations);
+            var patched = patch.Apply(element);
+
+            return patched;
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Relying on references to required properties of the generic type elsewhere in the codebase.")]
+        public static string ToFormattedString(this JsonElement element) => JsonSerializer.Serialize(element, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        });
 
         public static JsonElement Merge(this JsonElement element, JsonElement other)
         {

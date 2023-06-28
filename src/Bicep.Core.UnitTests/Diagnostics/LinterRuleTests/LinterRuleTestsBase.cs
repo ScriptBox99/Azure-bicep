@@ -1,81 +1,151 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-using Bicep.Core.Analyzers.Linter;
-using Bicep.Core.Analyzers.Linter.Rules;
+using Bicep.Core.Analyzers.Interfaces;
+using Bicep.Core.Analyzers.Linter.ApiVersions;
+using Bicep.Core.CodeAction;
+using Bicep.Core.Configuration;
 using Bicep.Core.Diagnostics;
+using Bicep.Core.Extensions;
+using Bicep.Core.Text;
 using Bicep.Core.UnitTests.Assertions;
 using Bicep.Core.UnitTests.Utils;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
-namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests
+namespace Bicep.Core.UnitTests.Diagnostics.LinterRuleTests;
+
+public class LinterRuleTestsBase
 {
-    public class LinterRuleTestsBase
+    public enum OnCompileErrors
     {
-        public enum OnCompileErrors
+        IncludeErrors, // Include compile errors in the list of messages to expect
+        Ignore, // Ignore any compile errors
+        IncludeErrorsAndWarnings, // Include compile errors and warnings in the list of messages to expect
+
+        Default = IncludeErrors
+    }
+
+    public enum IncludePosition
+    {
+        None,
+        LineNumber,
+        LineNumberAndColumn,
+
+        Default = LineNumber,
+    }
+
+    public record Options(
+        OnCompileErrors OnCompileErrors = OnCompileErrors.Default,
+        IncludePosition IncludePosition = IncludePosition.Default,
+        Func<RootConfiguration, RootConfiguration>? ConfigurationPatch = null,
+        ApiVersionProvider? ApiVersionProvider = null,
+        (string path, string contents)[]? AdditionalFiles = null
+    );
+
+    private static string FormatDiagnostic(IDiagnostic diagnostic, ImmutableArray<int> lineStarts, IncludePosition includePosition)
+    {
+        var (line, character) = TextCoordinateConverter.GetPosition(lineStarts, diagnostic.Span.Position);
+        return includePosition switch
         {
-            Fail, // Assertion fails if there are compiler errors
-            Ignore,
+            IncludePosition.LineNumber => $"[{line + 1}] {diagnostic.Message}",
+            IncludePosition.LineNumberAndColumn => $"[{line + 1}:{character + 1}] {diagnostic.Message}",
+            IncludePosition.None => diagnostic.Message,
+            _ => throw new InvalidOperationException($"Invalid IncludePosition value {includePosition}"),
+        };
+    }
+
+    protected static void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, string[] expectedMessagesForCode, Options? options = null)
+    {
+        AssertLinterRuleDiagnostics(ruleCode, bicepText, diags =>
+        {
+            var lineStarts = TextCoordinateConverter.GetLineStarts(bicepText);
+            var messages = diags.Select(d => FormatDiagnostic(d, lineStarts, options?.IncludePosition ?? IncludePosition.Default));
+            messages.Should().BeEquivalentTo(expectedMessagesForCode);
+        },
+        options);
+    }
+
+    protected static void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, int expectedDiagnosticCountForCode, Options? options = null)
+    {
+        AssertLinterRuleDiagnostics(ruleCode, bicepText, diags =>
+        {
+            diags.Should().HaveCount(expectedDiagnosticCountForCode);
+        },
+        options);
+    }
+
+    protected static void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, Action<IEnumerable<IDiagnostic>> assertAction, Options? options = null)
+    {
+        options ??= new Options();
+        var files = new List<(string path, string content)>
+        {
+            ("main.bicep", bicepText)
+        };
+        if (options.AdditionalFiles is not null)
+        {
+            files.AddRange(options.AdditionalFiles);
         }
 
-        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, string[] expectedMessagesForCode, OnCompileErrors onCompileErrors = OnCompileErrors.Fail)
+        RunWithDiagnosticAnnotations(
+            files.ToArray(),
+            diag =>
+                diag.Code == ruleCode
+                || (IsCompilerDiagnostic(diag) && options.OnCompileErrors == OnCompileErrors.IncludeErrors && diag.Level == DiagnosticLevel.Error)
+                || (IsCompilerDiagnostic(diag) && options.OnCompileErrors == OnCompileErrors.IncludeErrorsAndWarnings && (diag.Level == DiagnosticLevel.Error || diag.Level == DiagnosticLevel.Warning)),
+            assertAction,
+            options);
+    }
+
+    private static void RunWithDiagnosticAnnotations(
+        (string path, string contents)[] files,
+        Func<IDiagnostic, bool> filterFunc,
+        Action<IEnumerable<IDiagnostic>> assertAction,
+        Options? options)
+    {
+        options ??= new Options();
+        var services = new ServiceBuilder();
+        services = options.ConfigurationPatch is {} ? services.WithConfigurationPatch(options.ConfigurationPatch) : services;
+        services = options.ApiVersionProvider is {} ? services.WithApiVersionProvider(options.ApiVersionProvider) : services;
+        var result = CompilationHelper.Compile(services, files);
+        using (new AssertionScope().WithFullSource(result.BicepFile))
         {
-            AssertLinterRuleDiagnostics(ruleCode, bicepText, onCompileErrors, diags =>
-            {
-                diags.Select(d => d.Message).Should().BeEquivalentTo(expectedMessagesForCode);
-            });
+            IDiagnostic[] diagnosticsMatchingCode = result.Diagnostics.Where(filterFunc).ToArray();
+            DiagnosticAssertions.DoWithDiagnosticAnnotations(
+                result.Compilation.SourceFileGrouping.EntryPoint,
+                result.Diagnostics.Where(filterFunc),
+                assertAction);
         }
+    }
 
-        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, int expectedDiagnosticCountForCode, OnCompileErrors onCompileErrors = OnCompileErrors.Fail)
+    private static bool IsCompilerDiagnostic(IDiagnostic diagnostic)
+    {
+        return diagnostic.Code.StartsWith("BCP");
+    }
+
+    protected static void AssertCodeFix(string expectedCode, string expectedFixTitle, string inputFile, string resultFile)
+    {
+        var (file, cursor) = ParserHelper.GetFileWithSingleCursor(inputFile, '|');
+        var result = CompilationHelper.Compile(file);
+
+        using (new AssertionScope().WithVisualCursor(result.Compilation.GetEntrypointSemanticModel().SourceFile, cursor))
         {
-            AssertLinterRuleDiagnostics(ruleCode, bicepText, onCompileErrors, diags =>
-            {
-                diags.Should().HaveCount(expectedDiagnosticCountForCode);
-            });
-        }
+            var matchingDiagnostics = result.Diagnostics
+                .OfType<IBicepAnalyerFixableDiagnostic>()
+                .Where(x => x.Span.IsOverlapping(cursor));
 
-        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, Action<IEnumerable<IDiagnostic>> assertAction)
-        {
-            AssertLinterRuleDiagnostics(ruleCode, bicepText, OnCompileErrors.Fail, assertAction);
-        }
+            matchingDiagnostics.Should().ContainSingle(x => x.Code == expectedCode);
+            var diagnostic = matchingDiagnostics.Single(x => x.Code == expectedCode);
 
-        protected void AssertLinterRuleDiagnostics(string ruleCode, string bicepText, OnCompileErrors onCompileErrors, Action<IEnumerable<IDiagnostic>> assertAction)
-        {
-            RunWithDiagnosticAnnotations(
-                  bicepText,
-                  diag => diag.Code == ruleCode || (onCompileErrors == OnCompileErrors.Fail && diag.Level == DiagnosticLevel.Error),
-                  onCompileErrors,
-                  assertAction);
-        }
+            diagnostic.Fixes.Should().ContainSingle(x => x.Title == expectedFixTitle);
+            var fix = diagnostic.Fixes.Single(x => x.Title == expectedFixTitle);
+            fix.Kind.Should().Be(CodeFixKind.QuickFix);
 
-        private void RunWithDiagnosticAnnotations(string bicepText, Func<IDiagnostic, bool> filterFunc, OnCompileErrors onCompileErrors, Action<IEnumerable<IDiagnostic>> assertAction)
-        {
-            using (AssertionScope scope = new AssertionScope())
-            {
-                scope.AddReportable("bicep code", bicepText);
-
-                var result = CompilationHelper.Compile(bicepText);
-                result.Should().NotHaveDiagnosticsWithCodes(new[] { LinterAnalyzer.LinterRuleInternalError }, "There should never be linter LinterRuleInternalError errors");
-
-                if (onCompileErrors == OnCompileErrors.Fail)
-                {
-                    var compileErrors = result.Diagnostics.Where(d => d.Level == DiagnosticLevel.Error);
-                    DiagnosticAssertions.DoWithDiagnosticAnnotations(
-                    result.Compilation.SourceFileGrouping.EntryPoint,
-                    compileErrors,
-                    diags => diags.Should().HaveCount(0));
-                }
-
-                IDiagnostic[] diagnosticsMatchingCode = result.Diagnostics.Where(filterFunc).ToArray();
-                DiagnosticAssertions.DoWithDiagnosticAnnotations(
-                    result.Compilation.SourceFileGrouping.EntryPoint,
-                    result.Diagnostics.Where(filterFunc),
-                    assertAction);
-            }
+            fix.Should().HaveResult(file, resultFile);
         }
     }
 }

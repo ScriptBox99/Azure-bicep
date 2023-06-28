@@ -9,9 +9,11 @@ using System.Threading.Tasks;
 using Bicep.Core.Navigation;
 using Bicep.Core.Parsing;
 using Bicep.Core.Samples;
+using Bicep.Core.Semantics;
 using Bicep.Core.Syntax;
 using Bicep.Core.Syntax.Visitors;
 using Bicep.LangServer.IntegrationTests.Extensions;
+using Bicep.LangServer.IntegrationTests.Helpers;
 using Bicep.LanguageServer.Utils;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -23,11 +25,24 @@ using SymbolKind = Bicep.Core.Semantics.SymbolKind;
 namespace Bicep.LangServer.IntegrationTests
 {
     [TestClass]
-    [SuppressMessage("Style", "VSTHRD200:Use \"Async\" suffix for async methods", Justification = "Test methods do not need to follow this convention.")]
     public class RenameSymbolTests
     {
+        private static readonly SharedLanguageHelperManager DefaultServer = new();
+
         [NotNull]
         public TestContext? TestContext { get; set; }
+
+        [ClassInitialize]
+        public static void ClassInitialize(TestContext testContext)
+        {
+            DefaultServer.Initialize(async () => await MultiFileLanguageServerHelper.StartLanguageServer(testContext));
+        }
+
+        [ClassCleanup]
+        public static async Task ClassCleanup()
+        {
+            await DefaultServer.DisposeAsync();
+        }
 
         [DataTestMethod]
         [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
@@ -35,8 +50,10 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
             var uri = DocumentUri.From(fileUri);
-            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var client = helper.Client;
+
+            var helper = await DefaultServer.GetAsync();
+            await helper.OpenFileOnceAsync(TestContext, dataSet.Bicep, uri);
+
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
@@ -49,13 +66,14 @@ namespace Bicep.LangServer.IntegrationTests
                                && pair.Value.Kind != SymbolKind.Error
                                && pair.Value.Kind != SymbolKind.Function
                                && pair.Value.Kind != SymbolKind.Namespace
+                               && pair.Value is not AmbientTypeSymbol
                                // symbols whose identifiers have parse errors will have a name like <error> or <missing>
-                               && pair.Value.Name.Contains("<") == false);
+                               && pair.Value.Name.Contains('<') == false);
 
             const string expectedNewText = "NewIdentifier";
             foreach (var (syntax, symbol) in validVariableAccessPairs)
             {
-                var edit = await client.RequestRename(new RenameParams
+                var edit = await helper.Client.RequestRename(new RenameParams
                 {
                     NewName = expectedNewText,
                     TextDocument = new TextDocumentIdentifier(uri),
@@ -84,18 +102,20 @@ namespace Bicep.LangServer.IntegrationTests
         {
             var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
             var uri = DocumentUri.From(fileUri);
-            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var client = helper.Client;
+
+            var helper = await DefaultServer.GetAsync();
+            await helper.OpenFileOnceAsync(TestContext, dataSet.Bicep, uri);
+
             var symbolTable = compilation.ReconstructSymbolTable();
             var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
             var validFunctionCallPairs = symbolTable
-                .Where(pair => pair.Value.Kind == SymbolKind.Function)
+                .Where(pair => pair.Value is FunctionSymbol)
                 .Select(pair => pair.Key);
 
             foreach (var syntax in validFunctionCallPairs)
             {
-                var edit = await client.RequestRename(new RenameParams
+                var edit = await helper.Client.RequestRename(new RenameParams
                 {
                     NewName = "NewIdentifier",
                     TextDocument = new TextDocumentIdentifier(uri),
@@ -115,8 +135,10 @@ namespace Bicep.LangServer.IntegrationTests
 
             var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
             var uri = DocumentUri.From(fileUri);
-            using var helper = await LanguageServerHelper.StartServerWithTextAsync(this.TestContext, dataSet.Bicep, uri);
-            var client = helper.Client;
+
+            var helper = await DefaultServer.GetAsync();
+            await helper.OpenFileOnceAsync(TestContext, dataSet.Bicep, uri);
+
             var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
 
             var wrongNodes = SyntaxAggregator.Aggregate(
@@ -136,9 +158,39 @@ namespace Bicep.LangServer.IntegrationTests
 
             foreach (var syntax in wrongNodes)
             {
-                var edit = await client.RequestRename(new RenameParams
+                var edit = await helper.Client.RequestRename(new RenameParams
                 {
                     NewName = "NewIdentifier",
+                    TextDocument = new TextDocumentIdentifier(uri),
+                    Position = IntegrationTestHelper.GetPosition(lineStarts, syntax)
+                });
+
+                edit.Should().BeNull();
+            }
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(GetData), DynamicDataSourceType.Method, DynamicDataDisplayNameDeclaringType = typeof(DataSet), DynamicDataDisplayName = nameof(DataSet.GetDisplayName))]
+        public async Task RenamingIdentifierWithInvalidNameShouldProduceEmptyEdit(DataSet dataSet)
+        {
+            var (compilation, _, fileUri) = await dataSet.SetupPrerequisitesAndCreateCompilation(TestContext);
+            var uri = DocumentUri.From(fileUri);
+
+            var helper = await DefaultServer.GetAsync();
+            await helper.OpenFileOnceAsync(TestContext, dataSet.Bicep, uri);
+
+            var symbolTable = compilation.ReconstructSymbolTable();
+            var lineStarts = compilation.SourceFileGrouping.EntryPoint.LineStarts;
+
+            var validFunctionCallPairs = symbolTable
+                .Where(pair => pair.Value.Kind == SymbolKind.Parameter)
+                .Select(pair => pair.Key);
+
+            foreach (var syntax in validFunctionCallPairs)
+            {
+                var edit = await helper.Client.RequestRename(new RenameParams
+                {
+                    NewName = "NewIdentifier;",
                     TextDocument = new TextDocumentIdentifier(uri),
                     Position = IntegrationTestHelper.GetPosition(lineStarts, syntax)
                 });
